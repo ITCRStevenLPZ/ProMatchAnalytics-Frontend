@@ -263,9 +263,12 @@ export default function MatchesManager() {
   const getPositionBadgeColor = (position: PlayerPosition) => {
     switch (position) {
       case 'GK': return 'bg-purple-100 text-purple-800';
-      case 'DF': return 'bg-blue-100 text-blue-800';
-      case 'MF': return 'bg-green-100 text-green-800';
-      case 'FW': return 'bg-red-100 text-red-800';
+      case 'CB': case 'LB': case 'RB': case 'LWB': case 'RWB': case 'SW': 
+        return 'bg-blue-100 text-blue-800';
+      case 'CDM': case 'CM': case 'CAM': case 'LM': case 'RM': case 'LW': case 'RW':
+        return 'bg-green-100 text-green-800';
+      case 'CF': case 'ST': case 'LF': case 'RF': case 'SS':
+        return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };

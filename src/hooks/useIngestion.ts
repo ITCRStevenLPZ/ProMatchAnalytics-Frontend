@@ -24,7 +24,7 @@ export function useBatchStatus(batchId: string, enabled = true) {
     refetchInterval: (query) => {
       // Poll every 3 seconds if batch is still processing
       const data = query.state.data;
-      if (data && (data.status === 'processing' || data.status === 'pending')) {
+      if (data && (data.status === 'in_progress' || data.status === 'queued')) {
         return 3000;
       }
       return false;
