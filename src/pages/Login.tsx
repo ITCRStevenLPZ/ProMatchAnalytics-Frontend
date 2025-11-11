@@ -11,7 +11,7 @@ import { auth } from '../lib/firebase';
 import { Trophy } from 'lucide-react';
 
 export default function Login() {
-  const { t } = useTranslation();
+  const { t } = useTranslation('login');
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +49,8 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <Trophy className="text-primary-600" size={64} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('login.title')}</h1>
-          <p className="text-gray-600">{t('login.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('title')}</h1>
+          <p className="text-gray-600">{t('subtitle')}</p>
         </div>
 
         {error && (
@@ -82,7 +82,7 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          {loading ? t('login.signingIn') : t('login.signInWithGoogle')}
+          {loading ? t('signingIn') : t('signInWithGoogle')}
         </button>
       </div>
     </div>

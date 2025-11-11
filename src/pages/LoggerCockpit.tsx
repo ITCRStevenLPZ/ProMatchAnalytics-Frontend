@@ -71,8 +71,8 @@ const ACTION_FLOWS: Record<string, ActionConfig> = {
 };
 
 export default function LoggerCockpit() {
-  const { t } = useTranslation();
-  const { matchId } = useParams<{ matchId: string }>();
+  const { t } = useTranslation('logger');
+  const { matchId } = useParams();
   
   const { 
     isConnected, 
@@ -105,7 +105,7 @@ export default function LoggerCockpit() {
         const data = await response.json();
         setMatch(data);
       } catch (err: any) {
-        setError(err.message || t('logger.errorLoadingMatch'));
+        setError(err.message || t('errorLoadingMatch'));
       } finally {
         setLoading(false);
       }
@@ -226,7 +226,7 @@ export default function LoggerCockpit() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">{t('logger.loading')}</div>
+        <div className="text-xl">{t('loading')}</div>
       </div>
     );
   }
@@ -234,7 +234,7 @@ export default function LoggerCockpit() {
   if (error || !match) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-red-600">{error || t('logger.errorLoadingMatch')}</div>
+        <div className="text-xl text-red-600">{error || t('errorLoadingMatch')}</div>
       </div>
     );
   }
@@ -255,22 +255,22 @@ export default function LoggerCockpit() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">{t('logger.cockpit')}</h1>
+              <h1 className="text-2xl font-bold">{t('cockpit')}</h1>
               <div className="flex items-center gap-2">
                 {isConnected ? (
                   <span className="flex items-center gap-1 text-green-600 text-sm">
                     <Wifi size={16} />
-                    {t('logger.connected')}
+                    {t('connected')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-red-600 text-sm">
                     <WifiOff size={16} />
-                    {t('logger.disconnected')}
+                    {t('disconnected')}
                   </span>
                 )}
                 {queuedEvents.length > 0 && (
                   <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs">
-                    {queuedEvents.length} {t('logger.queued')}
+                    {queuedEvents.length} {t('queued')}
                   </span>
                 )}
               </div>
@@ -341,10 +341,10 @@ export default function LoggerCockpit() {
               <div className="flex items-start gap-2">
                 <AlertCircle className="text-blue-600 mt-0.5" size={20} />
                 <div className="text-sm text-blue-800">
-                  {currentStep === 'selectPlayer' && t('logger.instructionSelectPlayer')}
-                  {currentStep === 'selectAction' && t('logger.instructionSelectAction', { player: selectedPlayer?.full_name })}
-                  {currentStep === 'selectOutcome' && t('logger.instructionSelectOutcome', { action: selectedAction })}
-                  {currentStep === 'selectRecipient' && t('logger.instructionSelectRecipient')}
+                  {currentStep === 'selectPlayer' && t('instructionSelectPlayer')}
+                  {currentStep === 'selectAction' && t('instructionSelectAction', { player: selectedPlayer?.full_name })}
+                  {currentStep === 'selectOutcome' && t('instructionSelectOutcome', { action: selectedAction })}
+                  {currentStep === 'selectRecipient' && t('instructionSelectRecipient')}
                 </div>
               </div>
             </div>
@@ -354,7 +354,7 @@ export default function LoggerCockpit() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <Users size={20} />
-                  {currentTeam.name} - {t('logger.selectPlayer')}
+                  {currentTeam.name} - {t('selectPlayer')}
                 </h2>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                   {currentTeam.players?.map((player) => (
@@ -375,7 +375,7 @@ export default function LoggerCockpit() {
             {currentStep === 'selectAction' && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-lg font-semibold mb-4">
-                  {t('logger.selectAction')} - {selectedPlayer?.full_name} #{selectedPlayer?.jersey_number}
+                  {t('selectAction')} - {selectedPlayer?.full_name} #{selectedPlayer?.jersey_number}
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {availableActions.map((action) => (
@@ -391,7 +391,7 @@ export default function LoggerCockpit() {
                     onClick={resetFlow}
                     className="py-4 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-colors"
                   >
-                    {t('logger.cancel')}
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -401,7 +401,7 @@ export default function LoggerCockpit() {
             {currentStep === 'selectOutcome' && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-lg font-semibold mb-4">
-                  {t('logger.selectOutcome')} - {selectedAction}
+                  {t('selectOutcome')} - {selectedAction}
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {availableOutcomes.map((outcome) => (
@@ -417,7 +417,7 @@ export default function LoggerCockpit() {
                     onClick={resetFlow}
                     className="py-4 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-colors"
                   >
-                    {t('logger.cancel')}
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -427,7 +427,7 @@ export default function LoggerCockpit() {
             {currentStep === 'selectRecipient' && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h2 className="text-lg font-semibold mb-4">
-                  {t('logger.selectRecipient')} - {selectedAction}
+                  {t('selectRecipient')} - {selectedAction}
                 </h2>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                   {currentTeam.players?.map((player) => (
@@ -444,7 +444,7 @@ export default function LoggerCockpit() {
                     onClick={resetFlow}
                     className="aspect-square bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg flex items-center justify-center font-medium"
                   >
-                    {t('logger.cancel')}
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -454,11 +454,11 @@ export default function LoggerCockpit() {
           {/* Right: Live Event Feed */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow p-4 sticky top-4">
-              <h2 className="text-lg font-semibold mb-4">{t('logger.liveEvents')}</h2>
+              <h2 className="text-lg font-semibold mb-4">{t('liveEvents')}</h2>
               <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto">
                 {liveEvents.length === 0 ? (
                   <div className="text-sm text-gray-500 text-center py-8">
-                    {t('logger.noEvents')}
+                    {t('noEvents')}
                   </div>
                 ) : (
                   liveEvents.slice().reverse().map((event, index) => (

@@ -1,0 +1,16 @@
+{
+  "title": "ProMatchAnalytics",
+  "subtitle": "Real-time soccer match logging",
+  "email": "Email",
+  "password": "Password",
+  "signInWithGoogle": "Sign in with Google",
+  "signingIn": "Signing in...",
+  "signOut": "Sign Out",
+  "errorGeneric": "Error signing in",
+  "forgotPassword": "Forgot password?",
+  "rememberMe": "Remember me",
+  "noAccount": "Don't have an account?",
+  "signUp": "Sign up",
+  "welcome": "Welcome",
+  "enterCredentials": "Enter your credentials to continue"
+}

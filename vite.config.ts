@@ -64,5 +64,22 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+    css: true,
+    coverage: {
+      reporter: ['text', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        'src/i18n.ts',
+        'src/types/**',
+        '**/*.d.ts'
+      ]
+    }
   }
 });

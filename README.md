@@ -9,7 +9,7 @@ React + TypeScript frontend application for real-time soccer match logging and a
 - **Firebase Authentication** integration
 - **Responsive Design** with Tailwind CSS
 - **Internationalization** (i18n) support
-- **Role-Based UI** (Admin, Logger, Viewer)
+- **Role-Based UI** (Admin, Logger, Guest)
 - **Progressive Web App** (PWA) ready
 - **TypeScript** for type safety
 

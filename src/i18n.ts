@@ -21,14 +21,15 @@ i18n
   .use(initReactI18next)
   // Initialize i18next
   .init({
-    fallbackLng: 'en',
+    fallbackLng: 'es', // Spanish as primary language
+    lng: 'es', // Default language
     debug: import.meta.env.DEV,
     
-    // Supported languages
-    supportedLngs: ['en', 'es'],
+    // Supported languages (Spanish first as primary)
+    supportedLngs: ['es', 'en'],
     
-    // Namespace configuration
-    ns: ['common'],
+    // Namespace configuration - organized by view/component
+    ns: ['common', 'dashboard', 'teams', 'matches', 'login', 'logger', 'admin'],
     defaultNS: 'common',
     
     // Backend configuration for lazy-loading
@@ -41,11 +42,14 @@ i18n
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
+      lookupLocalStorage: 'preferredLanguage',
     },
     
     // React i18next options
     react: {
-      useSuspense: true,
+      useSuspense: false, // Disable suspense for immediate updates
+      bindI18n: 'languageChanged loaded',
+      bindI18nStore: 'added removed',
     },
     
     interpolation: {

@@ -1,18 +1,122 @@
-export interface Team {
-  id: string;
+// Generic Pagination Response
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+// User Types
+export type UserRole = 'admin' | 'analyst' | 'guest';
+
+export interface UserData {
+  _id?: string;
+  firebase_uid: string;
+  email: string;
+  display_name?: string;
+  photo_url?: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// CRUD Types
+export interface Competition {
+  _id?: string;
+  competition_id: string;
   name: string;
   short_name?: string;
+  gender: 'male' | 'female';
+  country_name: string;
+  i18n_names?: Record<string, string>;
+}
+
+export interface Venue {
+  _id?: string;
+  venue_id: string;
+  name: string;
+  city: string;
+  country: string;
+  capacity?: number;
+  surface?: string;
+}
+
+export interface Referee {
+  _id?: string;
+  referee_id: string;
+  name: string;
+  country: string;
+  years_of_experience?: number;
+}
+
+export type PlayerPosition = 
+  | 'GK'  // Goalkeeper
+  | 'CB' | 'LB' | 'RB' | 'LWB' | 'RWB' | 'SW'  // Defenders
+  | 'CDM' | 'CM' | 'CAM' | 'LM' | 'RM' | 'LW' | 'RW'  // Midfielders
+  | 'CF' | 'ST' | 'LF' | 'RF' | 'SS';  // Forwards
+
+export interface PlayerData {
+  _id?: string;
+  player_id: string;
+  name: string;
+  nickname?: string;
+  birth_date: string;
+  nationality: string;
+  position: PlayerPosition;
+  height?: number;
+  weight?: number;
+  age?: number;
+  i18n_names?: Record<string, string>;
+}
+
+export interface ManagerInfo {
+  name: string;
+  nationality?: string;
+  years_of_experience?: number;
+  start_date?: string | null;
+}
+
+export interface TechnicalStaffMember {
+  name: string;
+  role?: string;
+  country_name?: string;
+  start_date?: string | null;
+}
+
+export interface Team {
+  _id?: string;
+  team_id: string;
+  name: string;
+  short_name?: string;
+  country_name: string;
+  gender: 'male' | 'female';
+  manager?: ManagerInfo;
+  managers?: ManagerInfo[];
+  technical_staff?: TechnicalStaffMember[];
   logo_url?: string;
-  country?: string;
   league?: string;
   founded_year?: number;
   stadium?: string;
-  manager?: string;
   players: Player[];
-  created_by: string;
-  created_at: Date;
-  updated_at: Date;
+  i18n_names?: Record<string, string>;
+  created_by?: string;
+  created_at?: Date;
+  updated_at?: Date;
+  is_active?: boolean;
+}
+
+export interface TeamPlayer {
+  _id?: string;
+  team_id: string;
+  player_id: string;
+  jersey_number: number;
+  position: PlayerPosition;
   is_active: boolean;
+  joined_date?: string;
+  player_name?: string;
+  team_name?: string;
 }
 
 export interface Player {

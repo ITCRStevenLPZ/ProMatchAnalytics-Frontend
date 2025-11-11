@@ -1,17 +1,16 @@
-import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function Matches() {
+  const { t } = useTranslation('matches');
+  
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Matches</h1>
-        <Link to="/matches/new" className="btn btn-primary">
-          Create Match
-        </Link>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
       </div>
 
       <div className="card">
-        <p className="text-gray-600">Matches list will be displayed here</p>
+        <p className="text-gray-600">{t('noMatches')}</p>
       </div>
     </div>
   );

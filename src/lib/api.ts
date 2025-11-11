@@ -31,7 +31,15 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
+        console.error('🚨 API Error:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          url: error.config?.url
+        });
+        
         if (error.response?.status === 401) {
+          console.error('🔒 401 Unauthorized - Logging out');
           // Token expired or invalid
           auth.signOut();
           window.location.href = '/login';

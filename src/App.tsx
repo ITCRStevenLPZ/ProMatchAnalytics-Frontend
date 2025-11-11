@@ -12,12 +12,24 @@ import Login from './pages/Login.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import AdminDashboard from './pages/AdminDashboard.tsx';
 import LoggerCockpit from './pages/LoggerCockpit.tsx';
-import Teams from './pages/Teams.tsx';
 import TeamDetail from './pages/TeamDetail.tsx';
-import Matches from './pages/Matches.tsx';
 import MatchDetail from './pages/MatchDetail.tsx';
 import LiveMatch from './pages/LiveMatch.tsx';
 import NotFound from './pages/NotFound.tsx';
+import GuestWaiting from './pages/GuestWaiting.tsx';
+
+// Admin CRUD Pages
+import UsersManager from './pages/UsersManager.tsx';
+import CompetitionsManager from './pages/CompetitionsManager.tsx';
+import VenuesManager from './pages/VenuesManager.tsx';
+import RefereesManager from './pages/RefereesManager.tsx';
+import PlayersManager from './pages/PlayersManager.tsx';
+import TeamsManager from './pages/TeamsManager.tsx';
+import MatchesManager from './pages/MatchesManager.tsx';
+import IngestionManager from './pages/IngestionManager.tsx';
+import IngestionPage from './pages/IngestionPage.tsx';
+import AdminModelConfig from './pages/AdminModelConfig.tsx';
+import ConflictsView from './pages/ConflictsView.tsx';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute.tsx';
@@ -29,16 +41,26 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get user role from custom claims
+        // Get user role from custom claims or backend
         const idTokenResult = await firebaseUser.getIdTokenResult();
-        const role = (idTokenResult.claims.role as string) || 'Viewer';
+        const role = (idTokenResult.claims.role as string) || 'guest';
+        
+        // Map old roles to new roles if needed
+        const roleMapping: Record<string, 'admin' | 'analyst' | 'guest'> = {
+          'Admin': 'admin',
+          'Logger': 'analyst',
+          'Viewer': 'guest',
+          'admin': 'admin',
+          'analyst': 'analyst',
+          'guest': 'guest',
+        };
         
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || '',
           photoURL: firebaseUser.photoURL || '',
-          role: role as 'Admin' | 'Logger' | 'Viewer',
+          role: roleMapping[role] || 'guest',
         });
       } else {
         setUser(null);
@@ -55,6 +77,16 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
+        {/* Guest waiting page - accessible to guests and admin */}
+        <Route 
+          path="/guest" 
+          element={
+            <ProtectedRoute allowedRoles={['guest', 'admin']}>
+              <GuestWaiting />
+            </ProtectedRoute>
+          } 
+        />
+        
         <Route
           path="/"
           element={
@@ -65,15 +97,44 @@ function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          
+          {/* Admin-only routes */}
           <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/users" element={<UsersManager />} />
+          <Route path="admin/ingestion" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <IngestionManager />
+            </ProtectedRoute>
+          } />
+          <Route path="admin/ingestion/:batchId" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <IngestionPage />
+            </ProtectedRoute>
+          } />
+          <Route path="admin/ingestion/config" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminModelConfig />
+            </ProtectedRoute>
+          } />
+          <Route path="admin/conflicts" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <ConflictsView />
+            </ProtectedRoute>
+          } />
+          
+          {/* Data Management Routes - accessible to admin & analyst */}
+          <Route path="competitions" element={<CompetitionsManager />} />
+          <Route path="venues" element={<VenuesManager />} />
+          <Route path="referees" element={<RefereesManager />} />
+          <Route path="players" element={<PlayersManager />} />
           
           <Route path="teams">
-            <Route index element={<Teams />} />
+            <Route index element={<TeamsManager />} />
             <Route path=":teamId" element={<TeamDetail />} />
           </Route>
           
           <Route path="matches">
-            <Route index element={<Matches />} />
+            <Route index element={<MatchesManager />} />
             <Route path=":matchId" element={<MatchDetail />} />
             <Route path=":matchId/live" element={<LiveMatch />} />
             <Route path=":matchId/logger" element={<LoggerCockpit />} />

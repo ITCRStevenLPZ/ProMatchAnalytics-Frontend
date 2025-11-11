@@ -1,7 +1,9 @@
+import { useTranslation } from 'react-i18next';
 import { useSyncStore } from '../store/syncStore';
 import { WifiOff, RefreshCw } from 'lucide-react';
 
 export default function OfflineIndicator() {
+  const { t } = useTranslation('common');
   const { isOnline, isSyncing, pendingCount } = useSyncStore();
 
   if (isOnline && pendingCount === 0) {
@@ -13,7 +15,7 @@ export default function OfflineIndicator() {
       {!isOnline && (
         <div className="bg-yellow-500 text-white text-center py-2 px-4 flex items-center justify-center gap-2">
           <WifiOff size={20} />
-          <span>You are offline. Changes will be synced when connection is restored.</span>
+          <span>{t('sync.offline')}</span>
         </div>
       )}
       
@@ -22,10 +24,10 @@ export default function OfflineIndicator() {
           {isSyncing ? (
             <>
               <RefreshCw size={20} className="animate-spin" />
-              <span>Syncing {pendingCount} pending changes...</span>
+              <span>{t('sync.syncing', { count: pendingCount })}</span>
             </>
           ) : (
-            <span>{pendingCount} changes pending sync</span>
+            <span>{t('sync.pending', { count: pendingCount })}</span>
           )}
         </div>
       )}

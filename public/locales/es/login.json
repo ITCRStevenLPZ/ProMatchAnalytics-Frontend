@@ -1,0 +1,16 @@
+{
+  "title": "ProMatchAnalytics",
+  "subtitle": "Registro de partidos de fútbol en tiempo real",
+  "email": "Correo Electrónico",
+  "password": "Contraseña",
+  "signInWithGoogle": "Iniciar sesión con Google",
+  "signingIn": "Iniciando sesión...",
+  "signOut": "Cerrar Sesión",
+  "errorGeneric": "Error al iniciar sesión",
+  "forgotPassword": "¿Olvidaste tu contraseña?",
+  "rememberMe": "Recordarme",
+  "noAccount": "¿No tienes cuenta?",
+  "signUp": "Registrarse",
+  "welcome": "Bienvenido",
+  "enterCredentials": "Ingresa tus credenciales para continuar"
+}

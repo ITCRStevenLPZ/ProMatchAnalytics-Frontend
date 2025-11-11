@@ -6,7 +6,7 @@ interface User {
   email: string;
   displayName: string;
   photoURL: string;
-  role?: 'Admin' | 'Logger' | 'Viewer';
+  role?: 'admin' | 'analyst' | 'guest';
 }
 
 interface AuthState {
