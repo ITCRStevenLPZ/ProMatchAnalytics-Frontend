@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-and-build]
     permissions:
-      contents: read
+      contents: write  # Required for commit comments
       id-token: write  # Required for Workload Identity
     
     steps:
