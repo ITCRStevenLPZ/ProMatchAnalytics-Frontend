@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { User, Plus, Edit, Trash2, Search, X, Filter } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import { normalizePlayers, type PlayerApiResponse } from '../lib/players';
+import { normalizePlayers, type PlayerApiResponse, buildPlayerPayload } from '../lib/players';
 import type { PlayerData, PlayerPosition, PaginatedResponse } from '../types';
 import { getCountriesSorted } from '../lib/countries';
 import { useDuplicateCheck } from '../hooks/useDuplicateCheck';
@@ -17,6 +17,33 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AutocompleteSearch from '../components/AutocompleteSearch';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { playerSchema } from '../lib/validationSchemas';
+import { applyBackendValidationErrors, resolveKnownFieldError } from '../lib/backendErrorUtils';
+
+const ADMIN_LOCALES = ['en', 'es'] as const;
+type AdminLocale = (typeof ADMIN_LOCALES)[number];
+
+const withPlayerFormDefaults = (data?: Partial<PlayerData>): Partial<PlayerData> => {
+  const merged = { ...(data ?? {}) };
+  const localizedNames: Record<string, string> = {
+    ...(merged.i18n_names ?? {}),
+  };
+
+  ADMIN_LOCALES.forEach((locale) => {
+    localizedNames[locale] = localizedNames[locale] ?? '';
+  });
+
+  return {
+    ...merged,
+    player_id: merged.player_id ?? '',
+    name: merged.name ?? '',
+    birth_date: merged.birth_date ?? '',
+    country_name: merged.country_name ?? '',
+    position: merged.position ?? 'CM',
+    player_height: merged.player_height ?? undefined,
+    player_weight: merged.player_weight ?? undefined,
+    i18n_names: localizedNames,
+  };
+};
 
 export default function PlayersManager() {
   const { t, i18n } = useTranslation('admin');
@@ -31,6 +58,7 @@ export default function PlayersManager() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
+  const [similarRecords, setSimilarRecords] = useState<any[] | null>(null);
   const [originalFormData, setOriginalFormData] = useState<Partial<PlayerData> | null>(null);
   const currentLang = i18n.language as 'en' | 'es';
   const { checkDuplicates, duplicates, clearDuplicates } = useDuplicateCheck();
@@ -42,7 +70,16 @@ export default function PlayersManager() {
     validateAndSetFieldError,
     clearErrors,
     getFieldError,
+    setFieldError,
   } = useFormValidation<Partial<PlayerData>>(playerSchema, t);
+
+  const formatDeleteGuardError = (detail: unknown): string | null => {
+    if (typeof detail !== 'string') return null;
+    const match = detail.match(/Cannot delete player with (\d+) team assignment(?:s)?/i);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t('deleteGuards.playerAssignments', { count });
+  };
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,14 +87,9 @@ export default function PlayersManager() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const [formData, setFormData] = useState<Partial<PlayerData>>({
-    name: '',
-    birth_date: '',
-    nationality: '',
-    position: 'CM',
-    height: undefined,
-    weight: undefined,
-  });
+  const [formData, setFormData] = useState<Partial<PlayerData>>(() => withPlayerFormDefaults());
+
+  const getPlayerPayload = () => buildPlayerPayload(formData);
 
   useEffect(() => {
     fetchPlayers();
@@ -108,7 +140,8 @@ export default function PlayersManager() {
         clearDuplicates();
         
         // Detect changes AND check duplicates in single API call
-        const result = await detectChanges('players', editingItem.player_id, formData, true);
+        const backendPayload = getPlayerPayload();
+        const result = await detectChanges('players', editingItem.player_id, backendPayload, true);
         
         // Always show change confirmation, even for small changes
         if (result && result.changes.length > 0) {
@@ -126,6 +159,7 @@ export default function PlayersManager() {
         // Duplicates were already checked in combined call, just show them if found
         if (duplicateResult && duplicateResult.has_duplicates && !showSimilarRecords) {
           setShowChangeWarning(false);
+          setSimilarRecords(duplicateResult.duplicates ?? []);
           setShowSimilarRecords(true);
           return;
         }
@@ -134,11 +168,8 @@ export default function PlayersManager() {
     
     // CREATE MODE: Check for duplicates
     if (!editingItem) {
-      const result = await checkDuplicates('players', {
-        name: formData.name,
-        birth_date: formData.birth_date,
-        nationality: formData.nationality
-      });
+      const backendPayload = getPlayerPayload();
+      const result = await checkDuplicates('players', backendPayload);
 
       // Check for 100% duplicates (should be rejected automatically)
       const exactDuplicate = result.duplicates?.find(d => 
@@ -162,20 +193,34 @@ export default function PlayersManager() {
 
   const savePlayer = async () => {
     try {
+      const payload = getPlayerPayload();
       if (editingItem) {
-        await apiClient.put(`/players/${editingItem.player_id}`, formData);
+        await apiClient.put(`/players/${editingItem.player_id}`, payload);
       } else {
-        await apiClient.post('/players/', formData);
+        await apiClient.post('/players/', payload);
       }
       await fetchPlayers();
       handleCloseForm();
     } catch (err: any) {
       const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        // Handle Pydantic validation errors
-        const errorMessages = detail.map((e: any) => e.msg).join(', ');
-        setError(errorMessages);
-      } else if (typeof detail === 'string') {
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError,
+        clearErrors,
+        translate: t,
+      });
+      if (handled) {
+        setError(t('validation.fixErrors'));
+        return;
+      }
+
+      const knownFieldError = resolveKnownFieldError(detail);
+      if (knownFieldError) {
+        setFieldError(knownFieldError.field, t(knownFieldError.translationKey));
+        setError(t('validation.fixErrors'));
+        return;
+      }
+
+      if (typeof detail === 'string') {
         setError(detail);
       } else {
         setError(t('errorSavingData'));
@@ -217,12 +262,33 @@ export default function PlayersManager() {
 
   const handleCloseSimilarRecords = () => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
+    clearChangeResult();
   };
 
   const handleOpenSimilarRecord = (record: any) => {
-    // Open the record in a new modal or navigate to edit it
-    // For now, we'll just populate the form with the similar record for comparison
-    window.open(`/admin/players/${record.player_id}`, '_blank');
+    const normalizedPlayer = normalizePlayers([record])[0];
+    const formValue = withPlayerFormDefaults(normalizedPlayer);
+
+    setShowSimilarRecords(false);
+    setSimilarRecords(null);
+    clearChangeResult();
+
+    setEditingItem(normalizedPlayer);
+    setFormData(formValue);
+    setOriginalFormData(formValue);
+    setShowForm(true);
+  };
+
+  const handleLocalizedNameChange = (locale: AdminLocale, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      i18n_names: {
+        ...(prev.i18n_names ?? {}),
+        [locale]: value,
+      },
+    }));
+    validateAndSetFieldError(`i18n_names.${locale}`, value);
   };
 
   const handleDelete = async (id: string) => {
@@ -231,14 +297,21 @@ export default function PlayersManager() {
       await apiClient.delete(`/players/${id}`);
       await fetchPlayers();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      const guardMessage = formatDeleteGuardError(detail);
+      if (guardMessage) {
+        setError(guardMessage);
+        return;
+      }
+      setError(typeof detail === 'string' ? detail : t('errorDeletingData'));
     }
   };
 
   const handleEdit = (item: PlayerData) => {
+    const formValue = withPlayerFormDefaults(item);
     setEditingItem(item);
-    setFormData(item);
-    setOriginalFormData(item); // Store original data for comparison
+    setFormData(formValue);
+    setOriginalFormData(formValue); // Store original data for comparison
     setShowForm(true);
   };
 
@@ -253,14 +326,7 @@ export default function PlayersManager() {
     clearChangeResult();
     clearErrors();
     setError(null);
-    setFormData({
-      name: '',
-      birth_date: '',
-      nationality: '',
-      position: 'CM',
-      height: undefined,
-      weight: undefined,
-    });
+    setFormData(withPlayerFormDefaults());
   };
 
   // Fetch player suggestions for autocomplete
@@ -279,13 +345,15 @@ export default function PlayersManager() {
   // Handle selecting an existing player from autocomplete
   const handleSelectExistingPlayer = (playerData: PlayerApiResponse) => {
     const normalizedPlayer = normalizePlayers([playerData])[0];
+    const formValue = withPlayerFormDefaults(normalizedPlayer);
     setEditingItem(normalizedPlayer);
-    setFormData(normalizedPlayer);
+    setFormData(formValue);
+    setOriginalFormData(formValue);
   };
 
   const filteredPlayers = players.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.nationality.toLowerCase().includes(searchTerm.toLowerCase());
+      (item.country_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesPosition = !positionFilter || item.position === positionFilter;
     return matchesSearch && matchesPosition;
   });
@@ -395,8 +463,9 @@ export default function PlayersManager() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('name')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('localizedNames')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('position')}</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('nationality')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('country')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('birthDate')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('age')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('height')}</th>
@@ -410,16 +479,26 @@ export default function PlayersManager() {
                   {filteredPlayers.map((item) => (
                     <tr key={item._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div className="space-y-1">
+                          {ADMIN_LOCALES.map((locale) => (
+                            <div key={locale} className="flex items-center text-xs">
+                              <span className="font-semibold uppercase text-gray-500 mr-2">{locale}</span>
+                              <span>{item.i18n_names?.[locale] || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${getPositionColor(item.position)}`}>
                           {t(`positions.${item.position}`)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.nationality}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.country_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.birth_date}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.age || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.height ? `${item.height} cm` : '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.weight ? `${item.weight} kg` : '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.player_height ? `${item.player_height} cm` : '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.player_weight ? `${item.player_weight} kg` : '-'}</td>
                       {user?.role === 'admin' && (
                         <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
                           <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900" title={t('edit')}>
@@ -472,6 +551,14 @@ export default function PlayersManager() {
                   onContinue={handleContinueWithDuplicates}
                   onCancel={handleCancelDuplicates}
                   entityType="player"
+                  onViewSimilarRecords={
+                    duplicates.duplicates.length > 0
+                      ? () => {
+                          setSimilarRecords(duplicates.duplicates);
+                          setShowSimilarRecords(true);
+                        }
+                      : undefined
+                  }
                 />
               )}
               {showChangeWarning && changeResult && changeResult.changes.length > 0 && (
@@ -483,6 +570,27 @@ export default function PlayersManager() {
                 />
               )}
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('playerId')}
+                </label>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={formData.player_id || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, player_id: e.target.value });
+                    validateAndSetFieldError('player_id', e.target.value);
+                  }}
+                  onBlur={(e) => validateAndSetFieldError('player_id', e.target.value)}
+                  className={`input w-full ${getFieldError('player_id') ? 'border-red-500' : ''}`}
+                  placeholder="player_123"
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('playerIdHelper')}</p>
+                {getFieldError('player_id') && (
+                  <p className="mt-1 text-sm text-red-600">{getFieldError('player_id')}</p>
+                )}
+              </div>
+              <div>
                 <AutocompleteSearch<PlayerApiResponse>
                   name="name"
                   value={formData.name || ''}
@@ -493,7 +601,7 @@ export default function PlayersManager() {
                   onSelectSuggestion={handleSelectExistingPlayer}
                   fetchSuggestions={fetchPlayerSuggestions}
                   getDisplayText={(player) => player.name}
-                  getSecondaryText={(player) => `${player.nationality} • ${player.position} • ${player.birth_date}`}
+                  getSecondaryText={(player) => `${player.country_name || player.nationality || t('unknownCountry')} • ${player.position} • ${player.birth_date}`}
                   placeholder={t('playerNamePlaceholder')}
                   label={t('name')}
                   required
@@ -502,6 +610,35 @@ export default function PlayersManager() {
                 {getFieldError('name') && (
                   <p className="mt-1 text-sm text-red-600">{getFieldError('name')}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{t('localizedNames')}</p>
+                  <p className="text-xs text-gray-500">{t('localizedNamesDescription')}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ADMIN_LOCALES.map((locale) => {
+                    const fieldKey = `i18n_names.${locale}`;
+                    return (
+                      <div key={locale}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'en' ? t('localizedNameEn') : t('localizedNameEs')}
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={formData.i18n_names?.[locale] ?? ''}
+                          onChange={(e) => handleLocalizedNameChange(locale, e.target.value)}
+                          onBlur={(e) => validateAndSetFieldError(fieldKey, e.target.value)}
+                          className={`input w-full ${getFieldError(fieldKey) ? 'border-red-500' : ''}`}
+                        />
+                        {getFieldError(fieldKey) && (
+                          <p className="mt-1 text-sm text-red-600">{getFieldError(fieldKey)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -522,16 +659,16 @@ export default function PlayersManager() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('nationality')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('country')} *</label>
                   <select
                     required
-                    value={formData.nationality}
+                    value={formData.country_name || ''}
                     onChange={(e) => {
-                      setFormData({ ...formData, nationality: e.target.value });
-                      validateAndSetFieldError('nationality', e.target.value);
+                      setFormData({ ...formData, country_name: e.target.value });
+                      validateAndSetFieldError('country_name', e.target.value);
                     }}
-                    onBlur={(e) => validateAndSetFieldError('nationality', e.target.value)}
-                    className={`input w-full ${getFieldError('nationality') ? 'border-red-500' : ''}`}
+                    onBlur={(e) => validateAndSetFieldError('country_name', e.target.value)}
+                    className={`input w-full ${getFieldError('country_name') ? 'border-red-500' : ''}`}
                   >
                     <option value="">{t('selectCountry')}</option>
                     {getCountriesSorted(currentLang).map((country) => (
@@ -540,8 +677,8 @@ export default function PlayersManager() {
                       </option>
                     ))}
                   </select>
-                  {getFieldError('nationality') && (
-                    <p className="mt-1 text-sm text-red-600">{getFieldError('nationality')}</p>
+                  {getFieldError('country_name') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('country_name')}</p>
                   )}
                 </div>
               </div>
@@ -596,17 +733,17 @@ export default function PlayersManager() {
                   <input
                     type="number"
                     min="0"
-                    value={formData.height || ''}
+                    value={formData.player_height ?? ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                      setFormData({ ...formData, height: value });
-                      validateAndSetFieldError('height', value);
+                      setFormData({ ...formData, player_height: value });
+                      validateAndSetFieldError('player_height', value);
                     }}
-                    onBlur={(e) => validateAndSetFieldError('height', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className={`input w-full ${getFieldError('height') ? 'border-red-500' : ''}`}
+                    onBlur={(e) => validateAndSetFieldError('player_height', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    className={`input w-full ${getFieldError('player_height') ? 'border-red-500' : ''}`}
                   />
-                  {getFieldError('height') && (
-                    <p className="mt-1 text-sm text-red-600">{getFieldError('height')}</p>
+                  {getFieldError('player_height') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('player_height')}</p>
                   )}
                 </div>
                 <div>
@@ -614,17 +751,17 @@ export default function PlayersManager() {
                   <input
                     type="number"
                     min="0"
-                    value={formData.weight || ''}
+                    value={formData.player_weight ?? ''}
                     onChange={(e) => {
                       const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                      setFormData({ ...formData, weight: value });
-                      validateAndSetFieldError('weight', value);
+                      setFormData({ ...formData, player_weight: value });
+                      validateAndSetFieldError('player_weight', value);
                     }}
-                    onBlur={(e) => validateAndSetFieldError('weight', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className={`input w-full ${getFieldError('weight') ? 'border-red-500' : ''}`}
+                    onBlur={(e) => validateAndSetFieldError('player_weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    className={`input w-full ${getFieldError('player_weight') ? 'border-red-500' : ''}`}
                   />
-                  {getFieldError('weight') && (
-                    <p className="mt-1 text-sm text-red-600">{getFieldError('weight')}</p>
+                  {getFieldError('player_weight') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('player_weight')}</p>
                   )}
                 </div>
               </div>
@@ -645,9 +782,9 @@ export default function PlayersManager() {
       )}
 
       {/* Similar Records Viewer Modal */}
-      {showSimilarRecords && duplicateResult && duplicateResult.has_duplicates && (
+      {showSimilarRecords && similarRecords && similarRecords.length > 0 && (
         <SimilarRecordsViewer
-          records={duplicateResult.duplicates}
+          records={similarRecords}
           currentData={formData}
           entityType="player"
           onClose={handleCloseSimilarRecords}

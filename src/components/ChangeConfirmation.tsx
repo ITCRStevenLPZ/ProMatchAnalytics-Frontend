@@ -48,6 +48,8 @@ export default function ChangeConfirmation({
       'position': t('position'),
       'height': t('height'),
       'weight': t('weight'),
+      'player_height': t('height'),
+      'player_weight': t('weight'),
       'short_name': t('shortName'),
       'country_name': t('country'),
       'gender': t('gender'),
@@ -58,7 +60,7 @@ export default function ChangeConfirmation({
       'years_of_experience': t('yearsOfExperience'),
       'manager.name': t('managerName'),
       'manager.nationality': t('managerNationality'),
-      'manager.years_of_experience': t('managerYearsExp'),
+      'manager.country_name': t('managerNationality'),
     };
     return fieldMap[field] || field;
   };

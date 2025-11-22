@@ -21,6 +21,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AutocompleteSearch from '../components/AutocompleteSearch';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { refereeSchema } from '../lib/validationSchemas';
+import { applyBackendValidationErrors, resolveKnownFieldError } from '../lib/backendErrorUtils';
 
 export default function RefereesManager() {
   const { t, i18n } = useTranslation('admin');
@@ -34,6 +35,7 @@ export default function RefereesManager() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
+  const [similarRecords, setSimilarRecords] = useState<any[] | null>(null);
   const [originalFormData, setOriginalFormData] = useState<Partial<Referee> | null>(null);
   const currentLang = i18n.language as 'en' | 'es';
   const { checkDuplicates, duplicates, clearDuplicates } = useDuplicateCheck();
@@ -45,13 +47,23 @@ export default function RefereesManager() {
     validateAndSetFieldError,
     clearErrors,
     getFieldError,
+    setFieldError,
   } = useFormValidation<Partial<Referee>>(refereeSchema, t);
 
   const [formData, setFormData] = useState<Partial<Referee>>({
+    referee_id: '',
     name: '',
-    country: '',
+    country_name: '',
     years_of_experience: undefined,
   });
+
+  const formatDeleteGuardError = (detail: unknown): string | null => {
+    if (typeof detail !== 'string') return null;
+    const match = detail.match(/Cannot delete referee with (\d+) linked match(?:es)?/i);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t('deleteGuards.refereeMatches', { count });
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -94,6 +106,8 @@ export default function RefereesManager() {
       return;
     }
     
+    const backendPayload = buildRefereePayload(formData);
+
     // EDIT MODE: Always show changes for confirmation
     if (editingItem && editingItem.referee_id) {
       // If we haven't shown the change warning yet, detect changes with duplicate check
@@ -101,7 +115,7 @@ export default function RefereesManager() {
         clearChangeResult();
         clearDuplicates();
         
-        const result = await detectChanges('referees', editingItem.referee_id, formData, true);
+        const result = await detectChanges('referees', editingItem.referee_id, backendPayload, true);
         
         if (result && result.changes.length > 0) {
           setShowChangeWarning(true);
@@ -116,6 +130,7 @@ export default function RefereesManager() {
       if (showChangeWarning && changeResult) {
         if (duplicateResult && duplicateResult.has_duplicates && !showSimilarRecords) {
           setShowChangeWarning(false);
+          setSimilarRecords(duplicateResult.duplicates ?? []);
           setShowSimilarRecords(true);
           return;
         }
@@ -124,10 +139,7 @@ export default function RefereesManager() {
     
     // CREATE MODE: Check for duplicates
     if (!editingItem) {
-      const result = await checkDuplicates('referees', {
-        name: formData.name,
-        country_name: formData.country
-      });
+      const result = await checkDuplicates('referees', backendPayload);
 
       const exactDuplicate = result.duplicates?.find(d => 
         d.similarity_score === 1.0 || d.match_score === 100
@@ -144,12 +156,12 @@ export default function RefereesManager() {
       }
     }
 
-    await saveReferee();
+    await saveReferee(backendPayload);
   };
 
-  const saveReferee = async () => {
+  const saveReferee = async (payloadOverrides?: Record<string, unknown>) => {
     try {
-      const payload = buildRefereePayload(formData);
+      const payload = payloadOverrides ?? buildRefereePayload(formData);
 
       if (editingItem) {
         await apiClient.put(`/referees/${editingItem.referee_id}`, payload);
@@ -159,7 +171,27 @@ export default function RefereesManager() {
       await fetchReferees();
       handleCloseForm();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      const detail = err.response?.data?.detail;
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError,
+        clearErrors,
+        translate: t,
+      });
+      if (handled) {
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      const knownFieldError = resolveKnownFieldError(detail);
+      if (knownFieldError) {
+        setFieldError(knownFieldError.field, t(knownFieldError.translationKey));
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError(t('errorSavingData'));
+      }
     }
   };
 
@@ -190,11 +222,13 @@ export default function RefereesManager() {
 
   const handleCloseSimilarRecords = () => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
   };
 
   const handleOpenSimilarRecord = (record: any) => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
     handleEdit(record);
   };
@@ -205,7 +239,13 @@ export default function RefereesManager() {
       await apiClient.delete(`/referees/${id}`);
       await fetchReferees();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      const guardMessage = formatDeleteGuardError(detail);
+      if (guardMessage) {
+        setError(guardMessage);
+        return;
+      }
+      setError(typeof detail === 'string' ? detail : t('errorDeletingData'));
     }
   };
 
@@ -228,8 +268,9 @@ export default function RefereesManager() {
     clearErrors();
     setError(null);
     setFormData({
+      referee_id: '',
       name: '',
-      country: '',
+      country_name: '',
       years_of_experience: undefined,
     });
   };
@@ -317,7 +358,7 @@ export default function RefereesManager() {
                   {referees.map((item) => (
                     <tr key={item._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.country}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.country_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.years_of_experience || '-'}</td>
                       {user?.role === 'admin' && (
                         <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
@@ -378,8 +419,35 @@ export default function RefereesManager() {
                   onContinue={handleContinueWithDuplicates}
                   onCancel={handleCancelDuplicates}
                   entityType="referee"
+                  onViewSimilarRecords={
+                    duplicates.duplicates.length > 0
+                      ? () => {
+                          setSimilarRecords(duplicates.duplicates);
+                          setShowSimilarRecords(true);
+                        }
+                      : undefined
+                  }
                 />
               )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('refereeId')}</label>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={formData.referee_id || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, referee_id: e.target.value });
+                    validateAndSetFieldError('referee_id', e.target.value);
+                  }}
+                  onBlur={(e) => validateAndSetFieldError('referee_id', e.target.value)}
+                  className={`input w-full ${getFieldError('referee_id') ? 'border-red-500' : ''}`}
+                  placeholder="referee_spain_fifa_01"
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('refereeIdHelper')}</p>
+                {getFieldError('referee_id') && (
+                  <p className="mt-1 text-sm text-red-600">{getFieldError('referee_id')}</p>
+                )}
+              </div>
               <div>
                 <AutocompleteSearch<RefereeApiResponse>
                   name="name"
@@ -405,13 +473,13 @@ export default function RefereesManager() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('country')} *</label>
                 <select
                   required
-                  value={formData.country}
+                  value={formData.country_name || ''}
                   onChange={(e) => {
-                    setFormData({ ...formData, country: e.target.value });
-                    validateAndSetFieldError('country', e.target.value);
+                    setFormData({ ...formData, country_name: e.target.value });
+                    validateAndSetFieldError('country_name', e.target.value);
                   }}
-                  onBlur={(e) => validateAndSetFieldError('country', e.target.value)}
-                  className={`input w-full ${getFieldError('country') ? 'border-red-500' : ''}`}
+                  onBlur={(e) => validateAndSetFieldError('country_name', e.target.value)}
+                  className={`input w-full ${getFieldError('country_name') ? 'border-red-500' : ''}`}
                 >
                   <option value="">{t('selectCountry')}</option>
                   {getCountriesSorted(currentLang).map((country) => (
@@ -420,8 +488,8 @@ export default function RefereesManager() {
                     </option>
                   ))}
                 </select>
-                {getFieldError('country') && (
-                  <p className="mt-1 text-sm text-red-600">{getFieldError('country')}</p>
+                {getFieldError('country_name') && (
+                  <p className="mt-1 text-sm text-red-600">{getFieldError('country_name')}</p>
                 )}
               </div>
               <div>
@@ -458,9 +526,9 @@ export default function RefereesManager() {
       )}
 
       {/* Similar Records Viewer Modal */}
-      {showSimilarRecords && duplicateResult && duplicateResult.has_duplicates && (
+      {showSimilarRecords && similarRecords && similarRecords.length > 0 && (
         <SimilarRecordsViewer
-          records={duplicateResult.duplicates}
+          records={similarRecords}
           currentData={formData}
           entityType="referee"
           onClose={handleCloseSimilarRecords}

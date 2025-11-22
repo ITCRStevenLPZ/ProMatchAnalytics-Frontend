@@ -16,6 +16,38 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AutocompleteSearch from '../components/AutocompleteSearch';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { venueSchema } from '../lib/validationSchemas';
+import {
+  buildVenuePayload,
+  normalizeVenues,
+  VENUE_SURFACES,
+  type VenueApiResponse,
+} from '../lib/venues';
+import { applyBackendValidationErrors, resolveKnownFieldError } from '../lib/backendErrorUtils';
+
+const ADMIN_LOCALES = ['en', 'es'] as const;
+type AdminLocale = (typeof ADMIN_LOCALES)[number];
+
+const withVenueFormDefaults = (data?: Partial<Venue>): Partial<Venue> => {
+  const merged = { ...(data ?? {}) };
+  const localizedNames: Record<string, string> = {
+    ...(merged.i18n_names ?? {}),
+  };
+
+  ADMIN_LOCALES.forEach((locale) => {
+    localizedNames[locale] = localizedNames[locale] ?? '';
+  });
+
+  return {
+    ...merged,
+    venue_id: merged.venue_id ?? '',
+    name: merged.name ?? '',
+    city: merged.city ?? '',
+    country_name: merged.country_name ?? '',
+    capacity: merged.capacity ?? undefined,
+    surface: merged.surface ?? undefined,
+    i18n_names: localizedNames,
+  };
+};
 
 export default function VenuesManager() {
   const { t, i18n } = useTranslation('admin');
@@ -29,6 +61,7 @@ export default function VenuesManager() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
+  const [similarRecords, setSimilarRecords] = useState<any[] | null>(null);
   const [originalFormData, setOriginalFormData] = useState<Partial<Venue> | null>(null);
   const currentLang = i18n.language as 'en' | 'es';
   const { checkDuplicates, duplicates, clearDuplicates } = useDuplicateCheck();
@@ -38,15 +71,18 @@ export default function VenuesManager() {
     validateAndSetFieldError,
     clearErrors,
     getFieldError,
+    setFieldError,
   } = useFormValidation<Partial<Venue>>(venueSchema, t);
 
-  const [formData, setFormData] = useState<Partial<Venue>>({
-    name: '',
-    city: '',
-    country: '',
-    capacity: undefined,
-    surface: '',
-  });
+  const formatDeleteGuardError = (detail: unknown): string | null => {
+    if (typeof detail !== 'string') return null;
+    const match = detail.match(/Cannot delete venue with (\d+) match(?:es)?/i);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t('deleteGuards.venueMatches', { count });
+  };
+
+  const [formData, setFormData] = useState<Partial<Venue>>(() => withVenueFormDefaults());
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -70,8 +106,8 @@ export default function VenuesManager() {
           params.search = searchTerm;
         }
         
-        const response = await apiClient.get<PaginatedResponse<Venue>>('/venues/', { params });
-        setVenues(response.items);
+        const response = await apiClient.get<PaginatedResponse<VenueApiResponse>>('/venues/', { params });
+        setVenues(normalizeVenues(response.items));
         setTotalItems(response.total);
         setTotalPages(response.total_pages);
       } catch (err: any) {
@@ -87,6 +123,8 @@ export default function VenuesManager() {
       setError(t('validation.fixErrors'));
       return;
     }
+
+    const backendPayload = buildVenuePayload(formData);
     
     // EDIT MODE: Always show changes for confirmation
     if (editingItem && editingItem.venue_id) {
@@ -94,7 +132,7 @@ export default function VenuesManager() {
         clearChangeResult();
         clearDuplicates();
         
-        const result = await detectChanges('venues', editingItem.venue_id, formData, true);
+        const result = await detectChanges('venues', editingItem.venue_id, backendPayload, true);
         
         if (result && result.changes.length > 0) {
           setShowChangeWarning(true);
@@ -108,6 +146,7 @@ export default function VenuesManager() {
       if (showChangeWarning && changeResult) {
         if (duplicateResult && duplicateResult.has_duplicates && !showSimilarRecords) {
           setShowChangeWarning(false);
+          setSimilarRecords(duplicateResult.duplicates ?? []);
           setShowSimilarRecords(true);
           return;
         }
@@ -116,11 +155,7 @@ export default function VenuesManager() {
     
     // CREATE MODE: Check for duplicates
     if (!editingItem) {
-      const result = await checkDuplicates('venues', {
-        name: formData.name,
-        city: formData.city,
-        country: formData.country
-      });
+      const result = await checkDuplicates('venues', backendPayload);
 
       const exactDuplicate = result.duplicates?.find(d => 
         d.similarity_score === 1.0 || d.match_score === 100
@@ -137,27 +172,47 @@ export default function VenuesManager() {
       }
     }
 
-    await saveVenue();
+    await saveVenue(backendPayload);
   };
 
-  const saveVenue = async () => {
+  const saveVenue = async (payload: Record<string, unknown>) => {
     try {
       if (editingItem) {
-        await apiClient.put(`/venues/${editingItem.venue_id}`, formData);
+        await apiClient.put(`/venues/${editingItem.venue_id}`, payload);
       } else {
-        await apiClient.post('/venues/', formData);
+        await apiClient.post('/venues/', payload);
       }
       await fetchVenues();
       handleCloseForm();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      const detail = err.response?.data?.detail;
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError,
+        clearErrors,
+        translate: t,
+      });
+      if (handled) {
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      const knownFieldError = resolveKnownFieldError(detail);
+      if (knownFieldError) {
+        setFieldError(knownFieldError.field, t(knownFieldError.translationKey));
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError(t('errorSavingData'));
+      }
     }
   };
 
   const handleContinueWithDuplicates = async () => {
     setShowDuplicateWarning(false);
     clearDuplicates();
-    await saveVenue();
+    await saveVenue(buildVenuePayload(formData));
   };
 
   const handleCancelDuplicates = () => {
@@ -181,13 +236,26 @@ export default function VenuesManager() {
 
   const handleCloseSimilarRecords = () => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
   };
 
   const handleOpenSimilarRecord = (record: any) => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
     handleEdit(record);
+  };
+
+  const handleLocalizedNameChange = (locale: AdminLocale, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      i18n_names: {
+        ...(prev.i18n_names ?? {}),
+        [locale]: value,
+      },
+    }));
+    validateAndSetFieldError(`i18n_names.${locale}`, value);
   };
 
   const handleDelete = async (id: string) => {
@@ -196,14 +264,21 @@ export default function VenuesManager() {
       await apiClient.delete(`/venues/${id}`);
       await fetchVenues();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      const guardMessage = formatDeleteGuardError(detail);
+      if (guardMessage) {
+        setError(guardMessage);
+        return;
+      }
+      setError(typeof detail === 'string' ? detail : t('errorDeletingData'));
     }
   };
 
   const handleEdit = (item: Venue) => {
+    const formValue = withVenueFormDefaults(item);
     setEditingItem(item);
-    setFormData(item);
-    setOriginalFormData(item);
+    setFormData(formValue);
+    setOriginalFormData(formValue);
     setShowForm(true);
   };
 
@@ -218,22 +293,16 @@ export default function VenuesManager() {
     clearChangeResult();
     clearErrors();
     setError(null);
-    setFormData({
-      name: '',
-      city: '',
-      country: '',
-      capacity: undefined,
-      surface: '',
-    });
+    setFormData(withVenueFormDefaults());
   };
 
   // Fetch venue suggestions for autocomplete
   const fetchVenueSuggestions = async (query: string): Promise<Venue[]> => {
     try {
-      const response = await apiClient.get<Venue[]>('/venues/search/suggestions', {
+      const response = await apiClient.get<VenueApiResponse[]>('/venues/search/suggestions', {
         params: { q: query }
       });
-      return response;
+      return normalizeVenues(response);
     } catch (error) {
       console.error('Error fetching venue suggestions:', error);
       return [];
@@ -242,8 +311,10 @@ export default function VenuesManager() {
 
   // Handle selecting an existing venue from autocomplete
   const handleSelectExistingVenue = (venueData: Venue) => {
+    const formValue = withVenueFormDefaults(venueData);
     setEditingItem(venueData);
-    setFormData(venueData);
+    setFormData(formValue);
+    setOriginalFormData(formValue);
   };
 
   // Backend handles filtering via search param
@@ -298,6 +369,7 @@ export default function VenuesManager() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('name')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('localizedNames')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('city')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('country')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('capacity')}</th>
@@ -311,8 +383,18 @@ export default function VenuesManager() {
                   {venues.map((item) => (
                     <tr key={item._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div className="space-y-1">
+                          {ADMIN_LOCALES.map((locale) => (
+                            <div key={locale} className="flex items-center text-xs">
+                              <span className="font-semibold uppercase text-gray-500 mr-2">{locale}</span>
+                              <span>{item.i18n_names?.[locale] || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.city}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.country}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.country_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.capacity?.toLocaleString() || '-'}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.surface || '-'}</td>
                       {user?.role === 'admin' && (
@@ -374,8 +456,35 @@ export default function VenuesManager() {
                   onContinue={handleContinueWithDuplicates}
                   onCancel={handleCancelDuplicates}
                   entityType="venue"
+                  onViewSimilarRecords={
+                    duplicates.duplicates.length > 0
+                      ? () => {
+                          setSimilarRecords(duplicates.duplicates);
+                          setShowSimilarRecords(true);
+                        }
+                      : undefined
+                  }
                 />
               )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('venueId')}</label>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={formData.venue_id || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, venue_id: e.target.value });
+                    validateAndSetFieldError('venue_id', e.target.value);
+                  }}
+                  onBlur={(e) => validateAndSetFieldError('venue_id', e.target.value)}
+                  className={`input w-full ${getFieldError('venue_id') ? 'border-red-500' : ''}`}
+                  placeholder="venue_nyc_001"
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('venueIdHelper')}</p>
+                {getFieldError('venue_id') && (
+                  <p className="mt-1 text-sm text-red-600">{getFieldError('venue_id')}</p>
+                )}
+              </div>
               <div>
                 <AutocompleteSearch<Venue>
                   name="name"
@@ -387,7 +496,11 @@ export default function VenuesManager() {
                   onSelectSuggestion={handleSelectExistingVenue}
                   fetchSuggestions={fetchVenueSuggestions}
                   getDisplayText={(venue) => venue.name}
-                  getSecondaryText={(venue) => `${venue.city}, ${venue.country} • Capacity: ${venue.capacity || 'N/A'}`}
+                  getSecondaryText={(venue) => {
+                    const capacityLabel = t('capacity', { defaultValue: 'Capacity' });
+                    const capacityValue = venue.capacity ? venue.capacity.toLocaleString() : 'N/A';
+                    return `${venue.city}, ${venue.country_name} • ${capacityLabel}: ${capacityValue}`;
+                  }}
                   placeholder={t('venueNamePlaceholder')}
                   label={t('name')}
                   required
@@ -396,6 +509,35 @@ export default function VenuesManager() {
                 {getFieldError('name') && (
                   <p className="mt-1 text-sm text-red-600">{getFieldError('name')}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{t('localizedNames')}</p>
+                  <p className="text-xs text-gray-500">{t('localizedNamesDescription')}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ADMIN_LOCALES.map((locale) => {
+                    const fieldKey = `i18n_names.${locale}`;
+                    return (
+                      <div key={locale}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'en' ? t('localizedNameEn') : t('localizedNameEs')}
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={formData.i18n_names?.[locale] ?? ''}
+                          onChange={(e) => handleLocalizedNameChange(locale, e.target.value)}
+                          onBlur={(e) => validateAndSetFieldError(fieldKey, e.target.value)}
+                          className={`input w-full ${getFieldError(fieldKey) ? 'border-red-500' : ''}`}
+                        />
+                        {getFieldError(fieldKey) && (
+                          <p className="mt-1 text-sm text-red-600">{getFieldError(fieldKey)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -419,13 +561,13 @@ export default function VenuesManager() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('country')} *</label>
                   <select
                     required
-                    value={formData.country}
+                    value={formData.country_name || ''}
                     onChange={(e) => {
-                      setFormData({ ...formData, country: e.target.value });
-                      validateAndSetFieldError('country', e.target.value);
+                      setFormData({ ...formData, country_name: e.target.value });
+                      validateAndSetFieldError('country_name', e.target.value);
                     }}
-                    onBlur={(e) => validateAndSetFieldError('country', e.target.value)}
-                    className={`input w-full ${getFieldError('country') ? 'border-red-500' : ''}`}
+                    onBlur={(e) => validateAndSetFieldError('country_name', e.target.value)}
+                    className={`input w-full ${getFieldError('country_name') ? 'border-red-500' : ''}`}
                   >
                     <option value="">{t('selectCountry')}</option>
                     {getCountriesSorted(currentLang).map((country) => (
@@ -434,8 +576,8 @@ export default function VenuesManager() {
                       </option>
                     ))}
                   </select>
-                  {getFieldError('country') && (
-                    <p className="mt-1 text-sm text-red-600">{getFieldError('country')}</p>
+                  {getFieldError('country_name') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('country_name')}</p>
                   )}
                 </div>
               </div>
@@ -460,17 +602,23 @@ export default function VenuesManager() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('surface')}</label>
-                  <input
-                    type="text"
-                    value={formData.surface}
+                  <select
+                    value={formData.surface || ''}
                     onChange={(e) => {
-                      setFormData({ ...formData, surface: e.target.value });
-                      validateAndSetFieldError('surface', e.target.value);
+                      const value = e.target.value || undefined;
+                      setFormData({ ...formData, surface: value as Venue['surface'] });
+                      validateAndSetFieldError('surface', value);
                     }}
-                    onBlur={(e) => validateAndSetFieldError('surface', e.target.value)}
+                    onBlur={(e) => validateAndSetFieldError('surface', e.target.value || undefined)}
                     className={`input w-full ${getFieldError('surface') ? 'border-red-500' : ''}`}
-                    placeholder="e.g., Grass, Artificial Turf"
-                  />
+                  >
+                    <option value="">{t('selectSurface', { defaultValue: 'Select surface' })}</option>
+                    {VENUE_SURFACES.map((surfaceOption) => (
+                      <option key={surfaceOption} value={surfaceOption}>
+                        {t(`surfaceOptions.${surfaceOption}`, { defaultValue: surfaceOption })}
+                      </option>
+                    ))}
+                  </select>
                   {getFieldError('surface') && (
                     <p className="mt-1 text-sm text-red-600">{getFieldError('surface')}</p>
                   )}
@@ -492,9 +640,9 @@ export default function VenuesManager() {
       )}
 
       {/* Similar Records Viewer Modal */}
-      {showSimilarRecords && duplicateResult && duplicateResult.has_duplicates && (
+      {showSimilarRecords && similarRecords && similarRecords.length > 0 && (
         <SimilarRecordsViewer
-          records={duplicateResult.duplicates}
+          records={similarRecords}
           currentData={formData}
           entityType="venue"
           onClose={handleCloseSimilarRecords}

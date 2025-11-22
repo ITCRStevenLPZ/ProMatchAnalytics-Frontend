@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { Upload, FileText, AlertCircle, Trophy, MapPin, User as UserIcon, Users, Shield, Copy, Check, History, ExternalLink, type LucideIcon } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Upload, FileText, AlertCircle, Trophy, MapPin, User as UserIcon, Users, Shield, Copy, Check, History, ExternalLink, Trash2, X, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { DataIngestionDialog } from '../components/DataIngestionDialog';
-import { listBatches } from '../lib/ingestion';
+import { BatchDetailsModal } from '../components/ingestion/BatchDetailsModal';
+import { ConfirmationModal } from '../components/ConfirmationModal';
+import { deleteBatch, listBatches, type IngestionBatchSummary } from '../lib/ingestion';
+const DataIngestionDialog = lazy(() => import('../components/DataIngestionDialog'));
 import {
   downloadCompetitionTemplate,
   downloadVenueTemplate,
@@ -27,7 +29,7 @@ interface DataModel {
 }
 
 export default function IngestionManager() {
-  const { t } = useTranslation();
+  const { t } = useTranslation('admin');
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'upload' | 'batches'>('upload');
   const [selectedModel, setSelectedModel] = useState<ModelType | null>(null);
@@ -36,6 +38,26 @@ export default function IngestionManager() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [modelFilter, setModelFilter] = useState<string>('');
+  const [selectedBatch, setSelectedBatch] = useState<IngestionBatchSummary | null>(null);
+  const [pendingDeleteBatch, setPendingDeleteBatch] = useState<IngestionBatchSummary | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bannerMessage, setBannerMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const closeDeleteDialog = useCallback(() => setPendingDeleteBatch(null), []);
+  useEffect(() => {
+    if (activeTab !== 'batches' && bannerMessage) {
+      setBannerMessage(null);
+    }
+  }, [activeTab, bannerMessage]);
+
+  useEffect(() => {
+    if (!bannerMessage) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setBannerMessage(null), 4000);
+    return () => window.clearTimeout(timeoutId);
+  }, [bannerMessage]);
+
 
   // Fetch batches list
   const { data: batchesData, isLoading: batchesLoading, refetch } = useQuery({
@@ -193,13 +215,83 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
   const total = batchesData?.total || 0;
   const totalPages = Math.ceil(total / 20);
 
+  const deletableStatuses = useMemo(() => new Set(['success', 'failed']), []);
+
+  const canDeleteBatch = (batch: IngestionBatchSummary) => {
+    if (deletableStatuses.has(batch.status)) {
+      return true;
+    }
+    return batch.status === 'conflicts' && batch.conflicts_open === 0;
+  };
+
+  const requestBatchDeletion = (batch: IngestionBatchSummary) => {
+    if (!canDeleteBatch(batch)) {
+      return;
+    }
+    setPendingDeleteBatch(batch);
+  };
+
+  const handleDeleteBatch = async () => {
+    if (!pendingDeleteBatch) {
+      return;
+    }
+
+    const batch = pendingDeleteBatch;
+    if (!canDeleteBatch(batch)) {
+      closeDeleteDialog();
+      return;
+    }
+
+    try {
+      setDeletingId(batch.ingestion_id);
+      await deleteBatch(batch.ingestion_id);
+      if (selectedBatch?.ingestion_id === batch.ingestion_id) {
+        setSelectedBatch(null);
+      }
+      setBannerMessage({
+        type: 'success',
+        text: t('ingestion.deleteBatchSuccess', 'Batch deleted successfully.'),
+      });
+      await refetch();
+    } catch (error) {
+      console.error('Failed to delete batch', error);
+      setBannerMessage({
+        type: 'error',
+        text: t('ingestion.deleteBatchError', 'We could not delete this batch.'),
+      });
+    } finally {
+      setDeletingId(null);
+      closeDeleteDialog();
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      queued: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Queued' },
-      in_progress: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Processing' },
-      conflicts: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Has Conflicts' },
-      failed: { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' },
-      success: { bg: 'bg-green-100', text: 'text-green-700', label: 'Success' },
+      queued: {
+        bg: 'bg-gray-100',
+        text: 'text-gray-700',
+        label: t('ingestion.statusLabels.queued', 'Queued'),
+      },
+      in_progress: {
+        bg: 'bg-blue-100',
+        text: 'text-blue-700',
+        label: t('ingestion.statusLabels.in_progress', 'Processing'),
+      },
+      conflicts: {
+        bg: 'bg-yellow-100',
+        text: 'text-yellow-700',
+        label: t('ingestion.statusLabels.conflicts', 'Has Conflicts'),
+      },
+      failed: {
+        bg: 'bg-red-100',
+        text: 'text-red-700',
+        label: t('ingestion.statusLabels.failed', 'Failed'),
+      },
+      success: {
+        bg: 'bg-green-100',
+        text: 'text-green-700',
+        label: t('ingestion.statusLabels.success', 'Success'),
+      },
     };
     const config = statusConfig[status] || statusConfig.queued;
     return (
@@ -558,30 +650,21 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
           )}
 
           {!batchesLoading && batches.length > 0 && (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white rounded-lg shadow">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Batch Name
+                      {t('ingestion.batchId')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Model
+                      {t('ingestion.status')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total / Inserted
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Conflicts
+                      {t('ingestion.conflicts')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('ingestion.created')}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.expiresAt')}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('ingestion.actions')}
@@ -590,25 +673,24 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {batches.map((batch) => (
-                    <tr key={batch.ingestion_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                    <tr
+                      key={batch.ingestion_id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setSelectedBatch(batch)}
+                    >
+                      <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900">
                           {batch.batch_name}
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
                           {batch.ingestion_id.slice(0, 8)}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900 capitalize">
-                          {batch.target_model}
-                        </span>
+                        <div className="mt-1 text-xs text-gray-500 uppercase">
+                          {t(`ingestion.${batch.target_model}` as any, batch.target_model)}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(batch.status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {batch.total} / {batch.inserted}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm">
@@ -631,26 +713,37 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(batch.created_at).toLocaleString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {batch.expires_at ? (
-                          <div>
-                            <div>{new Date(batch.expires_at).toLocaleDateString()}</div>
-                            <div className="text-xs text-gray-400">
-                              {Math.ceil((new Date(batch.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} {t('ingestion.daysRemaining')}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => navigate(`/admin/ingestion/${batch.ingestion_id}`)}
-                          className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
-                        >
-                          {t('ingestion.viewDetails')}
-                          <ExternalLink size={14} />
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/admin/ingestion/${batch.ingestion_id}`);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
+                          >
+                            {t('ingestion.viewDetails')}
+                            <ExternalLink size={14} />
+                          </button>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              requestBatchDeletion(batch);
+                            }}
+                            disabled={!canDeleteBatch(batch) || deletingId === batch.ingestion_id}
+                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:hover:text-gray-400 disabled:cursor-not-allowed"
+                            title={
+                              canDeleteBatch(batch)
+                                ? undefined
+                                : t('ingestion.deleteBatchDisabledTooltip', 'This batch cannot be removed while pending.')
+                            }
+                          >
+                            {deletingId === batch.ingestion_id
+                              ? t('common:loading', 'Loading...')
+                              : t('ingestion.deleteBatch', 'Delete batch')}
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -690,20 +783,79 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
 
       {/* Dialogs */}
       {selectedModel && (
-        <DataIngestionDialog
-          modelType={selectedModel}
-          isOpen={showImportDialog}
-          onClose={() => {
-            setShowImportDialog(false);
-            setSelectedModel(null);
-          }}
-          onSuccess={handleImportSuccess}
-          downloadTemplate={
-            selectedModel === 'bulk' 
-              ? downloadBulkTemplate 
-              : (models.find(m => m.id === selectedModel)?.downloadTemplate || (() => {}))
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 text-white text-sm">
+              {t('common:loading', 'Loading...')}
+            </div>
           }
-        />
+        >
+          <DataIngestionDialog
+            modelType={selectedModel}
+            isOpen={showImportDialog}
+            onClose={() => {
+              setShowImportDialog(false);
+              setSelectedModel(null);
+            }}
+            onSuccess={handleImportSuccess}
+            downloadTemplate={
+              selectedModel === 'bulk'
+                ? downloadBulkTemplate
+                : (models.find((m) => m.id === selectedModel)?.downloadTemplate || (() => {}))
+            }
+          />
+        </Suspense>
+      )}
+
+      <BatchDetailsModal
+        batch={selectedBatch}
+        onClose={() => setSelectedBatch(null)}
+        onOpenBatch={(ingestionId) => {
+          setSelectedBatch(null);
+          navigate(`/admin/ingestion/${ingestionId}`);
+        }}
+      />
+
+      <ConfirmationModal
+        isOpen={Boolean(pendingDeleteBatch)}
+        title={t('ingestion.deleteBatchTitle', 'Remove this batch?')}
+        description={
+          pendingDeleteBatch
+            ? t('ingestion.deleteBatchConfirm', {
+                name: pendingDeleteBatch.batch_name || pendingDeleteBatch.ingestion_id.slice(0, 8),
+              })
+            : undefined
+        }
+        confirmLabel={t('ingestion.deleteBatch', 'Delete batch')}
+        cancelLabel={t('common:cancel', 'Cancel')}
+        closeLabel={t('common:close', 'Close')}
+        confirmVariant="danger"
+        isConfirming={Boolean(
+          pendingDeleteBatch && deletingId === pendingDeleteBatch.ingestion_id
+        )}
+        onCancel={closeDeleteDialog}
+        onConfirm={handleDeleteBatch}
+      />
+
+      {bannerMessage && (
+        <div className="fixed bottom-6 right-6 z-50" role="status" aria-live="polite">
+          <div
+            className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-sm transition-all duration-200 ${
+              bannerMessage.type === 'success'
+                ? 'bg-white/95 text-green-900 border-green-200'
+                : 'bg-white/95 text-red-900 border-red-200'
+            }`}
+          >
+            <span className="text-sm font-medium">{bannerMessage.text}</span>
+            <button
+              onClick={() => setBannerMessage(null)}
+              aria-label={t('common:close', 'Close')}
+              className="text-current hover:opacity-70"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -31,7 +31,7 @@ function ProfileAvatar({ user }: { user: any }) {
 }
 
 export default function Layout() {
-  const { t } = useTranslation();
+  const { t, ready } = useTranslation('common');
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -62,6 +62,14 @@ export default function Layout() {
   useEffect(() => {
     setShowMobileMenu(false);
   }, [location.pathname]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+        Loading...
+      </div>
+    );
+  }
 
   const dataManagementItems = [
     {

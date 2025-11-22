@@ -1,9 +1,12 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosError, AxiosHeaders, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { auth } from './firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL 
   ? `${import.meta.env.VITE_API_URL}/api/v1`
   : 'http://localhost:8000/api/v1';
+
+const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === 'true';
+const E2E_BYPASS_TOKEN = import.meta.env.VITE_E2E_BYPASS_TOKEN ?? 'e2e-playwright';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -19,10 +22,25 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       async (config) => {
+        const applyAuthHeader = (value: string) => {
+          if (config.headers instanceof AxiosHeaders) {
+            config.headers.set('Authorization', value);
+            return;
+          }
+          const headers = AxiosHeaders.from(config.headers ?? {});
+          headers.set('Authorization', value);
+          config.headers = headers;
+        };
+
+        if (IS_E2E_TEST_MODE) {
+          applyAuthHeader(`Bearer ${E2E_BYPASS_TOKEN}`);
+          return config;
+        }
+
         const user = auth.currentUser;
         if (user) {
           const token = await user.getIdToken();
-          config.headers.Authorization = `Bearer ${token}`;
+          applyAuthHeader(`Bearer ${token}`);
         }
         return config;
       },

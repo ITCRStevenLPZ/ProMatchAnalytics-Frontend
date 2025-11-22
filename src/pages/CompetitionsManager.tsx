@@ -16,6 +16,36 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AutocompleteSearch from '../components/AutocompleteSearch';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { competitionSchema } from '../lib/validationSchemas';
+import {
+  buildCompetitionPayload,
+  normalizeCompetitions,
+  type CompetitionApiResponse,
+} from '../lib/competitions';
+import { applyBackendValidationErrors, resolveKnownFieldError } from '../lib/backendErrorUtils';
+
+const ADMIN_LOCALES = ['en', 'es'] as const;
+type AdminLocale = (typeof ADMIN_LOCALES)[number];
+
+const withCompetitionFormDefaults = (data?: Partial<Competition>): Partial<Competition> => {
+  const merged = { ...(data ?? {}) };
+  const localizedNames: Record<string, string> = {
+    ...(merged.i18n_names ?? {}),
+  };
+
+  ADMIN_LOCALES.forEach((locale) => {
+    localizedNames[locale] = localizedNames[locale] ?? '';
+  });
+
+  return {
+    ...merged,
+    competition_id: merged.competition_id ?? '',
+    name: merged.name ?? '',
+    short_name: merged.short_name ?? '',
+    gender: merged.gender ?? 'male',
+    country_name: merged.country_name ?? '',
+    i18n_names: localizedNames,
+  };
+};
 
 export default function CompetitionsManager() {
   const { t, i18n } = useTranslation('admin');
@@ -30,6 +60,7 @@ export default function CompetitionsManager() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
+  const [similarRecords, setSimilarRecords] = useState<any[] | null>(null);
   const [originalFormData, setOriginalFormData] = useState<Partial<Competition> | null>(null);
   const currentLang = i18n.language as 'en' | 'es';
   const { checkDuplicates, duplicates, clearDuplicates } = useDuplicateCheck();
@@ -39,15 +70,19 @@ export default function CompetitionsManager() {
     validateAndSetFieldError,
     clearErrors,
     getFieldError,
+    setFieldError,
   } = useFormValidation<Partial<Competition>>(competitionSchema, t);
 
+  const formatDeleteGuardError = (detail: unknown): string | null => {
+    if (typeof detail !== 'string') return null;
+    const match = detail.match(/Cannot delete competition with (\d+) associated match(?:es)?/i);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t('deleteGuards.competitionMatches', { count });
+  };
+
   // Form state
-  const [formData, setFormData] = useState<Partial<Competition>>({
-    name: '',
-    short_name: '',
-    gender: 'male',
-    country_name: '',
-  });
+  const [formData, setFormData] = useState<Partial<Competition>>(() => withCompetitionFormDefaults());
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -75,8 +110,8 @@ export default function CompetitionsManager() {
           params.search = searchTerm;
         }
         
-        const response = await apiClient.get<PaginatedResponse<Competition>>('/competitions/', { params });
-        setCompetitions(response.items);
+        const response = await apiClient.get<PaginatedResponse<CompetitionApiResponse>>('/competitions/', { params });
+        setCompetitions(normalizeCompetitions(response.items));
         setTotalItems(response.total);
         setTotalPages(response.total_pages);
       } catch (err: any) {
@@ -93,6 +128,8 @@ export default function CompetitionsManager() {
       setError(t('validation.fixErrors'));
       return;
     }
+
+    const backendPayload = buildCompetitionPayload(formData);
     
     // EDIT MODE: Always show changes for confirmation
     if (editingItem && editingItem.competition_id) {
@@ -100,7 +137,12 @@ export default function CompetitionsManager() {
         clearChangeResult();
         clearDuplicates();
         
-        const result = await detectChanges('competitions', editingItem.competition_id, formData, true);
+        const result = await detectChanges(
+          'competitions',
+          editingItem.competition_id,
+          backendPayload,
+          true,
+        );
         
         if (result && result.changes.length > 0) {
           setShowChangeWarning(true);
@@ -114,6 +156,7 @@ export default function CompetitionsManager() {
       if (showChangeWarning && changeResult) {
         if (duplicateResult && duplicateResult.has_duplicates && !showSimilarRecords) {
           setShowChangeWarning(false);
+          setSimilarRecords(duplicateResult.duplicates ?? []);
           setShowSimilarRecords(true);
           return;
         }
@@ -122,11 +165,7 @@ export default function CompetitionsManager() {
     
     // CREATE MODE: Check for duplicates
     if (!editingItem) {
-      const result = await checkDuplicates('competitions', {
-        name: formData.name,
-        country_name: formData.country_name,
-        gender: formData.gender
-      });
+      const result = await checkDuplicates('competitions', backendPayload);
 
       const exactDuplicate = result.duplicates?.find(d => 
         d.similarity_score === 1.0 || d.match_score === 100
@@ -143,23 +182,44 @@ export default function CompetitionsManager() {
       }
     }
 
-    await saveCompetition();
+    await saveCompetition(backendPayload);
   };
 
-  const saveCompetition = async () => {
+  const saveCompetition = async (payloadOverride?: Record<string, unknown>) => {
     try {
+      const payload = payloadOverride ?? buildCompetitionPayload(formData);
       if (editingItem) {
         await apiClient.put(
           `/competitions/${editingItem.competition_id}`,
-          formData
+          payload,
         );
       } else {
-        await apiClient.post('/competitions/', formData);
+        await apiClient.post('/competitions/', payload);
       }
       await fetchCompetitions();
       handleCloseForm();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      const detail = err.response?.data?.detail;
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError,
+        clearErrors,
+        translate: t,
+      });
+      if (handled) {
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      const knownFieldError = resolveKnownFieldError(detail);
+      if (knownFieldError) {
+        setFieldError(knownFieldError.field, t(knownFieldError.translationKey));
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError(t('errorSavingData'));
+      }
       console.error('Error saving competition:', err);
     }
   };
@@ -167,7 +227,7 @@ export default function CompetitionsManager() {
   const handleContinueWithDuplicates = async () => {
     setShowDuplicateWarning(false);
     clearDuplicates();
-    await saveCompetition();
+    await saveCompetition(buildCompetitionPayload(formData));
   };
 
   const handleCancelDuplicates = () => {
@@ -191,13 +251,26 @@ export default function CompetitionsManager() {
 
   const handleCloseSimilarRecords = () => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
   };
 
   const handleOpenSimilarRecord = (record: any) => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
     handleEdit(record);
+  };
+
+  const handleLocalizedNameChange = (locale: AdminLocale, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      i18n_names: {
+        ...(prev.i18n_names ?? {}),
+        [locale]: value,
+      },
+    }));
+    validateAndSetFieldError(`i18n_names.${locale}`, value);
   };
 
   const handleDelete = async (id: string) => {
@@ -207,21 +280,22 @@ export default function CompetitionsManager() {
       await apiClient.delete(`/competitions/${id}`);
       await fetchCompetitions();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      const guardMessage = formatDeleteGuardError(detail);
+      if (guardMessage) {
+        setError(guardMessage);
+        return;
+      }
+      setError(typeof detail === 'string' ? detail : t('errorDeletingData'));
       console.error('Error deleting competition:', err);
     }
   };
 
   const handleEdit = (item: Competition) => {
+    const formValue = withCompetitionFormDefaults(item);
     setEditingItem(item);
-    const formDataToSet = {
-      name: item.name,
-      short_name: item.short_name,
-      gender: item.gender,
-      country_name: item.country_name,
-    };
-    setFormData(formDataToSet);
-    setOriginalFormData(formDataToSet);
+    setFormData(formValue);
+    setOriginalFormData(formValue);
     setShowForm(true);
   };
 
@@ -236,21 +310,21 @@ export default function CompetitionsManager() {
     setOriginalFormData(null);
     clearDuplicates();
     clearChangeResult();
-    setFormData({
-      name: '',
-      short_name: '',
-      gender: 'male',
-      country_name: '',
-    });
+    setFormData(withCompetitionFormDefaults());
   };
 
   // Fetch competition suggestions for autocomplete
-  const fetchCompetitionSuggestions = async (query: string): Promise<Competition[]> => {
+  const fetchCompetitionSuggestions = async (
+    query: string,
+  ): Promise<Competition[]> => {
     try {
-      const response = await apiClient.get<Competition[]>('/competitions/search/suggestions', {
-        params: { q: query }
-      });
-      return response;
+      const response = await apiClient.get<CompetitionApiResponse[]>(
+        '/competitions/search/suggestions',
+        {
+          params: { q: query },
+        },
+      );
+      return normalizeCompetitions(response);
     } catch (error) {
       console.error('Error fetching competition suggestions:', error);
       return [];
@@ -259,13 +333,10 @@ export default function CompetitionsManager() {
 
   // Handle selecting an existing competition from autocomplete
   const handleSelectExistingCompetition = (competitionData: Competition) => {
+    const formValue = withCompetitionFormDefaults(competitionData);
     setEditingItem(competitionData);
-    setFormData({
-      name: competitionData.name,
-      short_name: competitionData.short_name,
-      gender: competitionData.gender,
-      country_name: competitionData.country_name,
-    });
+    setFormData(formValue);
+    setOriginalFormData(formValue);
   };
 
   // Backend handles filtering via search and gender params
@@ -353,6 +424,9 @@ export default function CompetitionsManager() {
                       {t('name')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('localizedNames')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('shortName')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -376,6 +450,16 @@ export default function CompetitionsManager() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="space-y-1">
+                          {ADMIN_LOCALES.map((locale) => (
+                            <div key={locale} className="flex items-center text-xs">
+                              <span className="font-semibold uppercase text-gray-500 mr-2">{locale}</span>
+                              <span>{item.i18n_names?.[locale] || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {item.short_name || '-'}
@@ -466,8 +550,38 @@ export default function CompetitionsManager() {
                   onContinue={handleContinueWithDuplicates}
                   onCancel={handleCancelDuplicates}
                   entityType="competition"
+                  onViewSimilarRecords={
+                    duplicates.duplicates.length > 0
+                      ? () => {
+                          setSimilarRecords(duplicates.duplicates);
+                          setShowSimilarRecords(true);
+                        }
+                      : undefined
+                  }
                 />
               )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('competitionId')}
+                </label>
+                <input
+                  type="text"
+                  maxLength={40}
+                  value={formData.competition_id || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, competition_id: e.target.value });
+                    validateAndSetFieldError('competition_id', e.target.value);
+                  }}
+                  onBlur={(e) => validateAndSetFieldError('competition_id', e.target.value)}
+                  className={`input w-full ${getFieldError('competition_id') ? 'border-red-500' : ''}`}
+                  placeholder="competition_2025"
+                />
+                <p className="mt-1 text-sm text-gray-500">{t('competitionIdHelper')}</p>
+                {getFieldError('competition_id') && (
+                  <p className="mt-1 text-sm text-red-600">{getFieldError('competition_id')}</p>
+                )}
+              </div>
 
               <div>
                 <AutocompleteSearch<Competition>
@@ -491,13 +605,43 @@ export default function CompetitionsManager() {
                 )}
               </div>
 
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{t('localizedNames')}</p>
+                  <p className="text-xs text-gray-500">{t('localizedNamesDescription')}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ADMIN_LOCALES.map((locale) => {
+                    const fieldKey = `i18n_names.${locale}`;
+                    return (
+                      <div key={locale}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'en' ? t('localizedNameEn') : t('localizedNameEs')}
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={formData.i18n_names?.[locale] ?? ''}
+                          onChange={(e) => handleLocalizedNameChange(locale, e.target.value)}
+                          onBlur={(e) => validateAndSetFieldError(fieldKey, e.target.value)}
+                          className={`input w-full ${getFieldError(fieldKey) ? 'border-red-500' : ''}`}
+                        />
+                        {getFieldError(fieldKey) && (
+                          <p className="mt-1 text-sm text-red-600">{getFieldError(fieldKey)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('shortName')}
                 </label>
-                <input
-                  type="text"
-                  value={formData.short_name}
+                  <input
+                    type="text"
+                    value={formData.short_name || ''}
                   onChange={(e) => {
                     setFormData({ ...formData, short_name: e.target.value });
                     validateAndSetFieldError('short_name', e.target.value);
@@ -581,9 +725,9 @@ export default function CompetitionsManager() {
       )}
 
       {/* Similar Records Viewer Modal */}
-      {showSimilarRecords && duplicateResult && duplicateResult.has_duplicates && (
+      {showSimilarRecords && similarRecords && similarRecords.length > 0 && (
         <SimilarRecordsViewer
-          records={duplicateResult.duplicates}
+          records={similarRecords}
           currentData={formData}
           entityType="competition"
           onClose={handleCloseSimilarRecords}

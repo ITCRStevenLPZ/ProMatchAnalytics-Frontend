@@ -2,49 +2,122 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar, Plus, Edit, Trash2, Search, X, ChevronRight } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import type { Team, TeamPlayer, PlayerPosition } from '../types';
+import type { Team, TeamPlayer, PlayerPosition, Competition, Venue, Referee } from '../types';
 
-interface Competition {
-  competition_id: string;
+interface MatchTeamInfo {
+  team_id: string;
   name: string;
+  short_name?: string;
+  score: number;
+  manager: string;
+  lineup: LineupPlayerSelection[];
 }
 
-interface Venue {
+interface MatchVenueInfo {
   venue_id: string;
   name: string;
-  city: string;
 }
 
-interface Referee {
+interface MatchRefereeInfo {
   referee_id: string;
   name: string;
 }
 
-interface Match {
+interface MatchRecord {
   _id?: string;
   match_id: string;
   competition_id: string;
-  home_team_id: string;
-  away_team_id: string;
+  season_name: string;
+  competition_stage: string;
   match_date: string;
-  kickoff_time: string;
-  venue_id: string;
-  referee_id?: string;
+  kick_off: string;
+  venue: MatchVenueInfo;
+  referee: MatchRefereeInfo;
+  home_team: MatchTeamInfo;
+  away_team: MatchTeamInfo;
   status: string;
-  home_lineup?: LineupPlayer[];
-  away_lineup?: LineupPlayer[];
 }
 
-interface LineupPlayer {
+interface MatchCreatePayload {
+  match_id: string;
+  competition_id: string;
+  season_name: string;
+  competition_stage: string;
+  match_date: string;
+  kick_off: string;
+  home_team: MatchTeamInfo;
+  away_team: MatchTeamInfo;
+  venue: MatchVenueInfo;
+  referee: MatchRefereeInfo;
+}
+
+type MatchUpdatePayload = Partial<Pick<MatchCreatePayload, 'match_date' | 'kick_off' | 'competition_stage'>> & {
+  venue?: MatchVenueInfo;
+  referee?: MatchRefereeInfo;
+};
+
+interface LineupPlayerSelection {
   player_id: string;
+  player_name: string;
   position: PlayerPosition;
   jersey_number: number;
   is_starter: boolean;
+  is_captain?: boolean;
 }
+
+interface MatchFormState {
+  match_id: string;
+  competition_id: string;
+  season_name: string;
+  competition_stage: string;
+  match_date: string;
+  kickoff_time: string;
+  venue_id: string;
+  referee_id: string;
+  home_team_id: string;
+  away_team_id: string;
+  home_lineup: LineupPlayerSelection[];
+  away_lineup: LineupPlayerSelection[];
+}
+
+const toArray = <T,>(value: T[] | undefined | null): T[] =>
+  Array.isArray(value) ? value : [];
+
+const formatDate = (value?: string) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? value : date.toLocaleDateString();
+};
+
+const formatTime = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? value : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const toIsoDate = (value: string) => new Date(`${value}T00:00:00Z`).toISOString();
+
+const toIsoDateTime = (date: string, time: string) =>
+  new Date(`${date}T${time || '00:00'}:00Z`).toISOString();
+
+const createInitialFormState = (): MatchFormState => ({
+  match_id: '',
+  competition_id: '',
+  season_name: '',
+  competition_stage: '',
+  match_date: '',
+  kickoff_time: '',
+  venue_id: '',
+  referee_id: '',
+  home_team_id: '',
+  away_team_id: '',
+  home_lineup: [],
+  away_lineup: [],
+});
 
 export default function MatchesManager() {
   const { t } = useTranslation('admin');
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [referees, setReferees] = useState<Referee[]>([]);
@@ -54,22 +127,10 @@ export default function MatchesManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
-  const [editingItem, setEditingItem] = useState<Match | null>(null);
+  const [editingItem, setEditingItem] = useState<MatchRecord | null>(null);
 
   // Wizard form data
-  const [matchData, setMatchData] = useState<Partial<Match>>({
-    match_id: '',
-    competition_id: '',
-    home_team_id: '',
-    away_team_id: '',
-    match_date: '',
-    kickoff_time: '',
-    venue_id: '',
-    referee_id: '',
-    status: 'scheduled',
-    home_lineup: [],
-    away_lineup: [],
-  });
+  const [matchData, setMatchData] = useState<MatchFormState>(createInitialFormState());
 
   // Team rosters for lineup builder
   const [homeRoster, setHomeRoster] = useState<TeamPlayer[]>([]);
@@ -87,7 +148,7 @@ export default function MatchesManager() {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.get<Match[]>('/matches/');
+      const data = await apiClient.get<MatchRecord[]>('/matches/');
       setMatches(data);
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorFetchingData'));
@@ -142,6 +203,123 @@ export default function MatchesManager() {
     }
   };
 
+  const validateBasicInfo = (): string | null => {
+    const requiredFields: Array<[string, string]> = [
+      [matchData.match_id, 'Match ID'],
+      [matchData.competition_id, 'Competition'],
+      [matchData.season_name, 'Season'],
+      [matchData.competition_stage, 'Competition stage'],
+      [matchData.home_team_id, 'Home team'],
+      [matchData.away_team_id, 'Away team'],
+      [matchData.match_date, 'Match date'],
+      [matchData.kickoff_time, 'Kickoff time'],
+      [matchData.venue_id, 'Venue'],
+      [matchData.referee_id, 'Referee'],
+    ];
+
+    const missing = requiredFields.find(([value]) => !value || value.trim() === '');
+    if (missing) {
+      return `${missing[1]} is required`;
+    }
+
+    if (matchData.home_team_id === matchData.away_team_id) {
+      return 'Home and away teams must be different';
+    }
+
+    return null;
+  };
+
+  const validateMatchForm = (includeLineups = true): string | null => {
+    const basicError = validateBasicInfo();
+    if (basicError) {
+      return basicError;
+    }
+
+    if (!includeLineups) {
+      return null;
+    }
+
+    const homeStarters = matchData.home_lineup.filter((p) => p.is_starter);
+    const awayStarters = matchData.away_lineup.filter((p) => p.is_starter);
+
+    if (homeStarters.length !== 11) {
+      return 'Home lineup must include exactly 11 starters';
+    }
+    if (awayStarters.length !== 11) {
+      return 'Away lineup must include exactly 11 starters';
+    }
+    if (matchData.home_lineup.length < 11 || matchData.away_lineup.length < 11) {
+      return 'Each team must register at least 11 players';
+    }
+
+    return null;
+  };
+
+  const resolveTeamInfo = (
+    teamId: string,
+    lineup: LineupPlayerSelection[],
+  ): MatchTeamInfo => {
+    const team = toArray(teams).find((t) => t.team_id === teamId);
+    if (!team) {
+      throw new Error(`Team ${teamId} not found`);
+    }
+    const managerName = team.managers?.[0]?.name || team.manager?.name || team.name;
+    return {
+      team_id: team.team_id,
+      name: team.name,
+      short_name: team.short_name,
+      score: 0,
+      manager: managerName || team.name,
+      lineup: lineup.map((player) => ({
+        ...player,
+        is_captain: player.is_captain ?? false,
+      })),
+    };
+  };
+
+  const resolveVenueInfo = (venueId: string): MatchVenueInfo => {
+    const venue = toArray(venues).find((v) => v.venue_id === venueId);
+    if (!venue) {
+      throw new Error(`Venue ${venueId} not found`);
+    }
+    return {
+      venue_id: venue.venue_id,
+      name: venue.name,
+    };
+  };
+
+  const resolveRefereeInfo = (refereeId: string): MatchRefereeInfo => {
+    const referee = toArray(referees).find((r) => r.referee_id === refereeId);
+    if (!referee) {
+      throw new Error(`Referee ${refereeId} not found`);
+    }
+    return {
+      referee_id: referee.referee_id,
+      name: referee.name,
+    };
+  };
+
+  const buildMatchCreatePayload = (): MatchCreatePayload => {
+    const homeTeam = resolveTeamInfo(matchData.home_team_id, matchData.home_lineup);
+    const awayTeam = resolveTeamInfo(matchData.away_team_id, matchData.away_lineup);
+    const venue = resolveVenueInfo(matchData.venue_id);
+    const referee = resolveRefereeInfo(matchData.referee_id);
+
+    return {
+      match_id: matchData.match_id.trim(),
+      competition_id: matchData.competition_id,
+      season_name: matchData.season_name.trim(),
+      competition_stage: matchData.competition_stage.trim(),
+      match_date: toIsoDate(matchData.match_date),
+      kick_off: toIsoDateTime(matchData.match_date, matchData.kickoff_time),
+      home_team: homeTeam,
+      away_team: awayTeam,
+      venue,
+      referee,
+    };
+  };
+
+
   const handleTeamSelection = async () => {
     if (matchData.home_team_id) {
       const roster = await fetchTeamRoster(matchData.home_team_id);
@@ -154,67 +332,104 @@ export default function MatchesManager() {
   };
 
   const handleSubmit = async () => {
+    const validationError = validateMatchForm(!editingItem);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
       if (editingItem) {
-        await apiClient.put(`/matches/${editingItem.match_id}`, matchData);
+        const updatePayload: MatchUpdatePayload = {
+          match_date: toIsoDate(matchData.match_date),
+          kick_off: toIsoDateTime(matchData.match_date, matchData.kickoff_time),
+          competition_stage: matchData.competition_stage.trim(),
+          venue: resolveVenueInfo(matchData.venue_id),
+          referee: resolveRefereeInfo(matchData.referee_id),
+        };
+        const identifier = editingItem._id || editingItem.match_id;
+        await apiClient.put(`/matches/${identifier}`, updatePayload);
       } else {
-        await apiClient.post('/matches/', matchData);
+        const payload = buildMatchCreatePayload();
+        await apiClient.post('/matches/', payload);
       }
       await fetchMatches();
       handleCloseWizard();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      if (err?.message && !err?.response) {
+        setError(err.message);
+        return;
+      }
+      setError(err?.response?.data?.detail || t('errorSavingData'));
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (match: MatchRecord) => {
     if (!window.confirm(t('confirmDelete'))) return;
     try {
-      await apiClient.delete(`/matches/${id}`);
+      const identifier = match._id || match.match_id;
+      await apiClient.delete(`/matches/${identifier}`);
       await fetchMatches();
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorDeletingData'));
     }
   };
 
-  const handleEdit = (item: Match) => {
+  const handleEdit = async (item: MatchRecord) => {
     setEditingItem(item);
-    setMatchData(item);
+    const kickoffTime = item.kick_off
+      ? new Date(item.kick_off).toISOString().slice(11, 16)
+      : '';
+
+    setMatchData({
+      match_id: item.match_id,
+      competition_id: item.competition_id,
+      season_name: item.season_name,
+      competition_stage: item.competition_stage,
+      match_date: item.match_date ? item.match_date.slice(0, 10) : '',
+      kickoff_time: kickoffTime,
+      venue_id: item.venue?.venue_id || '',
+      referee_id: item.referee?.referee_id || '',
+      home_team_id: item.home_team?.team_id || '',
+      away_team_id: item.away_team?.team_id || '',
+      home_lineup: normalizeLineup(item.home_team?.lineup),
+      away_lineup: normalizeLineup(item.away_team?.lineup),
+    });
+
+    setWizardStep(1);
     setShowWizard(true);
+
+    if (item.home_team?.team_id) {
+      setHomeRoster(await fetchTeamRoster(item.home_team.team_id));
+    }
+    if (item.away_team?.team_id) {
+      setAwayRoster(await fetchTeamRoster(item.away_team.team_id));
+    }
   };
 
   const handleCloseWizard = () => {
     setShowWizard(false);
     setWizardStep(1);
     setEditingItem(null);
-    setMatchData({
-      match_id: '',
-      competition_id: '',
-      home_team_id: '',
-      away_team_id: '',
-      match_date: '',
-      kickoff_time: '',
-      venue_id: '',
-      referee_id: '',
-      status: 'scheduled',
-      home_lineup: [],
-      away_lineup: [],
-    });
+    setMatchData(createInitialFormState());
     setHomeRoster([]);
     setAwayRoster([]);
+    setError(null);
   };
 
   const handleNextStep = async () => {
+    if (editingItem) {
+      return;
+    }
     if (wizardStep === 1) {
-      // Validate basic info
-      if (!matchData.match_id || !matchData.competition_id || !matchData.home_team_id || 
-          !matchData.away_team_id || !matchData.match_date || !matchData.kickoff_time || !matchData.venue_id) {
-        setError(t('required'));
+      const validation = validateBasicInfo();
+      if (validation) {
+        setError(validation);
         return;
       }
       await handleTeamSelection();
     }
-    setWizardStep(wizardStep + 1);
+    setWizardStep((prev) => prev + 1);
   };
 
   const handlePreviousStep = () => {
@@ -233,8 +448,9 @@ export default function MatchesManager() {
       setMatchData({ ...matchData, [lineupKey]: newLineup });
     } else {
       // Add player
-      const newPlayer: LineupPlayer = {
+      const newPlayer: LineupPlayerSelection = {
         player_id: player.player_id,
+        player_name: player.player_name || player.player_id,
         position: player.position,
         jersey_number: player.jersey_number,
         is_starter: isStarter,
@@ -255,9 +471,12 @@ export default function MatchesManager() {
     return starterOnly ? lineup.filter(p => p.is_starter).length : lineup.length;
   };
 
-  const getTeamName = (teamId: string): string => {
-    const team = teams.find(t => t.team_id === teamId);
-    return team?.name || teamId;
+  const getTeamName = (teamId?: string): string => {
+    if (!teamId) {
+      return '';
+    }
+    const team = toArray(teams).find(t => t.team_id === teamId);
+    return team?.name || teamId || '';
   };
 
   const getPositionBadgeColor = (position: PlayerPosition) => {
@@ -273,11 +492,39 @@ export default function MatchesManager() {
     }
   };
 
-  const filteredMatches = matches.filter((item) =>
-    getTeamName(item.home_team_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getTeamName(item.away_team_id).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.match_date.includes(searchTerm)
-  );
+  const normalizeLineup = (lineup?: LineupPlayerSelection[] | any[]): LineupPlayerSelection[] =>
+    toArray(lineup).map((player) => ({
+      player_id: player.player_id,
+      player_name: player.player_name || player.player_id,
+      position: player.position,
+      jersey_number: player.jersey_number,
+      is_starter: player.is_starter ?? true,
+      is_captain: player.is_captain ?? false,
+    }));
+
+  const safeCompetitions = toArray(competitions);
+  const safeTeams = toArray(teams);
+  const safeVenues = toArray(venues);
+  const safeReferees = toArray(referees);
+  const safeMatches = toArray(matches);
+  const isEditing = Boolean(editingItem);
+  const totalSteps = isEditing ? 1 : 3;
+  const showLineupSteps = !isEditing;
+  const isLastStep = isEditing || wizardStep === 3;
+
+  const lowerSearch = searchTerm.toLowerCase();
+  const filteredMatches = safeMatches.filter((item) => {
+    const homeName = item.home_team?.name?.toLowerCase() || '';
+    const awayName = item.away_team?.name?.toLowerCase() || '';
+    const matchId = item.match_id?.toLowerCase() || '';
+    const matchDate = formatDate(item.match_date).toLowerCase();
+    return (
+      homeName.includes(lowerSearch) ||
+      awayName.includes(lowerSearch) ||
+      matchId.includes(lowerSearch) ||
+      matchDate.includes(lowerSearch)
+    );
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center h-64">{t('loading')}</div>;
@@ -290,7 +537,15 @@ export default function MatchesManager() {
           <Calendar className="h-8 w-8 text-purple-600" />
           <h1 className="text-3xl font-bold text-gray-900">{t('matches')}</h1>
         </div>
-        <button onClick={() => setShowWizard(true)} className="btn btn-primary flex items-center space-x-2">
+        <button
+          onClick={() => {
+            setEditingItem(null);
+            setMatchData(createInitialFormState());
+            setWizardStep(1);
+            setShowWizard(true);
+          }}
+          className="btn btn-primary flex items-center space-x-2"
+        >
           <Plus className="h-5 w-5" />
           <span>{t('createMatch')}</span>
         </button>
@@ -335,29 +590,29 @@ export default function MatchesManager() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredMatches.map((item) => (
-                  <tr key={item._id} className="hover:bg-gray-50">
+                  <tr key={item._id || item.match_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {item.match_date} {item.kickoff_time}
+                      {formatDate(item.match_date)} {formatTime(item.kick_off)}
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{getTeamName(item.home_team_id)}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{getTeamName(item.away_team_id)}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.home_team?.name || '-'}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.away_team?.name || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {venues.find(v => v.venue_id === item.venue_id)?.name || '-'}
+                      {item.venue?.name || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        item.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        item.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
+                        item.status === 'Fulltime' ? 'bg-green-100 text-green-800' :
+                        item.status?.toLowerCase().includes('live') ? 'bg-yellow-100 text-yellow-800' :
+                        item.status === 'Pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {item.status}
+                        {item.status?.replace(/_/g, ' ') || '-'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
                       <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900" title={t('edit')}>
                         <Edit className="h-5 w-5 inline" />
                       </button>
-                      <button onClick={() => handleDelete(item.match_id)} className="text-red-600 hover:text-red-900" title={t('delete')}>
+                      <button onClick={() => handleDelete(item)} className="text-red-600 hover:text-red-900" title={t('delete')}>
                         <Trash2 className="h-5 w-5 inline" />
                       </button>
                     </td>
@@ -377,7 +632,7 @@ export default function MatchesManager() {
               <div>
                 <h2 className="text-2xl font-bold">{editingItem ? t('edit') : t('createMatch')}</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  {t('competitionStage')} {wizardStep} / 3
+                  {t('competitionStage')} {wizardStep} / {totalSteps}
                 </p>
               </div>
               <button onClick={handleCloseWizard} className="text-gray-400 hover:text-gray-600">
@@ -388,25 +643,31 @@ export default function MatchesManager() {
             <div className="p-6">
               {/* Step Indicator */}
               <div className="flex items-center justify-center mb-8">
-                <div className="flex items-center space-x-4">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                    wizardStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
+                {showLineupSteps ? (
+                  <div className="flex items-center space-x-4">
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                      wizardStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      1
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                      wizardStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      2
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                      wizardStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      3
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white">
                     1
                   </div>
-                  <ChevronRight className="h-5 w-5 text-gray-400" />
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                    wizardStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    2
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-gray-400" />
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                    wizardStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    3
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Step 1: Basic Info */}
@@ -433,12 +694,34 @@ export default function MatchesManager() {
                       className="input w-full"
                     >
                       <option value="">Select...</option>
-                      {competitions.map(comp => (
+                      {safeCompetitions.map(comp => (
                         <option key={comp.competition_id} value={comp.competition_id}>
                           {comp.name}
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('season', { defaultValue: 'Season' })} *</label>
+                      <input
+                        type="text"
+                        required
+                        value={matchData.season_name}
+                        onChange={(e) => setMatchData({ ...matchData, season_name: e.target.value })}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('competitionStage')} *</label>
+                      <input
+                        type="text"
+                        required
+                        value={matchData.competition_stage}
+                        onChange={(e) => setMatchData({ ...matchData, competition_stage: e.target.value })}
+                        className="input w-full"
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -450,7 +733,7 @@ export default function MatchesManager() {
                         className="input w-full"
                       >
                         <option value="">{t('selectTeam')}</option>
-                        {teams.map(team => (
+                        {safeTeams.map(team => (
                           <option key={team.team_id} value={team.team_id}>
                             {team.name}
                           </option>
@@ -466,7 +749,7 @@ export default function MatchesManager() {
                         className="input w-full"
                       >
                         <option value="">{t('selectTeam')}</option>
-                        {teams.map(team => (
+                        {safeTeams.map(team => (
                           <option key={team.team_id} value={team.team_id}>
                             {team.name}
                           </option>
@@ -506,7 +789,7 @@ export default function MatchesManager() {
                         className="input w-full"
                       >
                         <option value="">Select...</option>
-                        {venues.map(venue => (
+                        {safeVenues.map(venue => (
                           <option key={venue.venue_id} value={venue.venue_id}>
                             {venue.name} - {venue.city}
                           </option>
@@ -514,14 +797,15 @@ export default function MatchesManager() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('referee')}</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('referee')} *</label>
                       <select
+                        required
                         value={matchData.referee_id}
                         onChange={(e) => setMatchData({ ...matchData, referee_id: e.target.value })}
                         className="input w-full"
                       >
                         <option value="">Select...</option>
-                        {referees.map(ref => (
+                        {safeReferees.map(ref => (
                           <option key={ref.referee_id} value={ref.referee_id}>
                             {ref.name}
                           </option>
@@ -533,10 +817,10 @@ export default function MatchesManager() {
               )}
 
               {/* Step 2: Home Team Lineup */}
-              {wizardStep === 2 && (
+              {showLineupSteps && wizardStep === 2 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">
-                    {t('lineup')} - {getTeamName(matchData.home_team_id!)}
+                    {t('lineup')} - {getTeamName(matchData.home_team_id)}
                   </h3>
                   <p className="text-sm text-gray-600">
                     {t('starters')}: {getLineupCount('home', true)} | {t('substitutes')}: {getLineupCount('home', false) - getLineupCount('home', true)}
@@ -545,7 +829,7 @@ export default function MatchesManager() {
                     <div>
                       <h4 className="font-medium mb-3">{t('starters')}</h4>
                       <div className="space-y-2">
-                        {homeRoster.filter(p => p.is_active).map(player => (
+                        {homeRoster.filter(p => p.is_active !== false).map(player => (
                           <div key={player.player_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <div className="flex items-center space-x-3">
                               <input
@@ -555,6 +839,7 @@ export default function MatchesManager() {
                                 className="h-4 w-4"
                               />
                               <span className="font-semibold">#{player.jersey_number}</span>
+                              <span className="text-sm text-gray-800">{player.player_name || player.player_id}</span>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(player.position)}`}>
                                 {t(`positions.${player.position}`)}
                               </span>
@@ -566,7 +851,7 @@ export default function MatchesManager() {
                     <div>
                       <h4 className="font-medium mb-3">{t('substitutes')}</h4>
                       <div className="space-y-2">
-                        {homeRoster.filter(p => p.is_active).map(player => (
+                        {homeRoster.filter(p => p.is_active !== false).map(player => (
                           <div key={player.player_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <div className="flex items-center space-x-3">
                               <input
@@ -576,6 +861,7 @@ export default function MatchesManager() {
                                 className="h-4 w-4"
                               />
                               <span className="font-semibold">#{player.jersey_number}</span>
+                              <span className="text-sm text-gray-800">{player.player_name || player.player_id}</span>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(player.position)}`}>
                                 {t(`positions.${player.position}`)}
                               </span>
@@ -589,10 +875,10 @@ export default function MatchesManager() {
               )}
 
               {/* Step 3: Away Team Lineup */}
-              {wizardStep === 3 && (
+              {showLineupSteps && wizardStep === 3 && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">
-                    {t('lineup')} - {getTeamName(matchData.away_team_id!)}
+                    {t('lineup')} - {getTeamName(matchData.away_team_id)}
                   </h3>
                   <p className="text-sm text-gray-600">
                     {t('starters')}: {getLineupCount('away', true)} | {t('substitutes')}: {getLineupCount('away', false) - getLineupCount('away', true)}
@@ -601,7 +887,7 @@ export default function MatchesManager() {
                     <div>
                       <h4 className="font-medium mb-3">{t('starters')}</h4>
                       <div className="space-y-2">
-                        {awayRoster.filter(p => p.is_active).map(player => (
+                        {awayRoster.filter(p => p.is_active !== false).map(player => (
                           <div key={player.player_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <div className="flex items-center space-x-3">
                               <input
@@ -611,6 +897,7 @@ export default function MatchesManager() {
                                 className="h-4 w-4"
                               />
                               <span className="font-semibold">#{player.jersey_number}</span>
+                              <span className="text-sm text-gray-800">{player.player_name || player.player_id}</span>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(player.position)}`}>
                                 {t(`positions.${player.position}`)}
                               </span>
@@ -622,7 +909,7 @@ export default function MatchesManager() {
                     <div>
                       <h4 className="font-medium mb-3">{t('substitutes')}</h4>
                       <div className="space-y-2">
-                        {awayRoster.filter(p => p.is_active).map(player => (
+                        {awayRoster.filter(p => p.is_active !== false).map(player => (
                           <div key={player.player_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                             <div className="flex items-center space-x-3">
                               <input
@@ -632,6 +919,7 @@ export default function MatchesManager() {
                                 className="h-4 w-4"
                               />
                               <span className="font-semibold">#{player.jersey_number}</span>
+                              <span className="text-sm text-gray-800">{player.player_name || player.player_id}</span>
                               <span className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(player.position)}`}>
                                 {t(`positions.${player.position}`)}
                               </span>
@@ -653,7 +941,7 @@ export default function MatchesManager() {
                 >
                   {wizardStep > 1 ? t('previous') : t('cancel')}
                 </button>
-                {wizardStep < 3 ? (
+                {!isLastStep ? (
                   <button type="button" onClick={handleNextStep} className="btn btn-primary">
                     {t('next')} <ChevronRight className="h-5 w-5 inline ml-1" />
                   </button>

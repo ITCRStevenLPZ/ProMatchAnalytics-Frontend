@@ -48,8 +48,9 @@ export default function LoadingSpinner({
   fullScreen = false,
   className = '',
 }: LoadingSpinnerProps) {
-  const { t } = useTranslation('common');
-  const displayMessage = message || t('common.loadingData');
+  const { t, ready } = useTranslation('common');
+  const resolvedMessage = ready ? t('common.loadingData') : 'Loading...';
+  const displayMessage = message ?? resolvedMessage;
 
   if (fullScreen) {
     return (
@@ -85,13 +86,14 @@ export function InlineSpinner({ size = 'sm' }: { size?: 'sm' | 'md' }) {
  * Table loading overlay - displays over table content
  */
 export function TableLoadingOverlay({ message }: { message?: string }) {
-  const { t } = useTranslation('common');
+  const { t, ready } = useTranslation('common');
+  const resolvedMessage = ready ? t('common.loadingData') : 'Loading...';
   
   return (
     <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10">
       <div className="flex flex-col items-center space-y-3">
         <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-        <p className="text-gray-600 font-medium">{message || t('common.loadingData')}</p>
+        <p className="text-gray-600 font-medium">{message ?? resolvedMessage}</p>
       </div>
     </div>
   );
@@ -101,13 +103,14 @@ export function TableLoadingOverlay({ message }: { message?: string }) {
  * Page loading component - full height centered spinner
  */
 export function PageLoader({ message }: { message?: string }) {
-  const { t } = useTranslation('common');
+  const { t, ready } = useTranslation('common');
+  const resolvedMessage = ready ? t('common.loadingData') : 'Loading...';
   
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="flex flex-col items-center space-y-4">
         <Loader2 className="h-16 w-16 text-blue-600 animate-spin" />
-        <p className="text-xl text-gray-700 font-medium">{message || t('common.loadingData')}</p>
+        <p className="text-xl text-gray-700 font-medium">{message ?? resolvedMessage}</p>
       </div>
     </div>
   );

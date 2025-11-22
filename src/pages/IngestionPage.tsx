@@ -45,6 +45,10 @@ interface IngestionItem {
   similarity_score?: number;
   matched_record_id?: string;
   status: string;
+  resolved_at?: string;
+  resolved_by?: string;
+  has_conflict?: boolean;
+  conflict_id?: string | null;
 }
 
 export default function IngestionPage() {
@@ -62,7 +66,7 @@ export default function IngestionPage() {
   const { data: batch, isLoading: batchLoading, error: batchError } = useQuery<IngestionBatch>({
     queryKey: ['ingestion-batch', batchId],
     queryFn: async () => {
-      return await apiClient.get<IngestionBatch>(`/api/v1/ingestions/${batchId}`);
+      return await apiClient.get<IngestionBatch>(`ingestions/${batchId}`);
     },
     refetchInterval: (query) => {
       // Poll every 2 seconds if still processing
@@ -79,7 +83,7 @@ export default function IngestionPage() {
     queryKey: ['ingestion-items', batchId, page, statusFilter],
     queryFn: async () => {
       return await apiClient.get<{ items: IngestionItem[]; total: number; page: number; page_size: number }>(
-        `/api/v1/ingestions/${batchId}/items`,
+        `ingestions/${batchId}/items`,
         {
           params: {
             page,
@@ -95,7 +99,7 @@ export default function IngestionPage() {
   // Retry failed items mutation
   const retryMutation = useMutation({
     mutationFn: async () => {
-      return await apiClient.post(`/api/v1/ingestions/${batchId}/retry-failed`);
+      return await apiClient.post(`ingestions/${batchId}/retry-failed`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingestion-batch', batchId] });
@@ -141,6 +145,9 @@ export default function IngestionPage() {
   };
 
   const handleReviewConflict = (item: IngestionItem) => {
+    if (!item.has_conflict) {
+      return;
+    }
     setSelectedItem(item);
     setShowConflictDialog(true);
   };
@@ -325,6 +332,9 @@ export default function IngestionPage() {
                       {t('ingestion.status')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t('ingestion.resolution', 'Resolution')}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t('ingestion.matchKind')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -346,6 +356,16 @@ export default function IngestionPage() {
                           {item.status}
                         </span>
                       </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="text-gray-900 font-medium">
+                          {item.resolved_by || t('ingestion.unassignedResolver', 'Unassigned')}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {item.resolved_at
+                            ? new Date(item.resolved_at).toLocaleString()
+                            : t('ingestion.awaitingResolution', 'Awaiting resolution')}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.match_kind}
                       </td>
@@ -353,7 +373,7 @@ export default function IngestionPage() {
                         {item.similarity_score ? `${Math.round(item.similarity_score * 100)}%` : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {item.status === 'conflict_open' && (
+                        {item.has_conflict ? (
                           <button
                             onClick={() => handleReviewConflict(item)}
                             className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
@@ -361,7 +381,11 @@ export default function IngestionPage() {
                             <Eye className="h-4 w-4" />
                             <span>{t('ingestion.review')}</span>
                           </button>
-                        )}
+                        ) : item.status === 'conflict_open' ? (
+                          <span className="text-xs text-gray-500">
+                            {t('ingestion.conflictResolvedMessage')}
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   ))}

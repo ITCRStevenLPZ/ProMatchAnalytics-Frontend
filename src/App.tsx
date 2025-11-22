@@ -2,7 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { useEffect } from 'react';
 import { auth } from './lib/firebase';
+import { fetchCurrentUser } from './lib/auth';
 import { onAuthStateChanged } from 'firebase/auth';
+
+const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === 'true';
 
 // Layout
 import Layout from './components/Layout.tsx';
@@ -39,12 +42,31 @@ function App() {
   const { setUser, setLoading } = useAuthStore();
 
   useEffect(() => {
+    if (IS_E2E_TEST_MODE) {
+      // E2E mode bootstraps an analyst user without Firebase.
+      setUser({
+        uid: 'e2e-user',
+        email: 'e2e@example.com',
+        displayName: 'E2E Analyst',
+        photoURL: '',
+        role: 'analyst',
+      });
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Get user role from custom claims or backend
+        try {
+          await fetchCurrentUser();
+          await firebaseUser.getIdToken(true);
+        } catch (error) {
+          console.error('Failed to sync backend session', error);
+        }
+
         const idTokenResult = await firebaseUser.getIdTokenResult();
         const role = (idTokenResult.claims.role as string) || 'guest';
-        
+
         // Map old roles to new roles if needed
         const roleMapping: Record<string, 'admin' | 'analyst' | 'guest'> = {
           'Admin': 'admin',
@@ -54,7 +76,7 @@ function App() {
           'analyst': 'analyst',
           'guest': 'guest',
         };
-        
+
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',

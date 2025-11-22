@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Shield, Plus, Edit, Trash2, Search, X, Users, Filter } from 'lucide-react';
 import { apiClient } from '../lib/api';
 import { normalizePlayers, type PlayerApiResponse } from '../lib/players';
-import { normalizeTeams, type TeamApiResponse } from '../lib/teams';
+import { buildTeamPayload, normalizeTeams, type TeamApiResponse } from '../lib/teams';
 import type { Team, TeamPlayer, PlayerData, PlayerPosition, PaginatedResponse, TechnicalStaffMember } from '../types';
 import { getCountriesSorted } from '../lib/countries';
 import { useDuplicateCheck } from '../hooks/useDuplicateCheck';
@@ -18,6 +18,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AutocompleteSearch from '../components/AutocompleteSearch';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { teamSchema } from '../lib/validationSchemas';
+import { applyBackendValidationErrors, resolveKnownFieldError } from '../lib/backendErrorUtils';
 
 // Technical staff roles (stored in English in DB, translated in UI)
 // Note: Manager and Technical Director are not included as they are leadership positions
@@ -34,6 +35,37 @@ const TECHNICAL_STAFF_ROLES = [
   'Equipment Manager',
   'Other'
 ] as const;
+
+const ADMIN_LOCALES = ['en', 'es'] as const;
+type AdminLocale = (typeof ADMIN_LOCALES)[number];
+
+const withTeamFormDefaults = (data?: Partial<Team>): Partial<Team> => {
+  const merged = { ...(data ?? {}) };
+  const localizedNames: Record<string, string> = {
+    ...(merged.i18n_names ?? {}),
+  };
+
+  ADMIN_LOCALES.forEach((locale) => {
+    localizedNames[locale] = localizedNames[locale] ?? '';
+  });
+
+  return {
+    ...merged,
+    name: merged.name ?? '',
+    short_name: merged.short_name ?? '',
+    country_name: merged.country_name ?? '',
+    gender: merged.gender ?? 'male',
+    manager:
+      merged.manager ?? {
+        name: '',
+        country_name: '',
+        start_date: null,
+      },
+    managers: merged.managers ?? [],
+    technical_staff: merged.technical_staff ?? [],
+    i18n_names: localizedNames,
+  };
+};
 
 export default function TeamsManager() {
   const { t, i18n } = useTranslation(['admin', 'common']);
@@ -53,6 +85,7 @@ export default function TeamsManager() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
+  const [similarRecords, setSimilarRecords] = useState<any[] | null>(null);
   const [originalFormData, setOriginalFormData] = useState<Partial<Team> | null>(null);
   const currentLang = i18n.language as 'en' | 'es';
   const { checkDuplicates, duplicates, clearDuplicates } = useDuplicateCheck();
@@ -64,7 +97,16 @@ export default function TeamsManager() {
     validateAndSetFieldError,
     clearErrors,
     getFieldError,
+    setFieldError,
   } = useFormValidation<Partial<Team>>(teamSchema, t);
+
+  const formatDeleteGuardError = (detail: unknown): string | null => {
+    if (typeof detail !== 'string') return null;
+    const match = detail.match(/Cannot delete team with (\d+) match(?:es)?/i);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t('deleteGuards.teamMatches', { count });
+  };
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,19 +120,14 @@ export default function TeamsManager() {
   const [rosterTotalItems, setRosterTotalItems] = useState(0);
   const [rosterTotalPages, setRosterTotalPages] = useState(0);
 
-  const [formData, setFormData] = useState<Partial<Team>>({
-    name: '',
-    short_name: '',
-    country_name: '',
-    gender: 'male',
-    manager: {
+  const [formData, setFormData] = useState<Partial<Team>>(() => withTeamFormDefaults());
+
+  const getManagerDraft = () =>
+    formData.manager ?? {
       name: '',
-      nationality: '',
-      years_of_experience: 0,
+      country_name: '',
       start_date: null,
-    },
-    technical_staff: [],
-  });
+    };
 
   const [rosterFormData, setRosterFormData] = useState({
     player_id: '',
@@ -98,6 +135,39 @@ export default function TeamsManager() {
     position: 'CM' as PlayerPosition,
     is_active: true,
   });
+  const [rosterFormError, setRosterFormError] = useState<string | null>(null);
+  const [rosterFieldErrors, setRosterFieldErrors] = useState<Record<string, string>>({});
+
+  const clearRosterFieldErrors = () => setRosterFieldErrors({});
+  const setRosterFieldError = (field: string, message: string) => {
+    setRosterFieldErrors((prev) => ({ ...prev, [field]: message }));
+  };
+  const clearRosterFieldError = (field: string) => {
+    setRosterFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+  const handleRosterStringError = (detail?: string): boolean => {
+    if (!detail) {
+      return false;
+    }
+    console.warn('[TeamsManager] roster string error', detail);
+    const normalized = detail.toLowerCase();
+    if (normalized.includes('jersey number')) {
+      setRosterFieldError('jersey_number', detail);
+      setRosterFormError(t('validation.fixErrors'));
+      return true;
+    }
+    if (normalized.includes('already in team')) {
+      setRosterFieldError('player_id', detail);
+      setRosterFormError(t('validation.fixErrors'));
+      return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     fetchTeams();
@@ -174,31 +244,7 @@ export default function TeamsManager() {
       return;
     }
 
-    // Clean formData: remove empty fields
-    const cleanedData = { ...formData };
-    
-    // Clean single manager field
-    if (cleanedData.manager) {
-      const hasManagerData = 
-        cleanedData.manager.name?.trim() ||
-        cleanedData.manager.nationality?.trim() ||
-        (cleanedData.manager.years_of_experience && 
-         cleanedData.manager.years_of_experience > 0);
-      
-      if (!hasManagerData) {
-        delete cleanedData.manager;
-      }
-    }
-
-    // Clean technical_staff array - remove empty entries
-    if (cleanedData.technical_staff && cleanedData.technical_staff.length > 0) {
-      cleanedData.technical_staff = cleanedData.technical_staff.filter(s => 
-        s.name?.trim() || s.role?.trim()
-      );
-      if (cleanedData.technical_staff.length === 0) {
-        delete cleanedData.technical_staff;
-      }
-    }
+    const backendPayload = buildTeamPayload(formData);
     
     // EDIT MODE: Always show changes for confirmation
     if (editingItem && editingItem.team_id) {
@@ -209,7 +255,7 @@ export default function TeamsManager() {
         clearDuplicates();
         
         // Detect changes AND check duplicates in single API call
-        const result = await detectChanges('teams', editingItem.team_id, cleanedData, true);
+        const result = await detectChanges('teams', editingItem.team_id, backendPayload, true);
         
         // Always show change confirmation, even for small changes
         if (result && result.changes.length > 0) {
@@ -227,6 +273,7 @@ export default function TeamsManager() {
         // Duplicates were already checked in combined call, just show them if found
         if (duplicateResult && duplicateResult.has_duplicates && !showSimilarRecords) {
           setShowChangeWarning(false);
+          setSimilarRecords(duplicateResult.duplicates ?? []);
           setShowSimilarRecords(true);
           return;
         }
@@ -235,11 +282,7 @@ export default function TeamsManager() {
     
     // CREATE MODE: Check for duplicates
     if (!editingItem) {
-      const result = await checkDuplicates('teams', {
-        name: formData.name,
-        country_name: formData.country_name,
-        gender: formData.gender
-      });
+      const result = await checkDuplicates('teams', backendPayload);
 
       // Check for 100% duplicates (should be rejected automatically)
       const exactDuplicate = result.duplicates?.find(d => 
@@ -258,53 +301,50 @@ export default function TeamsManager() {
       }
     }
 
-    await saveTeam();
+    await saveTeam(backendPayload);
   };
 
-  const saveTeam = async () => {
+  const saveTeam = async (payloadOverride?: Record<string, unknown>) => {
     try {
-      // Clean formData before saving
-      const cleanedData = { ...formData };
-      
-      // Clean single manager
-      if (cleanedData.manager) {
-        const hasManagerData = 
-          cleanedData.manager.name?.trim() ||
-          cleanedData.manager.nationality?.trim() ||
-          (cleanedData.manager.years_of_experience && 
-           cleanedData.manager.years_of_experience > 0);
-        
-        if (!hasManagerData) {
-          delete cleanedData.manager;
-        }
-      }
-
-      // Clean technical_staff array
-      if (cleanedData.technical_staff && cleanedData.technical_staff.length > 0) {
-        cleanedData.technical_staff = cleanedData.technical_staff.filter(s => 
-          s.name?.trim() || s.role?.trim()
-        );
-        if (cleanedData.technical_staff.length === 0) {
-          delete cleanedData.technical_staff;
-        }
-      }
+      const payload = payloadOverride ?? buildTeamPayload(formData);
 
       if (editingItem) {
-        await apiClient.put(`/teams/${editingItem.team_id}`, cleanedData);
+        await apiClient.put(`/teams/${editingItem.team_id}`, payload);
       } else {
-        await apiClient.post('/teams/', cleanedData);
+        await apiClient.post('/teams/', payload);
       }
       await fetchTeams();
       handleCloseForm();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      const detail = err.response?.data?.detail;
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError,
+        clearErrors,
+        translate: t,
+      });
+      if (handled) {
+        setError(t('validation.fixErrors'));
+        return;
+      }
+
+      const knownFieldError = resolveKnownFieldError(detail);
+      if (knownFieldError) {
+        setFieldError(knownFieldError.field, t(knownFieldError.translationKey));
+        setError(t('validation.fixErrors'));
+        return;
+      }
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError(t('errorSavingData'));
+      }
     }
   };
 
   const handleContinueWithDuplicates = async () => {
     setShowDuplicateWarning(false);
     clearDuplicates();
-    await saveTeam();
+    await saveTeam(buildTeamPayload(formData));
   };
 
   const handleCancelDuplicates = () => {
@@ -335,13 +375,26 @@ export default function TeamsManager() {
 
   const handleCloseSimilarRecords = () => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
   };
 
   const handleOpenSimilarRecord = (record: any) => {
     setShowSimilarRecords(false);
+    setSimilarRecords(null);
     clearChangeResult();
     handleEdit(record);
+  };
+
+  const handleLocalizedNameChange = (locale: AdminLocale, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      i18n_names: {
+        ...(prev.i18n_names ?? {}),
+        [locale]: value,
+      },
+    }));
+    validateAndSetFieldError(`i18n_names.${locale}`, value);
   };
 
   const handleDelete = async (id: string) => {
@@ -350,23 +403,19 @@ export default function TeamsManager() {
       await apiClient.delete(`/teams/${id}`);
       await fetchTeams();
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      const guardMessage = formatDeleteGuardError(detail);
+      if (guardMessage) {
+        setError(guardMessage);
+        return;
+      }
+      setError(typeof detail === 'string' ? detail : t('errorDeletingData'));
     }
   };
 
   const handleEdit = (item: Team) => {
     setEditingItem(item);
-    const formDataToSet = {
-      ...item,
-      manager: item.manager || {
-        name: '',
-        nationality: '',
-        years_of_experience: 0,
-        start_date: null,
-      },
-      managers: item.managers || [],
-      technical_staff: item.technical_staff || [],
-    };
+    const formDataToSet = withTeamFormDefaults(item);
     setFormData(formDataToSet);
     setOriginalFormData(formDataToSet); // Store original data for revert
     setShowForm(true);
@@ -383,19 +432,7 @@ export default function TeamsManager() {
     clearChangeResult();
     clearErrors();
     setError(null);
-    setFormData({
-      name: '',
-      short_name: '',
-      country_name: '',
-      gender: 'male',
-      manager: {
-        name: '',
-        nationality: '',
-        years_of_experience: 0,
-        start_date: null,
-      },
-      technical_staff: [],
-    });
+    setFormData(withTeamFormDefaults());
   };
 
   // Technical staff handlers
@@ -441,19 +478,13 @@ export default function TeamsManager() {
   const handleSelectExistingTeam = (teamData: TeamApiResponse) => {
     const normalizedTeam = normalizeTeams([teamData])[0];
     setEditingItem(normalizedTeam);
-    setFormData({
-      ...normalizedTeam,
-      manager: normalizedTeam.manager || {
-        name: '',
-        nationality: '',
-        years_of_experience: 0,
-        start_date: null,
-      },
-    });
+    setFormData(withTeamFormDefaults(normalizedTeam));
   };
 
   const handleManageRoster = async (team: Team) => {
     setSelectedTeam(team);
+    clearRosterFieldErrors();
+    setRosterFormError(null);
     await fetchTeamRoster(team.team_id);
     setShowRosterModal(true);
   };
@@ -463,7 +494,13 @@ export default function TeamsManager() {
     if (!selectedTeam) return;
 
     try {
-      await apiClient.post(`/teams/${selectedTeam.team_id}/players`, rosterFormData);
+      setRosterFormError(null);
+      clearRosterFieldErrors();
+      const payload = {
+        ...rosterFormData,
+        team_id: selectedTeam.team_id,
+      };
+      await apiClient.post(`/teams/${selectedTeam.team_id}/players`, payload);
       await fetchTeamRoster(selectedTeam.team_id);
       setRosterFormData({
         player_id: '',
@@ -471,8 +508,27 @@ export default function TeamsManager() {
         position: 'CM',
         is_active: true,
       });
+      clearRosterFieldErrors();
+      setRosterFormError(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorSavingData'));
+      const detail = err.response?.data?.detail;
+      const handled = applyBackendValidationErrors(detail, {
+        setFieldError: setRosterFieldError,
+        clearErrors: clearRosterFieldErrors,
+        translate: t,
+      });
+      if (handled) {
+        setRosterFormError(t('validation.fixErrors'));
+        return;
+      }
+      if (typeof detail === 'string') {
+        if (handleRosterStringError(detail)) {
+          return;
+        }
+        setRosterFormError(detail);
+      } else {
+        setRosterFormError(t('errorSavingData'));
+      }
     }
   };
 
@@ -484,7 +540,12 @@ export default function TeamsManager() {
       await apiClient.delete(`/teams/${selectedTeam.team_id}/players/${playerId}`);
       await fetchTeamRoster(selectedTeam.team_id);
     } catch (err: any) {
-      setError(err.response?.data?.detail || t('errorDeletingData'));
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'string') {
+        setRosterFormError(detail);
+      } else {
+        setRosterFormError(t('errorDeletingData'));
+      }
     }
   };
 
@@ -493,6 +554,8 @@ export default function TeamsManager() {
     setSelectedTeam(null);
     setTeamRoster([]);
     setAvailablePlayers([]);
+    clearRosterFieldErrors();
+    setRosterFormError(null);
   };
 
   const getPlayerName = (playerId: string): string => {
@@ -587,6 +650,7 @@ export default function TeamsManager() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common:common.name')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('localizedNames')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('shortName')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common:common.country')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common:common.gender')}</th>
@@ -598,6 +662,16 @@ export default function TeamsManager() {
                   {filteredTeams.map((item) => (
                     <tr key={item._id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div className="space-y-1">
+                          {ADMIN_LOCALES.map((locale) => (
+                            <div key={locale} className="flex items-center text-xs">
+                              <span className="font-semibold uppercase text-gray-500 mr-2">{locale}</span>
+                              <span>{item.i18n_names?.[locale] || '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.short_name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.country_name}</td>
                       <td className="px-6 py-4 text-sm">
@@ -677,6 +751,14 @@ export default function TeamsManager() {
                   onContinue={handleContinueWithDuplicates}
                   onCancel={handleCancelDuplicates}
                   entityType="team"
+                  onViewSimilarRecords={
+                    duplicates.duplicates.length > 0
+                      ? () => {
+                          setSimilarRecords(duplicates.duplicates);
+                          setShowSimilarRecords(true);
+                        }
+                      : undefined
+                  }
                 />
               )}
               <div>
@@ -699,6 +781,35 @@ export default function TeamsManager() {
                 {getFieldError('name') && (
                   <p className="mt-1 text-sm text-red-600">{getFieldError('name')}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{t('localizedNames')}</p>
+                  <p className="text-xs text-gray-500">{t('localizedNamesDescription')}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {ADMIN_LOCALES.map((locale) => {
+                    const fieldKey = `i18n_names.${locale}`;
+                    return (
+                      <div key={locale}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'en' ? t('localizedNameEn') : t('localizedNameEs')}
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={100}
+                          value={formData.i18n_names?.[locale] ?? ''}
+                          onChange={(e) => handleLocalizedNameChange(locale, e.target.value)}
+                          onBlur={(e) => validateAndSetFieldError(fieldKey, e.target.value)}
+                          className={`input w-full ${getFieldError(fieldKey) ? 'border-red-500' : ''}`}
+                        />
+                        {getFieldError(fieldKey) && (
+                          <p className="mt-1 text-sm text-red-600">{getFieldError(fieldKey)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
@@ -772,11 +883,11 @@ export default function TeamsManager() {
                     <input
                       type="text"
                       required
-                      value={formData.manager?.name}
+                      value={formData.manager?.name || ''}
                       onChange={(e) => {
                         setFormData({ 
                           ...formData, 
-                          manager: { ...formData.manager!, name: e.target.value }
+                          manager: { ...getManagerDraft(), name: e.target.value }
                         });
                         validateAndSetFieldError('manager.name', e.target.value);
                       }}
@@ -787,54 +898,31 @@ export default function TeamsManager() {
                       <p className="mt-1 text-sm text-red-600">{getFieldError('manager.name')}</p>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('managerNationality')} *</label>
-                      <select
-                        required
-                        value={formData.manager?.nationality}
-                        onChange={(e) => {
-                          setFormData({ 
-                            ...formData, 
-                            manager: { ...formData.manager!, nationality: e.target.value }
-                          });
-                          validateAndSetFieldError('manager.nationality', e.target.value);
-                        }}
-                        onBlur={(e) => validateAndSetFieldError('manager.nationality', e.target.value)}
-                        className={`input w-full ${getFieldError('manager.nationality') ? 'border-red-500' : ''}`}
-                      >
-                        <option value="">{t('common:common.selectCountry')}</option>
-                        {getCountriesSorted(currentLang).map((country) => (
-                          <option key={country.en} value={country.en}>
-                            {country[currentLang]}
-                          </option>
-                        ))}
-                      </select>
-                      {getFieldError('manager.nationality') && (
-                        <p className="mt-1 text-sm text-red-600">{getFieldError('manager.nationality')}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('managerYearsExp')}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.manager?.years_of_experience}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          setFormData({ 
-                            ...formData, 
-                            manager: { ...formData.manager!, years_of_experience: value }
-                          });
-                          validateAndSetFieldError('manager.years_of_experience', value);
-                        }}
-                        onBlur={(e) => validateAndSetFieldError('manager.years_of_experience', parseInt(e.target.value) || 0)}
-                        className={`input w-full ${getFieldError('manager.years_of_experience') ? 'border-red-500' : ''}`}
-                      />
-                      {getFieldError('manager.years_of_experience') && (
-                        <p className="mt-1 text-sm text-red-600">{getFieldError('manager.years_of_experience')}</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('managerNationality')}</label>
+                    <select
+                      value={formData.manager?.country_name || ''}
+                      onChange={(e) => {
+                        const value = e.target.value || '';
+                        setFormData({ 
+                          ...formData, 
+                          manager: { ...getManagerDraft(), country_name: value }
+                        });
+                        validateAndSetFieldError('manager.country_name', value || undefined);
+                      }}
+                      onBlur={(e) => validateAndSetFieldError('manager.country_name', e.target.value || undefined)}
+                      className={`input w-full ${getFieldError('manager.country_name') ? 'border-red-500' : ''}`}
+                    >
+                      <option value="">{t('common:common.selectCountry')}</option>
+                      {getCountriesSorted(currentLang).map((country) => (
+                        <option key={country.en} value={country.en}>
+                          {country[currentLang]}
+                        </option>
+                      ))}
+                    </select>
+                    {getFieldError('manager.country_name') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('manager.country_name')}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -942,7 +1030,7 @@ export default function TeamsManager() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold">{t('admin.roster')} - {selectedTeam.name}</h2>
+              <h2 className="text-2xl font-bold">{t('roster')} - {selectedTeam.name}</h2>
               <button onClick={handleCloseRosterModal} className="text-gray-400 hover:text-gray-600">
                 <X className="h-6 w-6" />
               </button>
@@ -1012,13 +1100,21 @@ export default function TeamsManager() {
                 <div>
                   <h3 className="text-lg font-semibold mb-4">{t('addToRoster')}</h3>
                   <form onSubmit={handleAddPlayerToRoster} className="space-y-4">
+                    {rosterFormError && (
+                      <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                        {rosterFormError}
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('players')} *</label>
                       <select
                         required
                         value={rosterFormData.player_id}
-                        onChange={(e) => setRosterFormData({ ...rosterFormData, player_id: e.target.value })}
-                        className="input w-full"
+                        onChange={(e) => {
+                          clearRosterFieldError('player_id');
+                          setRosterFormData({ ...rosterFormData, player_id: e.target.value });
+                        }}
+                        className={`input w-full ${rosterFieldErrors.player_id ? 'border-red-500' : ''}`}
                       >
                         <option value="">{t('selectPlayers')}</option>
                         {availablePlayers.map((player) => (
@@ -1027,6 +1123,9 @@ export default function TeamsManager() {
                           </option>
                         ))}
                       </select>
+                      {rosterFieldErrors.player_id && (
+                        <p className="mt-1 text-sm text-red-600">{rosterFieldErrors.player_id}</p>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1037,17 +1136,26 @@ export default function TeamsManager() {
                           min="1"
                           max="99"
                           value={rosterFormData.jersey_number}
-                          onChange={(e) => setRosterFormData({ ...rosterFormData, jersey_number: parseInt(e.target.value) })}
-                          className="input w-full"
+                          onChange={(e) => {
+                            clearRosterFieldError('jersey_number');
+                            setRosterFormData({ ...rosterFormData, jersey_number: parseInt(e.target.value) });
+                          }}
+                          className={`input w-full ${rosterFieldErrors.jersey_number ? 'border-red-500' : ''}`}
                         />
+                        {rosterFieldErrors.jersey_number && (
+                          <p className="mt-1 text-sm text-red-600">{rosterFieldErrors.jersey_number}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">{t('position')} *</label>
                         <select
                           required
                           value={rosterFormData.position}
-                          onChange={(e) => setRosterFormData({ ...rosterFormData, position: e.target.value as PlayerPosition })}
-                          className="input w-full"
+                          onChange={(e) => {
+                            clearRosterFieldError('position');
+                            setRosterFormData({ ...rosterFormData, position: e.target.value as PlayerPosition });
+                          }}
+                          className={`input w-full ${rosterFieldErrors.position ? 'border-red-500' : ''}`}
                         >
                           <optgroup label={t('positionGroups.goalkeeper')}>
                             <option value="GK">{t('positions.GK')}</option>
@@ -1077,6 +1185,9 @@ export default function TeamsManager() {
                             <option value="SS">{t('positions.SS')}</option>
                           </optgroup>
                         </select>
+                          {rosterFieldErrors.position && (
+                            <p className="mt-1 text-sm text-red-600">{rosterFieldErrors.position}</p>
+                          )}
                       </div>
                     </div>
                     <div className="flex items-center">
@@ -1104,9 +1215,9 @@ export default function TeamsManager() {
       )}
 
       {/* Similar Records Viewer Modal */}
-      {showSimilarRecords && duplicateResult && duplicateResult.has_duplicates && (
+      {showSimilarRecords && similarRecords && similarRecords.length > 0 && (
         <SimilarRecordsViewer
-          records={duplicateResult.duplicates}
+          records={similarRecords}
           currentData={formData}
           entityType="team"
           onClose={handleCloseSimilarRecords}

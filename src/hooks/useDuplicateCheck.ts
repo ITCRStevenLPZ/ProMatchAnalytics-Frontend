@@ -23,12 +23,12 @@ export const useDuplicateCheck = () => {
   ): Promise<DuplicateResult> => {
     setChecking(true);
     try {
-      const response: any = await apiClient.post(
+      const response = await apiClient.post<DuplicateResult>(
         `/admin/check-duplicates/${entityType}`,
         data
       );
-      setDuplicates(response.data);
-      return response.data;
+      setDuplicates(response);
+      return response;
     } catch (error) {
       console.error('Duplicate check failed:', error);
       return { has_duplicates: false, count: 0, duplicates: [] };

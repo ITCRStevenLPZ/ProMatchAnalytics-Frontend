@@ -309,6 +309,16 @@ npm test -- --watch
 npm test -- --coverage
 ```
 
+### Playwright E2E (admin CRUD + ingestion)
+
+End-to-end API coverage for admin models and ingestion lives under `e2e/admin-models-crud.spec.ts`.
+
+```bash
+PROMATCH_E2E_BACKEND_URL=http://127.0.0.1:8000 npx playwright test e2e/admin-models-crud.spec.ts
+```
+
+The spec expects the backend e2e server to be running (see runbook in `frontend_backend_change_log.md`).
+
 ## 📱 PWA Features
 
 - **Offline functionality**: App works without internet

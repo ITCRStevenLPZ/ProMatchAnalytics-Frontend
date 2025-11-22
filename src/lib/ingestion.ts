@@ -52,6 +52,23 @@ export interface IngestionBatch {
   metadata?: Record<string, any>;
 }
 
+export interface IngestionBatchSummary {
+  ingestion_id: string;
+  target_model: string;
+  status: string;
+  batch_name: string;
+  total: number;
+  inserted: number;
+  duplicates_discarded: number;
+  conflicts_open: number;
+  accepted: number;
+  rejected: number;
+  created_at: string;
+  finished_at?: string;
+  expires_at?: string;
+  created_by: string;
+}
+
 export interface IngestionItem {
   item_id: string;
   ingestion_id: string;
@@ -67,6 +84,8 @@ export interface IngestionItem {
   resolved_by?: string;
   error_message?: string;
   created_at: string;
+  has_conflict?: boolean;
+  conflict_id?: string | null;
 }
 
 export interface ConflictRecord {
@@ -87,6 +106,7 @@ export interface ConflictRecord {
   resolution_action?: string;
   created_at: string;
   metadata?: Record<string, any>;
+  existing_record_snapshot?: Record<string, any>;
 }
 
 export interface ModelConfig {
@@ -110,22 +130,7 @@ export async function listBatches(params?: {
   page?: number;
   page_size?: number;
 }): Promise<{
-  batches: Array<{
-    ingestion_id: string;
-    target_model: string;
-    status: string;
-    batch_name: string;
-    total: number;
-    inserted: number;
-    duplicates_discarded: number;
-    conflicts_open: number;
-    accepted: number;
-    rejected: number;
-    created_at: string;
-    finished_at?: string;
-    expires_at?: string;
-    created_by: string;
-  }>;
+  batches: IngestionBatchSummary[];
   total: number;
   page: number;
   page_size: number;
@@ -138,6 +143,13 @@ export async function listBatches(params?: {
   
   const query = queryParams.toString();
   return apiClient.get(`/ingestions${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Delete an ingestion batch and its associated metadata
+ */
+export async function deleteBatch(ingestionId: string): Promise<{ message?: string }> {
+  return apiClient.delete(`/ingestions/${ingestionId}`);
 }
 
 /**
@@ -225,6 +237,13 @@ export async function rejectItem(
   message: string;
 }> {
   return apiClient.post(`/ingestions/${ingestionId}/items/${itemId}/reject`, params);
+}
+
+/**
+ * Get conflict details for a specific ingestion item
+ */
+export async function getConflictDetails(itemId: string): Promise<ConflictRecord> {
+  return apiClient.get(`/ingestions/conflicts/${itemId}`);
 }
 
 /**
@@ -435,7 +454,7 @@ export async function createBatchIngestion(
   batchName?: string,
   description?: string
 ): Promise<CreateBatchResponse> {
-  const response = await apiClient.post<CreateBatchResponse>('/api/v1/ingestions', {
+  const response = await apiClient.post<CreateBatchResponse>('ingestions', {
     target_model: targetModel,
     data,
     batch_name: batchName,
@@ -483,7 +502,7 @@ export async function createBulkIngestion(
   data?: Record<string, any>,
   metadata?: Record<string, any>
 ): Promise<CreateBulkResponse> {
-  const response = await apiClient.post<CreateBulkResponse>('/api/v1/ingestions/bulk', {
+  const response = await apiClient.post<CreateBulkResponse>('ingestions/bulk', {
     format,
     content,
     data,
@@ -496,5 +515,5 @@ export async function createBulkIngestion(
  * Get bulk ingestion status with all batch statuses
  */
 export async function getBulkStatus(bulkId: string): Promise<BulkStatusResponse> {
-  return apiClient.get(`/api/v1/ingestions/bulk/${bulkId}`);
+  return apiClient.get(`ingestions/bulk/${bulkId}`);
 }

@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { readFileAsText, validateFileType, validateFileSize, parseCSV, parseJSON } from '../lib/csvParser';
 import {
   createBatchIngestion,
-  type CreateBatchResponse
+  createBulkIngestion,
+  type CreateBatchResponse,
 } from '../lib/ingestion';
 
 interface DataIngestionDialogProps {
@@ -74,8 +75,6 @@ export function DataIngestionDialog({
       // Handle bulk vs regular ingestion
       if (modelType === 'bulk') {
         // For bulk ingestion, send raw content
-        const { createBulkIngestion } = await import('../lib/ingestion');
-        
         const bulkResult = await createBulkIngestion(
           extension === 'csv' ? 'csv' : 'json',
           extension === 'csv' ? content : undefined,
@@ -315,3 +314,5 @@ export function DataIngestionDialog({
     </div>
   );
 }
+
+export default DataIngestionDialog;

@@ -41,10 +41,10 @@ export default function SimilarRecordsViewer({
 
   const getDisplayFields = (): string[] => {
     const fieldMap: Record<string, string[]> = {
-      player: ['name', 'birth_date', 'nationality', 'position', 'height', 'weight'],
+      player: ['name', 'birth_date', 'country_name', 'position', 'player_height', 'player_weight'],
       team: ['name', 'short_name', 'country_name', 'gender'],
-      venue: ['name', 'city', 'country', 'capacity', 'surface'],
-      referee: ['name', 'country', 'years_of_experience'],
+      venue: ['name', 'city', 'country_name', 'capacity', 'surface'],
+      referee: ['name', 'country_name', 'years_of_experience'],
       competition: ['name', 'short_name', 'country_name', 'gender']
     };
     return fieldMap[entityType] || ['name'];
@@ -52,14 +52,14 @@ export default function SimilarRecordsViewer({
 
   const getFieldValue = (data: any, field: string): any => {
     // Try to get the value with the field name, or try backend field name
-    if (field === 'nationality') {
-      return data.nationality || data.country_name;
+    if (field === 'country_name') {
+      return data.country_name || data.country || data.nationality;
     }
-    if (field === 'height') {
-      return data.height || data.player_height;
+    if (field === 'player_height') {
+      return data.player_height || data.height;
     }
-    if (field === 'weight') {
-      return data.weight || data.player_weight;
+    if (field === 'player_weight') {
+      return data.player_weight || data.weight;
     }
     return data[field];
   };
@@ -68,10 +68,9 @@ export default function SimilarRecordsViewer({
     const labelMap: Record<string, string> = {
       name: t('name'),
       birth_date: t('birthDate'),
-      nationality: t('nationality'),
+      player_height: t('height'),
+      player_weight: t('weight'),
       position: t('position'),
-      height: t('height'),
-      weight: t('weight'),
       short_name: t('shortName'),
       country_name: t('country'),
       gender: t('gender'),

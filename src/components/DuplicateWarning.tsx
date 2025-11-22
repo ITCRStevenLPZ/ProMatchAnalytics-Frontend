@@ -12,12 +12,14 @@ interface DuplicateWarningProps {
   onContinue: () => void;
   onCancel: () => void;
   entityType: string;
+  onViewSimilarRecords?: () => void;
 }
 
 export default function DuplicateWarning({
   duplicates,
   onContinue,
-  onCancel
+  onCancel,
+  onViewSimilarRecords
 }: DuplicateWarningProps) {
   const { t } = useTranslation('admin');
 
@@ -54,7 +56,7 @@ export default function DuplicateWarning({
             ))}
           </div>
 
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={onCancel}
               className="btn btn-secondary text-sm flex items-center"
@@ -62,6 +64,15 @@ export default function DuplicateWarning({
               <X className="h-4 w-4 mr-1" />
               {t('duplicateWarning.cancel')}
             </button>
+            {onViewSimilarRecords && duplicates.length > 0 && (
+              <button
+                type="button"
+                onClick={onViewSimilarRecords}
+                className="btn btn-outline text-sm"
+              >
+                {t('duplicateWarning.reviewSimilar', { defaultValue: 'Review similar records' })}
+              </button>
+            )}
             <button
               onClick={onContinue}
               className="btn btn-primary text-sm"

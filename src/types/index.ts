@@ -33,21 +33,24 @@ export interface Competition {
   i18n_names?: Record<string, string>;
 }
 
+export type VenueSurface = 'Natural Grass' | 'Artificial Turf' | 'Hybrid';
+
 export interface Venue {
   _id?: string;
   venue_id: string;
   name: string;
   city: string;
-  country: string;
+  country_name: string;
   capacity?: number;
-  surface?: string;
+  surface?: VenueSurface;
+  i18n_names?: Record<string, string>;
 }
 
 export interface Referee {
   _id?: string;
   referee_id: string;
   name: string;
-  country: string;
+  country_name: string;
   years_of_experience?: number;
 }
 
@@ -63,18 +66,17 @@ export interface PlayerData {
   name: string;
   nickname?: string;
   birth_date: string;
-  nationality: string;
+  country_name: string;
   position: PlayerPosition;
-  height?: number;
-  weight?: number;
+  player_height?: number;
+  player_weight?: number;
   age?: number;
   i18n_names?: Record<string, string>;
 }
 
 export interface ManagerInfo {
   name: string;
-  nationality?: string;
-  years_of_experience?: number;
+  country_name?: string;
   start_date?: string | null;
 }
 

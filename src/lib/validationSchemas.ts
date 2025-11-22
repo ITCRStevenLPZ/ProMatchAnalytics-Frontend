@@ -2,6 +2,15 @@ import Joi from 'joi';
 
 // Player Validation Schema
 export const playerSchema = Joi.object({
+  player_id: Joi.string()
+    .trim()
+    .max(40)
+    .pattern(/^[A-Za-z0-9_-]+$/)
+    .allow('')
+    .messages({
+      'string.max': 'Player ID must not exceed 40 characters',
+      'string.pattern.base': 'Player ID must use letters, numbers, underscores, or hyphens',
+    }),
   name: Joi.string()
     .min(2)
     .max(100)
@@ -20,15 +29,15 @@ export const playerSchema = Joi.object({
       'string.pattern.base': 'Birth date must be in YYYY-MM-DD format',
       'any.required': 'Birth date is required',
     }),
-  nationality: Joi.string()
+  country_name: Joi.string()
     .min(2)
     .max(100)
     .required()
     .messages({
-      'string.empty': 'Nationality is required',
-      'string.min': 'Nationality must be at least 2 characters',
-      'string.max': 'Nationality must not exceed 100 characters',
-      'any.required': 'Nationality is required',
+      'string.empty': 'Country is required',
+      'string.min': 'Country must be at least 2 characters',
+      'string.max': 'Country must not exceed 100 characters',
+      'any.required': 'Country is required',
     }),
   position: Joi.string()
     .valid('GK', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'SW', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'CF', 'ST', 'LF', 'RF', 'SS')
@@ -37,25 +46,33 @@ export const playerSchema = Joi.object({
       'any.only': 'Invalid position selected',
       'any.required': 'Position is required',
     }),
-  height: Joi.number()
+  player_height: Joi.number()
     .min(100)
     .max(250)
-    .optional()
-    .allow(null, '')
+    .required()
     .messages({
+      'any.required': 'Height is required',
       'number.min': 'Height must be at least 100 cm',
       'number.max': 'Height must not exceed 250 cm',
       'number.base': 'Height must be a valid number',
     }),
-  weight: Joi.number()
+  player_weight: Joi.number()
     .min(30)
     .max(150)
-    .optional()
-    .allow(null, '')
+    .required()
     .messages({
+      'any.required': 'Weight is required',
       'number.min': 'Weight must be at least 30 kg',
       'number.max': 'Weight must not exceed 150 kg',
       'number.base': 'Weight must be a valid number',
+    }),
+  i18n_names: Joi.object({
+    en: Joi.string().trim().max(100).allow(''),
+    es: Joi.string().trim().max(100).allow(''),
+  })
+    .optional()
+    .messages({
+      'string.max': 'Localized name must not exceed 100 characters',
     }),
 }).unknown(true);
 
@@ -109,38 +126,44 @@ export const teamSchema = Joi.object({
         'string.max': 'Manager name must not exceed 100 characters',
         'any.required': 'Manager name is required',
       }),
-    nationality: Joi.string()
+    country_name: Joi.string()
       .min(2)
       .max(100)
-      .required()
+      .allow('', null)
+      .optional()
       .messages({
-        'string.empty': 'Manager nationality is required',
         'string.min': 'Manager nationality must be at least 2 characters',
         'string.max': 'Manager nationality must not exceed 100 characters',
-        'any.required': 'Manager nationality is required',
-      }),
-    years_of_experience: Joi.number()
-      .min(0)
-      .max(70)
-      .required()
-      .messages({
-        'number.min': 'Years of experience must be at least 0',
-        'number.max': 'Years of experience must not exceed 70',
-        'number.base': 'Years of experience must be a valid number',
-        'any.required': 'Years of experience is required',
       }),
     start_date: Joi.string()
       .optional()
-      .allow(null)
+      .allow(null, '')
       .pattern(/^\d{4}-\d{2}-\d{2}$/)
       .messages({
         'string.pattern.base': 'Start date must be in YYYY-MM-DD format',
       }),
   }).required(),
+  i18n_names: Joi.object({
+    en: Joi.string().trim().max(100).allow(''),
+    es: Joi.string().trim().max(100).allow(''),
+  })
+    .optional()
+    .messages({
+      'string.max': 'Localized name must not exceed 100 characters',
+    }),
 }).unknown(true);
 
 // Referee Validation Schema
 export const refereeSchema = Joi.object({
+  referee_id: Joi.string()
+    .trim()
+    .max(40)
+    .pattern(/^[A-Za-z0-9_-]+$/)
+    .allow('')
+    .messages({
+      'string.max': 'Referee ID must not exceed 40 characters',
+      'string.pattern.base': 'Referee ID must use letters, numbers, underscores, or hyphens',
+    }),
   name: Joi.string()
     .min(2)
     .max(100)
@@ -151,7 +174,7 @@ export const refereeSchema = Joi.object({
       'string.max': 'Referee name must not exceed 100 characters',
       'any.required': 'Referee name is required',
     }),
-  country: Joi.string()
+  country_name: Joi.string()
     .min(2)
     .max(100)
     .required()
@@ -175,6 +198,15 @@ export const refereeSchema = Joi.object({
 
 // Venue Validation Schema
 export const venueSchema = Joi.object({
+  venue_id: Joi.string()
+    .trim()
+    .max(40)
+    .pattern(/^[A-Za-z0-9_-]+$/)
+    .allow('')
+    .messages({
+      'string.max': 'Venue ID must not exceed 40 characters',
+      'string.pattern.base': 'Venue ID must use letters, numbers, underscores, or hyphens',
+    }),
   name: Joi.string()
     .min(2)
     .max(100)
@@ -195,7 +227,7 @@ export const venueSchema = Joi.object({
       'string.max': 'City must not exceed 100 characters',
       'any.required': 'City is required',
     }),
-  country: Joi.string()
+  country_name: Joi.string()
     .min(2)
     .max(100)
     .required()
@@ -222,10 +254,27 @@ export const venueSchema = Joi.object({
     .messages({
       'any.only': 'Surface must be Natural Grass, Artificial Turf, or Hybrid',
     }),
+  i18n_names: Joi.object({
+    en: Joi.string().trim().max(100).allow(''),
+    es: Joi.string().trim().max(100).allow(''),
+  })
+    .optional()
+    .messages({
+      'string.max': 'Localized name must not exceed 100 characters',
+    }),
 }).unknown(true);
 
 // Competition Validation Schema
 export const competitionSchema = Joi.object({
+  competition_id: Joi.string()
+    .trim()
+    .max(40)
+    .pattern(/^[A-Za-z0-9_-]+$/)
+    .allow('')
+    .messages({
+      'string.max': 'Competition ID must not exceed 40 characters',
+      'string.pattern.base': 'Competition ID must use letters, numbers, underscores, or hyphens',
+    }),
   name: Joi.string()
     .min(2)
     .max(100)
@@ -261,5 +310,13 @@ export const competitionSchema = Joi.object({
       'string.min': 'Country must be at least 2 characters',
       'string.max': 'Country must not exceed 100 characters',
       'any.required': 'Country is required',
+    }),
+  i18n_names: Joi.object({
+    en: Joi.string().trim().max(100).allow(''),
+    es: Joi.string().trim().max(100).allow(''),
+  })
+    .optional()
+    .messages({
+      'string.max': 'Localized name must not exceed 100 characters',
     }),
 }).unknown(true);
