@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Calendar, Plus, Edit, Trash2, Search, X, ChevronRight } from 'lucide-react';
 import { apiClient } from '../lib/api';
-import type { Team, TeamPlayer, PlayerPosition, Competition, Venue, Referee } from '../types';
+import { getMatch as getLoggerMatch } from '../lib/loggerApi';
+import type { Team, TeamPlayer, PlayerPosition, Competition, Venue, Referee, PaginatedResponse } from '../types';
 
 interface MatchTeamInfo {
   team_id: string;
@@ -36,6 +37,12 @@ interface MatchRecord {
   home_team: MatchTeamInfo;
   away_team: MatchTeamInfo;
   status: string;
+  logger_status?: string;
+  match_time_seconds?: number;
+  current_period_start_timestamp?: string | null;
+  period_timestamps?: Record<string, { start?: string; end?: string }>;
+  actual_start?: string | null;
+  actual_end?: string | null;
 }
 
 interface MatchCreatePayload {
@@ -150,6 +157,40 @@ export default function MatchesManager() {
       setError(null);
       const data = await apiClient.get<MatchRecord[]>('/matches/');
       setMatches(data);
+
+      // Refresh statuses from logger service to reflect live state.
+      // We attempt by match_id first, then fall back to _id (some environments differ).
+      const fetchLiveStatus = async (item: MatchRecord) => {
+        try {
+          const live = await getLoggerMatch(item.match_id);
+          return live.status as string | undefined;
+        } catch (err) {
+          // Try by _id if provided
+          if (item._id) {
+            try {
+              const live = await getLoggerMatch(item._id);
+              return live.status as string | undefined;
+            } catch (err2) {
+              console.error('Status refresh failed for match', item.match_id, '(_id fallback tried)', err2);
+            }
+          } else {
+            console.error('Status refresh failed for match', item.match_id, err);
+          }
+        }
+        return undefined;
+      };
+
+      try {
+        const enriched = await Promise.all(
+          data.map(async (item) => {
+            const liveStatus = await fetchLiveStatus(item);
+            return { ...item, logger_status: liveStatus, status: liveStatus ?? item.status } as MatchRecord;
+          })
+        );
+        setMatches(enriched);
+      } catch (refreshErr) {
+        console.error('Failed to refresh live statuses', refreshErr);
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorFetchingData'));
     } finally {
@@ -159,8 +200,8 @@ export default function MatchesManager() {
 
   const fetchCompetitions = async () => {
     try {
-      const data = await apiClient.get<Competition[]>('/competitions/');
-      setCompetitions(data);
+      const response = await apiClient.get<any>('/competitions/');
+      setCompetitions(Array.isArray(response) ? response : response.items || []);
     } catch (err) {
       console.error('Error fetching competitions:', err);
     }
@@ -168,8 +209,8 @@ export default function MatchesManager() {
 
   const fetchVenues = async () => {
     try {
-      const data = await apiClient.get<Venue[]>('/venues/');
-      setVenues(data);
+      const response = await apiClient.get<any>('/venues/');
+      setVenues(Array.isArray(response) ? response : response.items || []);
     } catch (err) {
       console.error('Error fetching venues:', err);
     }
@@ -177,8 +218,8 @@ export default function MatchesManager() {
 
   const fetchReferees = async () => {
     try {
-      const data = await apiClient.get<Referee[]>('/referees/');
-      setReferees(data);
+      const response = await apiClient.get<any>('/referees/');
+      setReferees(Array.isArray(response) ? response : response.items || []);
     } catch (err) {
       console.error('Error fetching referees:', err);
     }
@@ -186,8 +227,14 @@ export default function MatchesManager() {
 
   const fetchTeams = async () => {
     try {
-      const data = await apiClient.get<Team[]>('/teams/');
-      setTeams(data);
+      const data = await apiClient.get<PaginatedResponse<Team> | Team[]>('/teams/');
+      if ('items' in data && Array.isArray(data.items)) {
+        setTeams(data.items);
+      } else if (Array.isArray(data)) {
+        setTeams(data);
+      } else {
+        setTeams([]);
+      }
     } catch (err) {
       console.error('Error fetching teams:', err);
     }
@@ -195,8 +242,13 @@ export default function MatchesManager() {
 
   const fetchTeamRoster = async (teamId: string): Promise<TeamPlayer[]> => {
     try {
-      const data = await apiClient.get<TeamPlayer[]>(`/teams/${teamId}/players`);
-      return data;
+      const data = await apiClient.get<PaginatedResponse<TeamPlayer> | TeamPlayer[]>(`/teams/${teamId}/players`);
+      if ('items' in data && Array.isArray(data.items)) {
+        return data.items;
+      } else if (Array.isArray(data)) {
+        return data;
+      }
+      return [];
     } catch (err) {
       console.error('Error fetching team roster:', err);
       return [];
@@ -526,6 +578,18 @@ export default function MatchesManager() {
     );
   });
 
+  const deriveDisplayStatus = (item: MatchRecord): string | undefined => {
+    const status = item.logger_status ?? item.status;
+    // Mirror logger fallback: if no time recorded and no period has started, treat as Pending
+    const noClockProgress = (item.match_time_seconds ?? 0) <= 0;
+    const noPeriodStart = !item.current_period_start_timestamp;
+    const noFirstHalfStart = !item.period_timestamps?.['1']?.start;
+    if (status === 'Fulltime' && noClockProgress && noPeriodStart && noFirstHalfStart) {
+      return 'Pending';
+    }
+    return status;
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64">{t('loading')}</div>;
   }
@@ -545,6 +609,7 @@ export default function MatchesManager() {
             setShowWizard(true);
           }}
           className="btn btn-primary flex items-center space-x-2"
+          data-testid="create-match-btn"
         >
           <Plus className="h-5 w-5" />
           <span>{t('createMatch')}</span>
@@ -585,11 +650,15 @@ export default function MatchesManager() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('awayTeam')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('venue')}</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Logger Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredMatches.map((item) => (
+                {filteredMatches.map((item) => {
+                  const displayStatus = deriveDisplayStatus(item);
+                  const loggerStatus = item.logger_status ? deriveDisplayStatus(item) : undefined;
+                  return (
                   <tr key={item._id || item.match_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {formatDate(item.match_date)} {formatTime(item.kick_off)}
@@ -601,14 +670,34 @@ export default function MatchesManager() {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        item.status === 'Fulltime' ? 'bg-green-100 text-green-800' :
-                        item.status?.toLowerCase().includes('live') ? 'bg-yellow-100 text-yellow-800' :
-                        item.status === 'Pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        displayStatus === 'Fulltime' ? 'bg-green-100 text-green-800' :
+                        displayStatus?.toLowerCase().includes('live') ? 'bg-yellow-100 text-yellow-800' :
+                        displayStatus === 'Pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {item.status?.replace(/_/g, ' ') || '-'}
+                        {displayStatus?.replace(/_/g, ' ') || '-'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-sm">
+                      {loggerStatus ? (
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          loggerStatus === 'Fulltime' ? 'bg-green-100 text-green-800' :
+                          loggerStatus?.toLowerCase().includes('live') ? 'bg-yellow-100 text-yellow-800' :
+                          loggerStatus === 'Pending' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {loggerStatus.replace(/_/g, ' ')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => window.location.href = `/matches/${item.match_id}/logger`}
+                        className="text-green-600 hover:text-green-900"
+                        title={t('startLogger')}
+                      >
+                        <Calendar className="h-5 w-5 inline" />
+                      </button>
                       <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900" title={t('edit')}>
                         <Edit className="h-5 w-5 inline" />
                       </button>
@@ -617,7 +706,7 @@ export default function MatchesManager() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                );})}
               </tbody>
             </table>
           </div>
@@ -630,7 +719,7 @@ export default function MatchesManager() {
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
               <div>
-                <h2 className="text-2xl font-bold">{editingItem ? t('edit') : t('createMatch')}</h2>
+                <h2 className="text-2xl font-bold" data-testid="modal-title">{editingItem ? t('edit') : t('createMatch')}</h2>
                 <p className="text-sm text-gray-500 mt-1">
                   {t('competitionStage')} {wizardStep} / {totalSteps}
                 </p>
@@ -692,6 +781,7 @@ export default function MatchesManager() {
                       value={matchData.competition_id}
                       onChange={(e) => setMatchData({ ...matchData, competition_id: e.target.value })}
                       className="input w-full"
+                      data-testid="competitions-select"
                     >
                       <option value="">Select...</option>
                       {safeCompetitions.map(comp => (
@@ -731,6 +821,7 @@ export default function MatchesManager() {
                         value={matchData.home_team_id}
                         onChange={(e) => setMatchData({ ...matchData, home_team_id: e.target.value })}
                         className="input w-full"
+                        data-testid="home-team-select"
                       >
                         <option value="">{t('selectTeam')}</option>
                         {safeTeams.map(team => (
@@ -787,6 +878,7 @@ export default function MatchesManager() {
                         value={matchData.venue_id}
                         onChange={(e) => setMatchData({ ...matchData, venue_id: e.target.value })}
                         className="input w-full"
+                        data-testid="venue-select"
                       >
                         <option value="">Select...</option>
                         {safeVenues.map(venue => (
@@ -803,6 +895,7 @@ export default function MatchesManager() {
                         value={matchData.referee_id}
                         onChange={(e) => setMatchData({ ...matchData, referee_id: e.target.value })}
                         className="input w-full"
+                        data-testid="referee-select"
                       >
                         <option value="">Select...</option>
                         {safeReferees.map(ref => (
