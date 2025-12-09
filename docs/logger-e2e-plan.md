@@ -26,8 +26,8 @@ _This file tracks planned and in-flight Playwright specs for the logger cockpit.
    - Mixed events (passes, shots, fouls, interceptions); analytics KPIs populated; undo reduces totals; analytics view persists after reload with updated counts.
 8) **logger-l10n-formatting.spec.ts** — ADDED
    - Seeds ES locale via localStorage; analytics panel shows Spanish labels; timeline/effective clock renders mm:ss formatting; locale and analytics access persist after reload.
-9) **logger-error-handling.spec.ts**
-   - Stub 4xx/5xx on event post and substitution validate; non-destructive UI, banner/toast shown; retry/backoff; no data loss after recovery.
+9) **logger-error-handling.spec.ts** — ADDED
+   - WebSocket ack failure re-queues event and flushes on reconnect; substitution validate fails once then succeeds on retry; confirm button gated on successful validation and events preserved.
 
 ## Wiring/CI
 - No config change needed: `playwright.config.ts` already discovers `e2e/*.spec.ts`.
