@@ -5,13 +5,14 @@ _This file tracks planned and in-flight Playwright specs for the logger cockpit.
 ## Existing coverage (reference)
 - `logger-basic`, `logger-advanced`, `logger-comprehensive`, `logger-multi-event`, `logger-undo`, `logger-keyboard`, `logger-validation-errors`, `logger-viewer-sync`, `logger-match-switch-guardrails`, `logger-offline-resilience`.
 - New: `logger-substitution-windows` (substitution validation, windows/sub counts, concussion flag).
+- New: `logger-substitution-rules` (extra-time allowances and re-entry block).
 - New: `logger-lifecycle` (clock start/stop, halftime/second half, fulltime lock, effective clock toggle, reload persistence).
 - New: `logger-event-taxonomy` (goal + pass coverage with analytics persistence).
 
 ## Planned additions
 1) **logger-lifecycle.spec.ts** — IN PROGRESS/ADDED (baseline clocks + halves/fulltime)
    - Start/pause/resume/end across 1H/2H and extra time; effective vs running clock mode; persistence after reload (period, clock state, events).
-2) **logger-substitution-rules.spec.ts** (extend guardrails)
+2) **logger-substitution-rules.spec.ts** — ADDED (extra-time allowance + re-entry block)
    - Max subs/windows enforcement; halftime/extra-time windows allowed; prevent re-entry of substituted-out players; bench/active lists persist after reload; opponent concussion compensation reflected.
 3) **logger-event-taxonomy.spec.ts**
    - Create/edit/delete for goals (incl. own goal, penalty), cards (YC/RC/second YC), offsides, fouls, set pieces, VAR states; required-field validation; timeline order; analytics aggregation updates after edits/deletes.
