@@ -322,4 +322,106 @@ test.describe('Logger event taxonomy', () => {
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
       .toBeGreaterThanOrEqual(5);
   });
+
+  test('handles penalty shootout sudden death and VAR outcomes matrix with edit', async ({ page }) => {
+    test.setTimeout(120000);
+
+    await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    const liveEvents = page.getByTestId('live-event-item');
+
+    await page.getByTestId('btn-start-clock').click();
+    await expect(page.getByTestId('btn-stop-clock')).toBeEnabled({ timeout: 5000 });
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    // Regulation shootout (3 kicks each) ends level
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-1', '92:00.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-1', '92:20.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-2', '92:40.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Saved',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-2', '93:00.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Saved',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-3', '93:20.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-3', '93:40.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+
+    // Sudden death: home scores, away misses
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-4', '94:00.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-4', '94:20.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Missed',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(8);
+
+    // VAR outcomes: allow then disallow via overturn
+    await sendEventThroughHarness(page, 'Shot', homeTeamId, 'HOME-5', '94:40.000', {
+      shot_type: 'Standard',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'VARDecision', homeTeamId, 'HOME-5', '94:50.000', {
+      decision: 'Goal Allowed',
+    });
+    await sendEventThroughHarness(page, 'Shot', awayTeamId, 'AWAY-5', '95:00.000', {
+      shot_type: 'Standard',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'VARDecision', awayTeamId, 'AWAY-5', '95:10.000', {
+      decision: 'Goal Disallowed (Offside)',
+    });
+
+    // Edit flow: undo last VAR and resend corrected decision
+    const eventsBeforeEdit = await liveEvents.count();
+    await triggerUndoThroughHarness(page);
+    await waitForPendingAckToClear(page);
+    await sendEventThroughHarness(page, 'VARDecision', awayTeamId, 'AWAY-5', '95:15.000', {
+      decision: 'Goal Allowed',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(eventsBeforeEdit);
+
+    await expect(liveEvents.filter({ hasText: 'SetPiece' })).toHaveCount(8);
+    // After undoing the disallow, only two VAR decisions should remain (home allow + corrected away allow)
+    await expect(liveEvents.filter({ hasText: 'VARDecision' })).toHaveCount(2);
+
+    await page.getByTestId('toggle-analytics').click();
+    const analyticsPanel = page.getByTestId('analytics-panel');
+    await expect(analyticsPanel).toBeVisible();
+    await expect(analyticsPanel.getByTestId('analytics-title')).toBeVisible();
+    await expect(analyticsPanel.getByText(/No data available yet/i)).toBeHidden({ timeout: 20000 });
+
+    await page.reload();
+    await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 15000 })
+      .toBeGreaterThanOrEqual(11);
+  });
 });
