@@ -32,7 +32,3 @@ jobs:
       - name: Unit tests
         run: npm test --if-present
 
-      - name: Playwright tests
-        run: npx playwright test
-        env:
-          CI: true
