@@ -22,8 +22,8 @@ _This file tracks planned and in-flight Playwright specs for the logger cockpit.
    - Websocket drop/reconnect with queued flush; inject out-of-order server event plus duplicate arrival; expect duplicate banner handled/dismissed; optimistic queue preserved; final counts correct and timeline deduped after reload.
 6) **logger-permissions.spec.ts** — ADDED
    - Viewer vs analyst vs admin: viewer/analyst blocked from admin-only reset/period transitions; analytics view remains accessible; admin sees reset + transitions enabled.
-7) **logger-analytics-integrity.spec.ts**
-   - Log mixed events; verify KPIs/charts; re-check after delete/edit; edge cases: own goals, penalty shootout, red card reducing player count.
+7) **logger-analytics-integrity.spec.ts** — ADDED
+   - Mixed events (passes, shots, fouls, interceptions); analytics KPIs populated; undo reduces totals; analytics view persists after reload with updated counts.
 8) **logger-l10n-formatting.spec.ts**
    - Alternate locale/timezone; time/number/date formatting in timeline and exports; translated labels present in forms.
 9) **logger-error-handling.spec.ts**
