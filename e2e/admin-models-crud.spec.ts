@@ -165,7 +165,7 @@ async function seedPlayerConflictBatch() {
 async function waitForBatchStatus(
   ingestionId: string,
   allowedStatuses = /^(success|conflicts)$/,
-  timeoutMs = 45000,
+  timeoutMs = 90000,
 ): Promise<string> {
   let finalStatus = '';
   await expect

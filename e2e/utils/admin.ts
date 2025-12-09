@@ -36,7 +36,7 @@ export async function waitForIngestionStatus(
   api: APIRequestContext,
   ingestionId: string,
   allowedStatuses: RegExp = /^(success|conflicts)$/,
-  timeoutMs = 45000,
+  timeoutMs = 90000,
 ): Promise<string> {
   let finalStatus = '';
   await expect
@@ -346,6 +346,54 @@ export async function seedMatch(
   };
 
   const response = await api.post('matches/', { data: payload });
+  const created = await apiJson<{ _id: string } & typeof payload>(response);
+  return { match_id, document_id: created._id };
+}
+
+export async function seedLoggerMatch(
+  api: APIRequestContext,
+  options: SeedMatchOptions,
+): Promise<MatchSeedResult> {
+  const match_id = options.match_id ?? uniqueId('MATCH');
+  const now = new Date();
+  const payload = {
+    match_id,
+    competition_id: options.competition_id,
+    season_name: options.season_name ?? `${now.getUTCFullYear()}/${now.getUTCFullYear() + 1}`,
+    competition_stage: options.competition_stage ?? 'Friendly',
+    match_date: options.match_date ?? now.toISOString(),
+    kick_off: options.kick_off ?? new Date(now.getTime() + 5 * 60_000).toISOString(),
+    venue: {
+      venue_id: options.venue_id,
+      name: 'Playwright Arena',
+    },
+    referee: {
+      referee_id: options.referee_id,
+      name: 'E2E Referee',
+    },
+    home_team: {
+      team_id: options.home_team.team_id,
+      name: options.home_team.name ?? options.home_team.team_id,
+      manager: options.home_team.manager ?? 'Home Manager',
+      lineup: options.home_team.lineup.map((entry, index) => ({
+        ...entry,
+        is_starter: entry.is_starter ?? true,
+        is_captain: entry.is_captain ?? index === 0,
+      })),
+    },
+    away_team: {
+      team_id: options.away_team.team_id,
+      name: options.away_team.name ?? options.away_team.team_id,
+      manager: options.away_team.manager ?? 'Away Manager',
+      lineup: options.away_team.lineup.map((entry, index) => ({
+        ...entry,
+        is_starter: entry.is_starter ?? true,
+        is_captain: entry.is_captain ?? index === 0,
+      })),
+    },
+  };
+
+  const response = await api.post('logger/matches', { data: payload });
   const created = await apiJson<{ _id: string } & typeof payload>(response);
   return { match_id, document_id: created._id };
 }

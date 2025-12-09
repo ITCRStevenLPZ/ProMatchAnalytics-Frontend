@@ -15,6 +15,8 @@ import Login from './pages/Login.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import AdminDashboard from './pages/AdminDashboard.tsx';
 import LoggerCockpit from './pages/LoggerCockpit.tsx';
+// ...
+// <Route path=":matchId/logger" element={<div>Logger Disabled</div>} />
 import TeamDetail from './pages/TeamDetail.tsx';
 import MatchDetail from './pages/MatchDetail.tsx';
 import LiveMatch from './pages/LiveMatch.tsx';

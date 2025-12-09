@@ -60,6 +60,7 @@ export interface PendingAckEntry {
 interface MatchLogState {
   // Connection status
   isConnected: boolean;
+  isHydrated: boolean;
   
   // Events for this session (rendered in UI)
   liveEvents: MatchEvent[];
@@ -79,10 +80,13 @@ interface MatchLogState {
   duplicateStats: DuplicateStats;
   operatorClock: string;
   operatorPeriod: number;
+  effectiveTime: number; // Accumulated effective time in seconds
+  isBallInPlay: boolean;
   lastTimelineRefreshRequest: number;
   
   // Actions
   setConnected: (connected: boolean) => void;
+  setIsHydrated: (hydrated: boolean) => void;
   addLiveEvent: (event: MatchEvent) => void;
   setLiveEvents: (events: MatchEvent[]) => void;
   upsertLiveEvent: (event: MatchEvent) => void;
@@ -113,6 +117,8 @@ interface MatchLogState {
   resetDuplicateStats: () => void;
   setOperatorClock: (clock: string) => void;
   setOperatorPeriod: (period: number) => void;
+  setEffectiveTime: (time: number) => void;
+  setIsBallInPlay: (inPlay: boolean) => void;
   resetOperatorControls: (defaults?: { clock?: string; period?: number }) => void;
   requestTimelineRefresh: () => void;
   resetStore: () => void;
@@ -157,6 +163,7 @@ export const useMatchLogStore = create<MatchLogState>()(
     (set, get) => ({
       // Initial state
       isConnected: false,
+      isHydrated: false,
       liveEvents: [],
       queuedEvents: [],
       queuedEventsByMatch: {},
@@ -167,11 +174,17 @@ export const useMatchLogStore = create<MatchLogState>()(
       duplicateStats: { count: 0 },
       operatorClock: '00:00.000',
       operatorPeriod: 1,
+      effectiveTime: 0,
+      isBallInPlay: false,
       lastTimelineRefreshRequest: 0,
       
       // Set connection status
       setConnected: (connected: boolean) => {
         set({ isConnected: connected });
+      },
+
+      setIsHydrated: (hydrated: boolean) => {
+        set({ isHydrated: hydrated });
       },
       
       // Add event to live feed (optimistic UI)
@@ -182,7 +195,39 @@ export const useMatchLogStore = create<MatchLogState>()(
       },
 
       setLiveEvents: (events: MatchEvent[]) => {
-        set({ liveEvents: events });
+        set((state) => {
+          const currentMatchId = state.currentMatchId;
+          if (!currentMatchId) {
+            return { liveEvents: events };
+          }
+
+          const queued = state.queuedEventsByMatch[currentMatchId] || [];
+          if (queued.length === 0) {
+            return { liveEvents: events };
+          }
+
+          // Merge fetched events with local queued events
+          // Avoid duplicates based on client_id or timestamp+type
+          const merged = [...events];
+          
+          queued.forEach((qEvent) => {
+            const exists = merged.some((e) => {
+              if (e.client_id && qEvent.client_id) {
+                return e.client_id === qEvent.client_id;
+              }
+              return e.timestamp === qEvent.timestamp && e.type === qEvent.type;
+            });
+            
+            if (!exists) {
+              merged.push(qEvent);
+            }
+          });
+
+          // Sort by timestamp to maintain timeline order
+          merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+          return { liveEvents: merged };
+        });
       },
 
       upsertLiveEvent: (event: MatchEvent) => {
@@ -431,10 +476,20 @@ export const useMatchLogStore = create<MatchLogState>()(
         set({ operatorPeriod: period });
       },
 
+      setEffectiveTime: (time: number) => {
+        set({ effectiveTime: time });
+      },
+
+      setIsBallInPlay: (inPlay: boolean) => {
+        set({ isBallInPlay: inPlay });
+      },
+
       resetOperatorControls: (defaults) => {
         set({
           operatorClock: defaults?.clock ?? '00:00.000',
           operatorPeriod: defaults?.period ?? 1,
+          effectiveTime: 0,
+          isBallInPlay: false,
         });
       },
 
@@ -446,6 +501,7 @@ export const useMatchLogStore = create<MatchLogState>()(
       resetStore: () => {
         set({
           isConnected: false,
+          isHydrated: true, // Keep hydrated true
           liveEvents: [],
           queuedEvents: [],
           queuedEventsByMatch: {},
@@ -456,6 +512,8 @@ export const useMatchLogStore = create<MatchLogState>()(
           duplicateStats: { count: 0 },
           operatorClock: '00:00.000',
           operatorPeriod: 1,
+          effectiveTime: 0,
+          isBallInPlay: false,
           lastTimelineRefreshRequest: 0,
         });
       },
@@ -469,8 +527,13 @@ export const useMatchLogStore = create<MatchLogState>()(
         currentMatchId: state.currentMatchId,
         operatorClock: state.operatorClock,
         operatorPeriod: state.operatorPeriod,
+        effectiveTime: state.effectiveTime,
+        isBallInPlay: state.isBallInPlay,
         liveEvents: state.liveEvents,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setIsHydrated(true);
+      },
     }
   )
 );

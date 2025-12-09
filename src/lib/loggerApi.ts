@@ -26,14 +26,29 @@ const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
   return headers;
 };
 
-export const fetchLoggerWithAuth = (url: string, init?: RequestInit) => {
-  if (!IS_E2E_TEST_MODE) {
-    return fetch(url, init);
+import { auth } from './firebase';
+
+export const fetchLoggerWithAuth = async (url: string, init?: RequestInit) => {
+  let token = '';
+  
+  if (IS_E2E_TEST_MODE) {
+    token = E2E_BYPASS_TOKEN;
+  } else {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        token = await user.getIdToken();
+      } catch (e) {
+        console.error('[loggerApi] token error', e);
+      }
+    }
   }
+
   const mergedHeaders = {
-    Authorization: `Bearer ${E2E_BYPASS_TOKEN}`,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...normalizeHeaders(init?.headers),
   };
+
   return fetch(url, { ...init, headers: mergedHeaders });
 };
 
@@ -88,4 +103,52 @@ export const fetchAllMatchEvents = async (
   }
 
   return aggregated;
+};
+
+export const updateMatchStatus = async (matchId: string, status?: string, clockOperation?: 'start' | 'stop' | 'reset', matchTime?: number) => {
+  const body: any = { status, clock_operation: clockOperation };
+  if (matchTime !== undefined) {
+    body.match_time_seconds = matchTime;
+  }
+  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => '');
+    console.error('Update status failed:', response.status, response.statusText, errorPayload);
+    throw new Error(`Failed to update match status: ${errorPayload}`);
+  }
+
+  return response.json();
+};
+
+export const updateMatch = async (matchId: string, updates: Record<string, any>) => {
+  // Use the clock-mode endpoint for clock-related updates
+  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}/clock-mode`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => '');
+    console.error('Update match failed:', response.status, response.statusText, errorPayload);
+    throw new Error(`Failed to update match: ${errorPayload}`);
+  }
+
+  return response.json();
+};
+
+
+export const getMatch = async (matchId: string) => {
+  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}`);
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => '');
+    console.error('Get match failed:', response.status, response.statusText, errorPayload);
+    throw new Error(`Failed to fetch match: ${errorPayload}`);
+  }
+  return response.json();
 };

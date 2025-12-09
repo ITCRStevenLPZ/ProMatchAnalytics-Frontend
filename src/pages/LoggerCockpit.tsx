@@ -1,160 +1,75 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { useMatchLogStore, MatchEvent } from '../store/useMatchLogStore';
 import { useMatchSocket } from '../hooks/useMatchSocket';
+import { useKeyboardInput } from '../hooks/useKeyboardInput';
 import {
   fetchLoggerWithAuth,
   LOGGER_API_URL,
   IS_E2E_TEST_MODE,
   fetchAllMatchEvents,
 } from '../lib/loggerApi';
-import { 
-  Clock, Users, 
-  CheckCircle, XCircle, AlertCircle, Wifi, WifiOff,
-  Play, Pause, RotateCcw, CornerUpLeft
+import {
+  Clock,
+  AlertCircle,
+  Wifi,
+  WifiOff,
+  CornerUpLeft,
+  BarChart3,
+  List,
+  RotateCcw,
 } from 'lucide-react';
+import {
+  Match,
+  Player,
+  LoggerHarness,
+  QueuedEventSummary,
+} from './logger/types';
+import { DEFAULT_PERIOD_MAP, KEY_ACTION_MAP } from './logger/constants';
+import { normalizeMatchPayload, formatMatchClock } from './logger/utils';
+import { useActionFlow } from './logger/hooks/useActionFlow';
+import TeamSelector from './logger/components/TeamSelector';
+import InstructionBanner from './logger/components/InstructionBanner';
+import PlayerSelectorPanel from './logger/components/PlayerSelectorPanel';
+import ActionSelectionPanel from './logger/components/ActionSelectionPanel';
+import OutcomeSelectionPanel from './logger/components/OutcomeSelectionPanel';
+import RecipientSelectionPanel from './logger/components/RecipientSelectionPanel';
+import { useMatchTimer } from './logger/hooks/useMatchTimer';
+import MatchTimerDisplay from './logger/components/MatchTimerDisplay';
+import LiveEventFeed from './logger/components/LiveEventFeed';
+import { MatchPeriodSelector } from './logger/components/MatchPeriodSelector';
+import { usePeriodManager } from './logger/hooks/usePeriodManager';
+import ExtraTimeAlert from './logger/components/ExtraTimeAlert';
+import HalftimePanel from './logger/components/HalftimePanel';
+import SubstitutionFlow from './logger/components/SubstitutionFlow';
+import { MatchAnalytics } from './logger/components/MatchAnalytics';
+import TurboModeInput from './logger/components/TurboModeInput';
+import { useTurboMode } from './logger/hooks/useTurboMode';
+import { useAudioFeedback, getSoundForEvent } from './logger/hooks/useAudioFeedback';
+import { useAuthStore } from '../store/authStore';
 
-// API helpers centralized in ../lib/loggerApi
+// Normalize timestamps for drift calculations
+const parseTimestampSafe = (timestamp?: string | null): number => {
+  if (!timestamp) return 0;
+  const normalized = timestamp.endsWith('Z') || timestamp.includes('+') || timestamp.includes('-', 10)
+    ? timestamp
+    : `${timestamp}Z`;
+  return new Date(normalized).getTime();
+};
 
-interface Player {
-  id: string;
-  full_name: string;
-  jersey_number: number;
-  position: 'GK' | 'DF' | 'MF' | 'FW';
-}
-
-interface Team {
-  id: string;
-  name: string;
-  short_name: string;
-  players: Player[];
-}
-
-interface Match {
-  id: string;
-  home_team: Team;
-  away_team: Team;
-  status: 'Scheduled' | 'Live' | 'HalfTime' | 'Completed';
-  match_time_seconds?: number;
-}
-
-type EventType = 'Pass' | 'Shot' | 'Duel' | 'FoulCommitted' | 'Card' | 'Substitution' | 'GameStoppage' | 'VARDecision';
-type ActionStep = 'selectPlayer' | 'selectAction' | 'selectOutcome' | 'selectRecipient';
-
-interface ActionConfig {
-  actions: string[];
-  outcomes?: Record<string, string[]>;
-  needsRecipient?: boolean;
-}
-
-interface LoggerHarness {
-  resetFlow: () => void;
-  setSelectedTeam: (team: 'home' | 'away') => void;
-  getCurrentStep: () => ActionStep;
-  sendPassEvent: (options: { team: 'home' | 'away'; passerId: string; recipientId: string }) => void;
-  sendRawEvent: (payload: Record<string, any>) => void;
-  getMatchContext: () => {
-    matchId: string;
-    homeTeamId: string;
-    awayTeamId: string;
-  };
-  undoLastEvent: () => Promise<void> | void;
-  getQueueSnapshot: () => QueueSnapshot;
-}
-
-interface QueuedEventSummary {
-  match_id: string;
-  timestamp: string;
-  client_id?: string;
-  type: string;
-}
-
-interface QueueSnapshot {
-  currentMatchId: string | null;
-  queuedEvents: QueuedEventSummary[];
-  queuedEventsByMatch: Record<string, QueuedEventSummary[]>;
-}
+const parseClockToSeconds = (clock?: string): number => {
+  if (!clock) return 0;
+  const [mm, rest] = clock.split(':');
+  const seconds = parseFloat(rest || '0');
+  return Number(mm) * 60 + seconds;
+};
 
 declare global {
   interface Window {
     __PROMATCH_LOGGER_HARNESS__?: LoggerHarness;
   }
 }
-
-const ACTION_FLOWS: Record<string, ActionConfig> = {
-  Pass: {
-    actions: ['Pass'],
-    outcomes: { Pass: ['Complete', 'Incomplete', 'Out'] },
-    needsRecipient: true,
-  },
-  Shot: {
-    actions: ['Shot'],
-    outcomes: { Shot: ['Goal', 'OnTarget', 'OffTarget', 'Blocked'] },
-  },
-  Duel: {
-    actions: ['Duel'],
-    outcomes: { Duel: ['Won', 'Lost'] },
-  },
-  FoulCommitted: {
-    actions: ['Foul'],
-    outcomes: { Foul: ['Standard', 'Advantage'] },
-  },
-  Card: {
-    actions: ['Card'],
-    outcomes: { Card: ['Yellow', 'Red'] },
-  },
-  Carry: {
-    actions: ['Carry'],
-    outcomes: { Carry: ['Successful', 'Dispossessed'] },
-  },
-};
-
-
-const deriveShortName = (name?: string, fallback: string = 'TEAM') =>
-  (name?.slice(0, 3).toUpperCase() ?? fallback);
-
-const coercePlayers = (team: any, teamId: string): Player[] => {
-  const source = Array.isArray(team?.players)
-    ? team.players
-    : Array.isArray(team?.lineup)
-      ? team.lineup
-      : [];
-
-  return source.map((player: any, index: number) => ({
-    id: player?.id ?? player?.player_id ?? `${teamId}-${index + 1}`,
-    full_name: player?.full_name ?? player?.player_name ?? `Player ${index + 1}`,
-    jersey_number: player?.jersey_number ?? index + 1,
-    position: player?.position ?? 'MF',
-  }));
-};
-
-const normalizeTeamFromApi = (team: any, fallbackLabel: string): Team => {
-  const teamId = team?.id ?? team?.team_id ?? fallbackLabel;
-  const name = team?.name ?? fallbackLabel;
-  const shortName = team?.short_name ?? deriveShortName(name, fallbackLabel);
-
-  return {
-    id: teamId,
-    name,
-    short_name: shortName,
-    players: coercePlayers(team, teamId),
-  };
-};
-
-const normalizeMatchPayload = (payload: any): Match => {
-  if (!payload) {
-    throw new Error('Missing match payload');
-  }
-
-  return {
-    id: payload.id ?? payload.match_id ?? 'match',
-    match_time_seconds: payload.match_time_seconds ?? 0,
-    status: payload.status ?? 'Live',
-    home_team: normalizeTeamFromApi(payload.home_team, 'HOME'),
-    away_team: normalizeTeamFromApi(payload.away_team, 'AWAY'),
-  };
-};
 
 export default function LoggerCockpit() {
   const { t, ready: isLoggerReady } = useTranslation('logger');
@@ -169,9 +84,9 @@ export default function LoggerCockpit() {
     duplicateHighlight,
     duplicateStats,
     operatorClock,
-    operatorPeriod,
     setOperatorClock,
-    setOperatorPeriod,
+    isBallInPlay,
+    setIsBallInPlay,
     resetOperatorControls,
     setCurrentMatch,
     setLiveEvents,
@@ -180,63 +95,547 @@ export default function LoggerCockpit() {
     removeUndoCandidate,
     clearDuplicateHighlight,
     resetDuplicateStats,
+    clearQueuedEvents,
+    clearUndoStack,
     lastTimelineRefreshRequest,
   } = useMatchLogStore();
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.role === 'admin';
   const pendingAckCount = Object.keys(pendingAcks).length;
   const isSubmitting = pendingAckCount > 0;
+  const queuedCount = queuedEvents.length;
+
+
   
   const { sendEvent, undoEvent } = useMatchSocket({ 
     matchId: matchId!, 
-    enabled: !!matchId 
+    enabled: !!matchId, 
   });
-  
+
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<'home' | 'away'>('home');
-  const [isClockRunning, setClockRunning] = useState(false);
-  const clockRef = useRef(operatorClock);
-  const DEFAULT_PERIOD_MAP: Record<Match['status'], number> = {
-    Scheduled: 1,
-    Live: 1,
-    HalfTime: 2,
-    Completed: 2,
-  };
-  
-  // Contextual menu state
-  const [currentStep, setCurrentStep] = useState<ActionStep>('selectPlayer');
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [selectedAction, setSelectedAction] = useState<string | null>(null);
-  const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
-  const currentStepRef = useRef<ActionStep>('selectPlayer');
+  const [selectedTeam, setSelectedTeam] = useState<'home' | 'away' | 'both'>('home');
   const [undoError, setUndoError] = useState<string | null>(null);
+  const [showSubstitutionFlow, setShowSubstitutionFlow] = useState(false);
+  const [substitutionTeam, setSubstitutionTeam] = useState<'home' | 'away'>('home');
+  const [viewMode, setViewMode] = useState<'logger' | 'analytics'>('logger');
+  const [turboModeEnabled, setTurboModeEnabled] = useState(false);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; actionLabel?: string; action?: () => void } | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const lastDriftAutoSyncRef = useRef<number>(0);
+  const driftExceededAtRef = useRef<number | null>(null);
+
+  const recentPlayers = useMemo(() => {
+    if (!match) return [] as Player[];
+    const allPlayers = [...match.home_team.players, ...match.away_team.players];
+    const seen = new Set<string>();
+    const ordered: Player[] = [];
+    [...liveEvents].reverse().forEach((event) => {
+      if (event.player_id && !seen.has(event.player_id)) {
+        const found = allPlayers.find((p) => p.id === event.player_id);
+        if (found) {
+          seen.add(event.player_id);
+          ordered.push(found);
+        }
+      }
+    });
+    return ordered.slice(0, 5);
+  }, [liveEvents, match]);
+
+  const hotkeyHints = useMemo(() => {
+    const entries = Object.entries(KEY_ACTION_MAP)
+      .filter(([key]) => key.length === 1)
+      .filter(([key]) => key === key.toLowerCase())
+      .map(([key, action]) => ({ key, action }));
+    const seen = new Set<string>();
+    const deduped: { key: string; action: string }[] = [];
+    for (const entry of entries) {
+      if (!seen.has(entry.action)) {
+        seen.add(entry.action);
+        deduped.push(entry);
+      }
+      if (deduped.length >= 8) break;
+    }
+    return deduped;
+  }, []);
+
 
   // Fetch match data
-  useEffect(() => {
+  const fetchMatch = useCallback(async () => {
     if (!matchId || !isLoggerReady) return;
-    const fetchMatch = async () => {
-      try {
-        const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}`);
-        if (!response.ok) {
-          const errorPayload = await response.text().catch(() => '');
-          console.error('Failed to fetch match payload', {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorPayload,
-          });
-          throw new Error('Failed to fetch match');
-        }
-        const data = await response.json();
-        setMatch(normalizeMatchPayload(data));
-      } catch (err: any) {
-        setError(err.message || t('errorLoadingMatch'));
-      } finally {
-        setLoading(false);
+    try {
+      const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}`);
+      if (!response.ok) {
+        const errorPayload = await response.text().catch(() => '');
+        console.error('Failed to fetch match payload', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorPayload,
+        });
+        throw new Error('Failed to fetch match');
       }
-    };
-
-    fetchMatch();
+      const data = await response.json();
+      setMatch(normalizeMatchPayload(data));
+    } catch (err: any) {
+      setError(err.message || t('errorLoadingMatch'));
+    } finally {
+      setLoading(false);
+    }
   }, [matchId, isLoggerReady, t]);
+
+  useEffect(() => {
+    fetchMatch();
+  }, [fetchMatch]);
+
+  const {
+    globalClock,
+    effectiveClock,
+    effectiveTime,
+    ineffectiveClock,
+    timeOffClock,
+    clockMode,
+    isClockRunning: isGlobalClockRunning,
+    handleGlobalClockStart,
+    handleGlobalClockStop,
+    handleGlobalClockReset: resetMatchTimer,
+    handleModeSwitch,
+  } = useMatchTimer(match, fetchMatch);
+
+  useEffect(() => {
+    setIsBallInPlay(isGlobalClockRunning);
+  }, [isGlobalClockRunning, setIsBallInPlay]);
+
+  const isZeroedMatch = useMemo(() => {
+    if (!match) return false;
+    return (match.match_time_seconds || 0) === 0
+      && (match.ineffective_time_seconds || 0) === 0
+      && (match.time_off_seconds || 0) === 0
+      && !match.current_period_start_timestamp;
+  }, [match]);
+
+  const statusOverride = useMemo<Match['status'] | undefined>(() => {
+    if (!match) return undefined;
+    if (isZeroedMatch && (match.status === 'Fulltime' || match.status === 'Completed')) {
+      return 'Pending';
+    }
+    return match.status;
+  }, [match, isZeroedMatch]);
+
+  const matchForPhase = useMemo(() => {
+    if (!match) return null;
+    return { ...match, status: statusOverride ?? match.status } as Match;
+  }, [match, statusOverride]);
+
+  const serverSeconds = useMemo(() => {
+    if (!match) return 0;
+    const base = (match.match_time_seconds || 0) + (match.ineffective_time_seconds || 0) + (match.time_off_seconds || 0);
+    if (!match.current_period_start_timestamp) return base;
+    const start = parseTimestampSafe(match.current_period_start_timestamp);
+    const elapsed = Math.max(0, (Date.now() - start) / 1000);
+    return base + elapsed;
+  }, [match, globalClock]);
+
+  const localSeconds = useMemo(() => parseClockToSeconds(globalClock), [globalClock]);
+  const driftSeconds = Math.abs(localSeconds - serverSeconds);
+  const showDriftNudge = driftSeconds > 2;
+
+
+  useEffect(() => {
+    const now = Date.now();
+    if (driftSeconds > 2) {
+      if (driftExceededAtRef.current === null) {
+        driftExceededAtRef.current = now;
+      }
+      const lingered = now - (driftExceededAtRef.current || now);
+      const sinceLastSync = now - (lastDriftAutoSyncRef.current || 0);
+      if (lingered > 1000 && sinceLastSync > 15000) {
+        lastDriftAutoSyncRef.current = now;
+        console.info('[Logger] Auto-resync due to clock drift', {
+          driftSeconds: driftSeconds.toFixed(3),
+          localSeconds,
+          serverSeconds,
+          lingered,
+          sinceLastSync,
+        });
+        fetchMatch();
+      }
+    } else {
+      driftExceededAtRef.current = null;
+    }
+  }, [driftSeconds, fetchMatch]);
+
+  const {
+    operatorPeriod,
+    currentPhase,
+    periodInfo,
+    showExtraTimeAlert,
+    transitionToHalftime,
+    transitionToSecondHalf,
+    transitionToFulltime,
+    dismissExtraTimeAlert,
+  } = usePeriodManager(
+    matchForPhase,
+    effectiveTime,
+    clockMode,
+    isGlobalClockRunning,
+    handleModeSwitch,
+    fetchMatch,
+    ({ target, error }) => {
+      const message = `Failed to update status to ${target}. ${error instanceof Error ? error.message : ''}`;
+      setToast({
+        message,
+        actionLabel: 'Retry',
+        action: () => {
+          if (target === 'Halftime') guardTransition('Halftime', transitionToHalftime);
+          if (target === 'Live_Second_Half') guardTransition('Live_Second_Half', transitionToSecondHalf);
+          if (target === 'Fulltime') guardTransition('Fulltime', transitionToFulltime);
+        },
+      });
+    }
+  );
+
+  // Comprehensive reset handler: clears all events and resets all timers
+  const handleGlobalClockReset = useCallback(async () => {
+    if (!match || !matchId || !isAdmin) return;
+    
+    try {
+      // 1. Try to delete all events from the backend
+      let backendDeleteSuccess = false;
+      try {
+        const deleteResponse = await fetchLoggerWithAuth(
+          `${LOGGER_API_URL}/matches/${matchId}/clear-events`, 
+          { method: 'POST' }
+        );
+        
+        if (deleteResponse.ok) {
+          console.log('✅ Successfully deleted all events from backend');
+          backendDeleteSuccess = true;
+          
+          // Verify events are deleted by fetching
+          const remainingEvents = await fetchAllMatchEvents(matchId);
+          console.log('Events remaining after delete:', remainingEvents.length);
+        } else {
+          console.warn('⚠️ Backend delete failed:', deleteResponse.status, deleteResponse.statusText);
+          console.warn('⚠️ Continuing with frontend reset. Please restart backend server to enable event deletion.');
+        }
+      } catch (deleteError) {
+        console.warn('⚠️ Could not delete events from backend (endpoint may not exist):', deleteError);
+        console.warn('⚠️ Continuing with frontend reset. Events will reload on page refresh until backend is restarted.');
+      }
+      
+      // 2. Reset match timer (this will reset all clocks, period, and accumulated times)
+      await resetMatchTimer();
+
+      // Optimistically reset local state so UI reflects zeroed clocks and pending status immediately
+      setMatch((prev) => prev ? {
+        ...prev,
+        match_time_seconds: 0,
+        clock_seconds_at_period_start: 0,
+        ineffective_time_seconds: 0,
+        time_off_seconds: 0,
+        current_period_start_timestamp: undefined,
+        last_mode_change_timestamp: undefined,
+        period_timestamps: {},
+        clock_mode: 'EFFECTIVE',
+        status: 'Pending',
+      } : prev);
+      resetOperatorControls({ clock: '00:00.000', period: 1 });
+
+      // Rehydrate events/timeline to reflect cleared state
+      await hydrateEvents();
+      
+      // 3. Clear all event-related state from the store (this will persist to IndexedDB)
+      setLiveEvents([]);
+      clearQueuedEvents();
+      clearUndoStack();
+      
+      // 4. Reset duplicate tracking
+      resetDuplicateStats();
+      clearDuplicateHighlight();
+      
+      if (backendDeleteSuccess) {
+        console.log('✅ Reset complete: all events cleared from backend and frontend, timers reset');
+      } else {
+        console.log('✅ Frontend reset complete. Note: Events will reappear on refresh until backend server is restarted.');
+      }
+      
+    } catch (error) {
+      console.error('Failed to reset match:', error);
+    }
+  }, [match, matchId, isAdmin, resetMatchTimer, setLiveEvents, clearQueuedEvents, clearUndoStack, resetDuplicateStats, clearDuplicateHighlight]);
+
+  const {
+    currentStep,
+    currentTeam,
+    selectedPlayer,
+    selectedAction,
+    availableActions,
+    availableOutcomes,
+    handlePlayerClick,
+    handleActionClick,
+    handleOutcomeClick,
+    handleRecipientClick,
+    resetFlow,
+    currentStepRef,
+  } = useActionFlow({
+    match,
+    globalClock,
+    operatorClock,
+    operatorPeriod,
+    selectedTeam,
+    isSubmitting,
+    sendEvent,
+  });
+
+  const normalizeStatus = useCallback((status?: Match['status']): Match['status'] => {
+    if (status === 'Live') return 'Live_First_Half';
+    if (status === 'Completed') return 'Fulltime';
+    return status || 'Pending';
+  }, []);
+
+  const isTransitionAllowed = useCallback((target: Match['status']): boolean => {
+    const current = normalizeStatus(statusOverride);
+    const allowed: Record<Match['status'], Match['status'][]> = {
+      Pending: ['Live_First_Half'],
+      Live_First_Half: ['Halftime'],
+      Halftime: ['Live_Second_Half'],
+      Live_Second_Half: ['Fulltime'],
+      Live: ['Halftime'],
+      Fulltime: [],
+      Abandoned: [],
+      Live_Extra_First: [],
+      Extra_Halftime: [],
+      Live_Extra_Second: [],
+      Penalties: [],
+      Completed: [],
+      Scheduled: ['Live_First_Half'],
+    };
+    const allowedTargets = allowed[current] || [];
+    return allowedTargets.includes(target);
+  }, [statusOverride, normalizeStatus]);
+
+  const guardTransition = useCallback((target: Match['status'], fn?: () => void) => {
+    if (!fn) return;
+    const current = normalizeStatus(statusOverride);
+    if (!isTransitionAllowed(target)) {
+      setTransitionError(
+        `Transition not allowed: ${current} → ${target}. Follow Pending → Live_First_Half → Halftime → Live_Second_Half → Fulltime.`
+      );
+      return;
+    }
+    setTransitionError(null);
+    fn();
+  }, [isTransitionAllowed, statusOverride, normalizeStatus]);
+
+  const currentStatusNormalized = normalizeStatus(statusOverride);
+  const cockpitLocked = currentStatusNormalized === 'Fulltime';
+  const lockReason = cockpitLocked ? t('lockReasonFulltime', 'Match is Fulltime. Cockpit is read-only.') : undefined;
+
+
+  // Audio feedback for events
+  const { playSound } = useAudioFeedback({ enabled: true, volume: 0.3 });
+
+  // Turbo Mode for ultra-fast logging
+  const {
+    turboBuffer,
+    lastResult: turboParseResult,
+    isProcessing: isTurboProcessing,
+    payloadPreview: turboPayloadPreview,
+    safetyWarning: turboSafetyWarning,
+    missingRecipient: turboMissingRecipient,
+    handleInputChange: handleTurboInput,
+    executeTurbo,
+    clearTurbo,
+    inputRef: turboInputRef,
+  } = useTurboMode({
+    enabled: turboModeEnabled,
+    match,
+    selectedTeam,
+    globalClock,
+    operatorPeriod,
+    sendEvent,
+    onEventDispatched: (result: { action: string; outcome?: string }) => {
+      const soundType = getSoundForEvent(result.action, result.outcome ?? undefined);
+      playSound(soundType);
+    },
+    onError: (error: string) => {
+      console.warn('Turbo mode error:', error);
+      playSound('error');
+    },
+  });
+
+  const handleTurboInputGuarded = useCallback((value: string) => {
+    if (cockpitLocked) return;
+    handleTurboInput(value);
+  }, [cockpitLocked, handleTurboInput]);
+
+  const executeTurboGuarded = useCallback(() => {
+    if (cockpitLocked) return;
+    executeTurbo();
+  }, [cockpitLocked, executeTurbo]);
+
+  const clearTurboGuarded = useCallback(() => {
+    if (cockpitLocked) return;
+    clearTurbo();
+  }, [cockpitLocked, clearTurbo]);
+
+  const handleGlobalClockStartGuarded = useCallback(() => {
+    if (cockpitLocked) return;
+    setIsBallInPlay(true);
+    handleGlobalClockStart();
+  }, [cockpitLocked, handleGlobalClockStart, setIsBallInPlay]);
+
+  const handleGlobalClockStopGuarded = useCallback(() => {
+    if (cockpitLocked) return;
+    setIsBallInPlay(false);
+    handleGlobalClockStop();
+  }, [cockpitLocked, handleGlobalClockStop, setIsBallInPlay]);
+
+  const handleModeSwitchGuarded = useCallback((mode: 'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF') => {
+    if (cockpitLocked) return;
+    handleModeSwitch(mode);
+  }, [cockpitLocked, handleModeSwitch]);
+
+  const toggleTurboMode = useCallback(() => {
+    if (cockpitLocked) return;
+    setTurboModeEnabled(prev => !prev);
+    if (!turboModeEnabled) {
+      // Reset normal flow when entering turbo mode
+      resetFlow();
+    }
+  }, [cockpitLocked, turboModeEnabled, resetFlow]);
+
+  const determinePlayerTeam = useCallback(
+    (player: Player): 'home' | 'away' | null => {
+      if (!match) return null;
+      if (match.home_team.players.some((homePlayer) => homePlayer.id === player.id)) {
+        return 'home';
+      }
+      if (match.away_team.players.some((awayPlayer) => awayPlayer.id === player.id)) {
+        return 'away';
+      }
+      return null;
+    },
+    [match]
+  );
+
+  const handlePlayerSelection = useCallback(
+    (player: Player) => {
+      if (cockpitLocked) return;
+      const playerTeam = determinePlayerTeam(player);
+      if (!playerTeam) return;
+      if (playerTeam !== selectedTeam) {
+        setSelectedTeam(playerTeam);
+      }
+      handlePlayerClick(player);
+    },
+    [cockpitLocked, determinePlayerTeam, handlePlayerClick, selectedTeam, setSelectedTeam]
+  );
+
+  const handleTeamChange = useCallback(
+    (team: 'home' | 'away' | 'both') => {
+      if (cockpitLocked) return;
+      setSelectedTeam(team);
+      resetFlow();
+    },
+    [cockpitLocked, resetFlow]
+  );
+
+  // Override action click for substitution - open modal instead
+  const handleActionClickOverride = useCallback(
+    (action: string) => {
+      if (cockpitLocked) return;
+      if (action === 'Substitution') {
+        const teamForSub = selectedPlayer
+          ? determinePlayerTeam(selectedPlayer) || 'home'
+          : selectedTeam === 'both'
+            ? 'home'
+            : selectedTeam;
+        setSubstitutionTeam(teamForSub);
+        setShowSubstitutionFlow(true);
+        resetFlow();
+      } else {
+        handleActionClick(action);
+      }
+    },
+    [cockpitLocked, selectedPlayer, determinePlayerTeam, selectedTeam, resetFlow, handleActionClick]
+  );
+
+  const handleOutcomeSelect = useCallback(
+    (outcome: string) => {
+      if (cockpitLocked) return;
+      handleOutcomeClick(outcome);
+    },
+    [cockpitLocked, handleOutcomeClick]
+  );
+
+  const handleRecipientSelect = useCallback(
+    (player: Player) => {
+      if (cockpitLocked) return;
+      handleRecipientClick(player);
+    },
+    [cockpitLocked, handleRecipientClick]
+  );
+
+  const { buffer } = useKeyboardInput({
+    disabled: isSubmitting || cockpitLocked,
+    onNumberCommit: (number) => {
+      if (cockpitLocked) return;
+      if (currentStep === 'selectPlayer') {
+        if (!match) return;
+        const homePlayer = match.home_team.players.find((player) => player.jersey_number === number);
+        const awayPlayer = match.away_team.players.find((player) => player.jersey_number === number);
+        const player = homePlayer || awayPlayer;
+        if (player) {
+          const playerTeam: 'home' | 'away' = homePlayer ? 'home' : 'away';
+          if (playerTeam !== selectedTeam) {
+            setSelectedTeam(playerTeam);
+          }
+          handlePlayerClick(player);
+        }
+        return;
+      }
+
+      if (!currentTeam) return;
+
+      if (currentStep === 'selectRecipient') {
+        const recipient = currentTeam.players?.find((p) => p.jersey_number === number);
+        if (recipient) handleRecipientClick(recipient);
+        return;
+      }
+      if (currentStep === 'selectOutcome') {
+        const outcome = availableOutcomes[number - 1];
+        if (outcome) handleOutcomeClick(outcome);
+      }
+    },
+    onKeyAction: (key) => {
+      if (cockpitLocked) return;
+      if (key === 'Escape') {
+        resetFlow();
+        return;
+      }
+
+      const normalizedKey = key.length === 1 ? key : key.toUpperCase();
+      const mappedAction = KEY_ACTION_MAP[normalizedKey] || KEY_ACTION_MAP[key.toUpperCase()];
+
+      if (mappedAction === 'ToggleClock' || key === ' ') {
+        // Toggle global clock via backend
+        if (match?.current_period_start_timestamp) {
+          handleGlobalClockStop();
+        } else {
+          handleGlobalClockStart();
+        }
+        return;
+      }
+
+      if (mappedAction && currentStep === 'selectAction') {
+        handleActionClick(mappedAction);
+      }
+    },
+  });
 
   const hydrateEvents = useCallback(async () => {
     if (!matchId) return;
@@ -270,25 +669,37 @@ export default function LoggerCockpit() {
   }, [matchId, resetDuplicateStats]);
 
   useEffect(() => {
-    clockRef.current = operatorClock;
-  }, [operatorClock]);
-
-  useEffect(() => {
-    if (!isClockRunning) return;
-    const interval = setInterval(() => {
-      const nextSeconds = parseClockInput(clockRef.current) + 1;
-      setOperatorClock(formatMatchClock(nextSeconds));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isClockRunning, setOperatorClock]);
-
-  useEffect(() => {
     if (!match) return;
     const defaultClock = formatMatchClock(match.match_time_seconds);
-    const defaultPeriod = DEFAULT_PERIOD_MAP[match.status] ?? 1;
+    const defaultPeriod = DEFAULT_PERIOD_MAP[statusOverride || match.status] ?? 1;
     resetOperatorControls({ clock: defaultClock, period: defaultPeriod });
-    setClockRunning(false);
   }, [match, resetOperatorControls]);
+
+  useEffect(() => {
+    if (cockpitLocked) {
+      setTurboModeEnabled(false);
+      clearTurbo();
+      resetFlow();
+    }
+  }, [cockpitLocked, clearTurbo, resetFlow]);
+
+  useEffect(() => {
+    if (!IS_E2E_TEST_MODE || !match) return;
+
+    const ensurePlayers = (team: Match['home_team'], prefix: 'HOME' | 'AWAY') => {
+      const hasRoster = Array.isArray(team.players) && team.players.length >= 2;
+      if (hasRoster) return team.players;
+      const teamLabel = prefix === 'HOME' ? 'Home' : 'Away';
+      return [1, 2].map((n) => ({
+        id: `${prefix}-${n}`,
+        jersey_number: `${n}`,
+        full_name: `${teamLabel} Player ${n}`,
+      })) as Match['home_team']['players'];
+    };
+
+    match.home_team.players = ensurePlayers(match.home_team, 'HOME');
+    match.away_team.players = ensurePlayers(match.away_team, 'AWAY');
+  }, [match]);
 
   useEffect(() => {
     if (!duplicateHighlight) return;
@@ -299,137 +710,6 @@ export default function LoggerCockpit() {
   }, [duplicateHighlight, clearDuplicateHighlight]);
 
   // Note: WebSocket connection is automatically managed by useMatchSocket hook
-
-  const handlePlayerClick = (player: Player) => {
-    setSelectedPlayer(player);
-    setCurrentStep('selectAction');
-    setSelectedAction(null);
-    setSelectedOutcome(null);
-  };
-
-  const handleActionClick = (action: string) => {
-    setSelectedAction(action);
-    const actionConfig = Object.entries(ACTION_FLOWS).find(
-      ([_, config]) => config.actions.includes(action)
-    )?.[1];
-    
-    if (actionConfig?.outcomes) {
-      setCurrentStep('selectOutcome');
-    } else {
-      // No outcomes, create event directly
-      createEvent(action, null, null);
-      resetFlow();
-    }
-  };
-
-  const handleOutcomeClick = (outcome: string) => {
-    setSelectedOutcome(outcome);
-    
-    const actionConfig = Object.entries(ACTION_FLOWS).find(
-      ([_, config]) => config.actions.includes(selectedAction!)
-    )?.[1];
-    
-    if (actionConfig?.needsRecipient) {
-      setCurrentStep('selectRecipient');
-    } else {
-      createEvent(selectedAction!, outcome, null);
-      resetFlow();
-    }
-  };
-
-  const handleRecipientClick = (recipient: Player) => {
-    createEvent(selectedAction!, selectedOutcome!, recipient);
-    resetFlow();
-  };
-
-  const formatMatchClock = (seconds?: number): string => {
-    const safeSeconds = Math.max(0, seconds ?? 0);
-    const minutes = Math.floor(safeSeconds / 60)
-      .toString()
-      .padStart(2, '0');
-    const secs = Math.floor(safeSeconds % 60)
-      .toString()
-      .padStart(2, '0');
-    return `${minutes}:${secs}.000`;
-  };
-
-  const parseClockInput = (value: string): number => {
-    if (!value) return 0;
-    const [minPart = '0', rest = '0'] = value.split(':');
-    const [secPart = '0', msPart = '0'] = rest.split('.');
-    const minutes = Number(minPart) || 0;
-    const seconds = Number(secPart) || 0;
-    const millis = Number(msPart) || 0;
-    return minutes * 60 + seconds + millis / 1000;
-  };
-
-  const createEvent = (action: string, outcome: string | null, recipient: Player | null) => {
-    if (!selectedPlayer || !match || isSubmitting) return;
-
-    // Determine event type
-    let eventType: EventType = 'Pass';
-    if (action === 'Pass') eventType = 'Pass';
-    else if (action === 'Shot') eventType = 'Shot';
-    else if (action === 'Duel') eventType = 'Duel';
-    else if (action === 'Foul') eventType = 'FoulCommitted';
-    else if (action === 'Card') eventType = 'Card';
-
-    // Build event payload
-    const eventData: Omit<MatchEvent, 'match_id' | 'timestamp'> = {
-      match_clock: operatorClock?.trim()
-        ? operatorClock
-        : formatMatchClock(match.match_time_seconds),
-      period: operatorPeriod,
-      team_id: selectedTeam === 'home' ? match.home_team.id : match.away_team.id,
-      player_id: selectedPlayer.id,
-      type: eventType,
-      data: {},
-    };
-
-    // Add type-specific data
-    if (eventType === 'Pass') {
-      eventData.data = {
-        pass_type: 'Standard',
-        outcome: outcome || 'Complete',
-        receiver_id: recipient?.id,
-        receiver_name: recipient?.full_name,
-      };
-    } else if (eventType === 'Shot') {
-      eventData.data = {
-        shot_type: 'Standard',
-        outcome: outcome || 'OnTarget',
-      };
-    } else if (eventType === 'Duel') {
-      eventData.data = {
-        duel_type: 'Ground',
-        outcome: outcome || 'Won',
-      };
-    } else if (eventType === 'FoulCommitted') {
-      eventData.data = {
-        foul_type: 'Standard',
-        outcome: outcome || 'Standard',
-      };
-    } else if (eventType === 'Card') {
-      eventData.data = {
-        card_type: outcome || 'Yellow',
-        reason: 'Foul',
-      };
-    }
-
-    // Send event via WebSocket
-    sendEvent(eventData);
-  };
-
-  const resetFlow = () => {
-    setCurrentStep('selectPlayer');
-    setSelectedPlayer(null);
-    setSelectedAction(null);
-    setSelectedOutcome(null);
-  };
-
-  useEffect(() => {
-    currentStepRef.current = currentStep;
-  }, [currentStep]);
 
   const sendHarnessPassEvent = useCallback(
     (options: { team: 'home' | 'away'; passerId: string; recipientId: string }) => {
@@ -478,9 +758,13 @@ export default function LoggerCockpit() {
       (pendingAcks[lastUndoClientId] || lastUndoEvent?._id)
   );
   const undoDisabled =
-    !lastUndoEvent || (undoRequiresConnection && !isConnected);
+    !lastUndoEvent || cockpitLocked || (undoRequiresConnection && !isConnected);
 
   const handleUndoLastEvent = useCallback(async () => {
+    if (cockpitLocked) {
+      setUndoError(lockReason || t('undoLocked', 'Cannot undo while cockpit is locked.'));
+      return;
+    }
     if (!lastUndoClientId || !lastUndoEvent) {
       setUndoError(t('undoUnavailable', 'No event available to undo.'));
       return;
@@ -517,6 +801,8 @@ export default function LoggerCockpit() {
     removeUndoCandidate,
     t,
     undoEvent,
+    cockpitLocked,
+    lockReason,
     undoRequiresConnection,
   ]);
 
@@ -593,15 +879,6 @@ export default function LoggerCockpit() {
     );
   }
 
-  const currentTeam = selectedTeam === 'home' ? match.home_team : match.away_team;
-  const availableActions = selectedPlayer 
-    ? Object.entries(ACTION_FLOWS).flatMap(([_, config]) => config.actions)
-    : [];
-  
-  const availableOutcomes = selectedAction
-    ? ACTION_FLOWS[selectedAction]?.outcomes?.[selectedAction] || []
-    : [];
-
   const lastDuplicateTeamName = duplicateStats.lastTeamId
     ? duplicateStats.lastTeamId === match.home_team.id
       ? match.home_team.short_name
@@ -648,6 +925,38 @@ export default function LoggerCockpit() {
   const duplicateExistingEventDefault = duplicateHighlight?.existing_event_id
     ? `Existing event ID: ${duplicateHighlight.existing_event_id}`
     : '';
+
+  const canHalftime = isTransitionAllowed('Halftime');
+  const canSecondHalf = isTransitionAllowed('Live_Second_Half');
+  const canFulltime = isTransitionAllowed('Fulltime');
+  const transitionGuardMessage = t(
+    'transitionGuardMessage',
+    'Follow order: Pending → Live_First_Half → Halftime → Live_Second_Half → Fulltime (current: {{status}}).',
+    { status: currentStatusNormalized }
+  );
+
+  const isFulltime = match?.status === 'Completed';
+  const resetBlocked = queuedCount > 0 || pendingAckCount > 0;
+  const resetBlockReason = queuedCount > 0
+    ? t('resetBlockedQueued', '{{count}} event(s) queued — clear them before reset.', { count: queuedCount })
+    : pendingAckCount > 0
+      ? t('resetBlockedPending', '{{count}} event(s) awaiting server confirmation.', { count: pendingAckCount })
+      : undefined;
+  const resetDisabledReason = resetBlockReason;
+  const resetTooltip = resetDisabledReason || (isFulltime ? t('resetAfterFulltimeTooltip', 'Match is completed; reset will wipe data and restart.') : undefined);
+
+  const openResetModal = () => {
+    if (!isAdmin) return;
+    setShowResetModal(true);
+    setResetConfirmText('');
+  };
+
+  const confirmGlobalReset = async () => {
+    if (resetBlocked || resetConfirmText !== 'RESET') return;
+    await handleGlobalClockReset();
+    setShowResetModal(false);
+    setResetConfirmText('');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -707,7 +1016,84 @@ export default function LoggerCockpit() {
                   <CornerUpLeft size={14} />
                   {t('undoLast', 'Undo last')}
                 </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={openResetModal}
+                    disabled={resetBlocked}
+                    data-testid="btn-reset-clock"
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                      resetBlocked
+                        ? 'text-red-300 border-red-100 cursor-not-allowed'
+                        : 'text-red-700 border-red-300 hover:bg-red-50'
+                    }`}
+                    title={resetTooltip}
+                  >
+                    <RotateCcw size={14} />
+                    {t('reset', 'Reset')}
+                  </button>
+                )}
               </div>
+              {showResetModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                    <h3 className="text-lg font-bold mb-3 text-red-600 flex items-center gap-2">
+                      <RotateCcw size={20} />
+                      {t('confirmReset', 'Confirm Reset')}
+                    </h3>
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+                      <p className="text-red-800 font-semibold mb-2">⚠️ {t('warning', 'WARNING')}</p>
+                      <p className="text-red-700 text-sm mb-1">
+                        {t('resetWarning1', 'This will permanently delete ALL logged events and reset all timers!')}
+                      </p>
+                      <p className="text-red-700 text-sm">
+                        {t('resetWarning2', 'This action CANNOT be undone. All match data will be lost.')}
+                      </p>
+                      {isFulltime && (
+                        <p className="text-red-700 text-sm mt-2">
+                          {t('resetAfterFulltimeWarning', 'Match is fulltime. Resetting will clear logs and restart clocks from zero.')}
+                        </p>
+                      )}
+                      {resetBlocked && (
+                        <p className="text-red-700 text-sm mt-2">
+                          {resetDisabledReason || t('resetBlockedUnsent', 'Unsent events detected. Clear queue/acks before resetting.')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t('typeResetToConfirm', 'Type RESET in capital letters to confirm:')}
+                      </label>
+                      <input
+                        type="text"
+                        value={resetConfirmText}
+                        onChange={(e) => setResetConfirmText(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        placeholder="RESET"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => {
+                          setShowResetModal(false);
+                          setResetConfirmText('');
+                        }}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                      >
+                        {t('cancel', 'Cancel')}
+                      </button>
+                      <button
+                        onClick={confirmGlobalReset}
+                        disabled={resetConfirmText !== 'RESET' || resetBlocked}
+                        className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {t('yesReset', 'Yes, Reset')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {undoError && (
               <p className="text-xs text-red-600 mt-1" data-testid="undo-error">
@@ -716,83 +1102,206 @@ export default function LoggerCockpit() {
             )}
             
             <div className="flex items-center gap-4">
+              {/* View Toggle */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('logger')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                    viewMode === 'logger'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <List size={16} />
+                  {t('logger.view', 'Logger')}
+                </button>
+                <button
+                  onClick={() => setViewMode('analytics')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                    viewMode === 'analytics'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="toggle-analytics"
+                >
+                  <BarChart3 size={16} />
+                  {t('logger.analytics', 'Analytics')}
+                </button>
+              </div>
               <div className="text-sm text-gray-600">
                 <Clock className="inline mr-1" size={16} />
                 {Math.floor((match.match_time_seconds || 0) / 60)}:{String((match.match_time_seconds || 0) % 60).padStart(2, '0')}
               </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                match.status === 'Live' ? 'bg-green-100 text-green-700' :
-                match.status === 'HalfTime' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {t(`status.${match.status.toLowerCase()}`)}
-              </span>
+              {(() => {
+                const statusForDisplay = (statusOverride || match.status || 'Pending').toLowerCase();
+                const colorClass = statusForDisplay === 'live' || statusForDisplay === 'live_first_half'
+                  ? 'bg-green-100 text-green-700'
+                  : statusForDisplay === 'halftime'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-gray-100 text-gray-700';
+                return (
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}>
+                    {t(`status.${statusForDisplay}`)}
+                  </span>
+                );
+              })()}
             </div>
           </div>
           
           <div className="mt-4 flex items-center justify-between">
             <div className="text-xl font-semibold">
-              {match.home_team.name} vs {match.away_team.name}
+              {t('matchTitle', '{{home}} vs {{away}}', {
+                home: match.home_team.name,
+                away: match.away_team.name,
+              })}
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {queuedCount > 0 && (
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold border border-amber-200" title="Events queued for send">
+                  🔄 {t('queuedLabel', 'Queued: {{count}}', { count: queuedCount })}
+                </span>
+              )}
+              {pendingAckCount > 0 && (
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold border border-blue-200" title="Awaiting server acknowledgements">
+                  ⏳ {t('pendingAckLabel', 'Pending acks: {{count}}', { count: pendingAckCount })}
+                </span>
+              )}
+              {(transitionError || toast?.message) && (
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold border border-red-200" title="Last error">
+                  ⚠️ {transitionError || toast?.message}
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-700">{t('operatorClock', 'Operator clock')}</p>
-                <span className="text-xs text-gray-500">{t('manualControl', 'Manual control')}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  value={operatorClock}
-                  onChange={(e) => setOperatorClock(e.target.value)}
-                  onBlur={() => setOperatorClock(formatMatchClock(parseClockInput(operatorClock)))}
-                  className="flex-1 px-3 py-2 border rounded-md text-lg font-mono focus:ring-2 focus:ring-blue-500"
-                  placeholder="00:00.000"
-                />
-                <button
-                  type="button"
-                  onClick={() => setClockRunning((prev) => !prev)}
-                  className={`p-2 rounded-md text-white ${
-                    isClockRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  {isClockRunning ? <Pause size={16} /> : <Play size={16} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClockRunning(false);
-                    setOperatorClock(formatMatchClock(match.match_time_seconds));
-                  }}
-                  className="p-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
-                >
-                  <RotateCcw size={16} />
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                {t('clockHelp', 'Adjust or start the clock to match the on-field time you are logging.')}
-              </p>
+          {/* Status Ribbon */}
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+              <span className="font-semibold text-gray-700">{t('statusLabel', 'Status')}</span>
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold">{currentStatusNormalized}</span>
             </div>
-
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                {t('periodControl', 'Match period')}
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+              <span className="font-semibold text-gray-700">{t('phaseLabel', 'Phase')}</span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">{currentPhase}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+              <span className="font-semibold text-gray-700">{t('clockModeLabel', 'Clock Mode')}</span>
+              <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold">{clockMode}</span>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+              <span className="font-semibold text-gray-700">{t('runningLabel', 'Running')}</span>
+              <span className={`px-2 py-0.5 rounded-full font-semibold ${isGlobalClockRunning ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {isGlobalClockRunning ? t('runningYes', 'Yes') : t('runningNo', 'No')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-md px-3 py-2">
+              <label htmlFor="operator-clock-input" className="font-semibold text-gray-700">
+                {t('clockInputLabel', 'Clock')}
               </label>
-              <select
-                value={operatorPeriod}
-                onChange={(e) => setOperatorPeriod(Number(e.target.value))}
-                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={1}>{t('periods.firstHalf', '1st Half')}</option>
-                <option value={2}>{t('periods.secondHalf', '2nd Half')}</option>
-                <option value={3}>{t('periods.extraTimeOne', 'Extra Time 1')}</option>
-                <option value={4}>{t('periods.extraTimeTwo', 'Extra Time 2')}</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-2">
-                {t('periodHelp', 'Switch halves or extra time when the referee signals the change.')}
-              </p>
+              <input
+                id="operator-clock-input"
+                data-testid="operator-clock-input"
+                value={operatorClock === '00:00.000' ? '' : operatorClock}
+                placeholder="00:00.000"
+                onChange={(e) => setOperatorClock(e.target.value)}
+                className="w-24 px-2 py-1 rounded border border-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
+          </div>
+
+          {cockpitLocked && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2" data-testid="cockpit-lock-banner">
+              🔒 {lockReason || t('lockBanner', 'Match is closed (Fulltime). Editing is disabled.')}
+            </div>
+          )}
+
+          {/* Extra Time Alert */}
+          {showExtraTimeAlert && (currentPhase === 'FIRST_HALF_EXTRA_TIME' || currentPhase === 'SECOND_HALF_EXTRA_TIME') && (
+            <div className="mt-4">
+              <ExtraTimeAlert
+                phase={currentPhase}
+                extraTimeSeconds={periodInfo.extraTimeSeconds}
+                onTransition={currentPhase === 'FIRST_HALF_EXTRA_TIME' ? transitionToHalftime : transitionToFulltime}
+                onDismiss={dismissExtraTimeAlert}
+                t={t}
+              />
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <MatchTimerDisplay
+              match={match}
+              operatorPeriod={operatorPeriod}
+              globalClock={globalClock}
+              effectiveClock={effectiveClock}
+              ineffectiveClock={ineffectiveClock}
+              timeOffClock={timeOffClock}
+              clockMode={clockMode}
+              isClockRunning={isGlobalClockRunning}
+              isBallInPlay={isBallInPlay}
+              locked={cockpitLocked}
+              lockReason={lockReason}
+              onGlobalStart={handleGlobalClockStartGuarded}
+              onGlobalStop={handleGlobalClockStopGuarded}
+              onModeSwitch={handleModeSwitchGuarded}
+              t={t}
+            />
+
+            {showDriftNudge && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-medium">
+                  {t('clockDriftDetected', 'Clock drift detected (~{{seconds}}s). Refresh to resync with server time.', {
+                    seconds: driftSeconds.toFixed(1),
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchMatch}
+                  className="text-xs font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
+                >
+                  {t('resync', 'Resync')}
+                </button>
+              </div>
+            )}
+
+            <MatchPeriodSelector
+              match={match}
+              operatorPeriod={operatorPeriod}
+              currentPhase={currentPhase}
+              isExtraTime={periodInfo.isExtraTime}
+              extraTimeSeconds={periodInfo.extraTimeSeconds}
+              globalClock={globalClock}
+              isClockRunning={isGlobalClockRunning}
+              onTransitionToHalftime={() => guardTransition('Halftime', transitionToHalftime)}
+              onTransitionToSecondHalf={() => guardTransition('Live_Second_Half', transitionToSecondHalf)}
+              onTransitionToFulltime={() => guardTransition('Fulltime', transitionToFulltime)}
+              transitionDisabled={
+                cockpitLocked || !isAdmin ||
+                ((currentPhase === 'FIRST_HALF' || currentPhase === 'FIRST_HALF_EXTRA_TIME') ? !canHalftime :
+                currentPhase === 'HALFTIME' ? !canSecondHalf :
+                (currentPhase === 'SECOND_HALF' || currentPhase === 'SECOND_HALF_EXTRA_TIME') ? !canFulltime : false)
+              }
+              transitionReason={
+                cockpitLocked
+                  ? lockReason
+                  : !isAdmin
+                    ? t('adminOnlyTransitions', 'Admin only: match status changes are locked.')
+                    : (currentPhase === 'FIRST_HALF' || currentPhase === 'FIRST_HALF_EXTRA_TIME') && !canHalftime
+                      ? transitionGuardMessage
+                      : currentPhase === 'HALFTIME' && !canSecondHalf
+                        ? transitionGuardMessage
+                        : (currentPhase === 'SECOND_HALF' || currentPhase === 'SECOND_HALF_EXTRA_TIME') && !canFulltime
+                          ? transitionGuardMessage
+                          : undefined
+              }
+              t={t}
+            />
+
+            {transitionError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3" data-testid="transition-error">
+                {transitionError}
+              </div>
+            )}
 
             <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-3">
@@ -898,230 +1407,225 @@ export default function LoggerCockpit() {
         </div>
       )}
 
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-4 py-3 rounded shadow-lg max-w-sm flex items-start gap-3" data-testid="logger-toast">
+          <div className="flex-1 text-sm leading-snug">{toast.message}</div>
+          {toast.action && toast.actionLabel && (
+            <button
+              onClick={toast.action}
+              className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
+            >
+              {toast.actionLabel}
+            </button>
+          )}
+          <button
+            onClick={() => setToast(null)}
+            className="text-xs text-gray-300 hover:text-white"
+            aria-label="Dismiss toast"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Team Selection & Player Grid */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Team Selector */}
-            <div className="bg-white rounded-lg shadow p-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedTeam('home');
-                    resetFlow();
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
-                    selectedTeam === 'home'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {match.home_team.short_name}
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedTeam('away');
-                    resetFlow();
-                  }}
-                  className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
-                    selectedTeam === 'away'
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {match.away_team.short_name}
-                </button>
-              </div>
-            </div>
-
-            {/* Contextual Instructions */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="text-blue-600 mt-0.5" size={20} />
-                <div className="text-sm text-blue-800">
-                  {currentStep === 'selectPlayer' && t('instructionSelectPlayer')}
-                  {currentStep === 'selectAction' && t('instructionSelectAction', { player: selectedPlayer?.full_name })}
-                  {currentStep === 'selectOutcome' && t('instructionSelectOutcome', { action: selectedAction })}
-                  {currentStep === 'selectRecipient' && t('instructionSelectRecipient')}
-                </div>
-              </div>
-            </div>
-
-            {/* Player Grid */}
-            {currentStep === 'selectPlayer' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Users size={20} />
-                  {currentTeam.name} - {t('selectPlayer')}
-                </h2>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                  {currentTeam.players?.map((player) => (
-                    <button
-                      key={player.id}
-                      onClick={() => handlePlayerClick(player)}
-                      data-testid={`player-card-${player.id}`}
-                      className="aspect-square bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex flex-col items-center justify-center transition-colors"
-                    >
-                      <div className="text-3xl font-bold">{player.jersey_number}</div>
-                      <div className="text-xs text-center px-1 mt-1 line-clamp-2">{player.full_name}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Action Selection */}
-            {currentStep === 'selectAction' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold mb-4">
-                  {t('selectAction')} - {selectedPlayer?.full_name} #{selectedPlayer?.jersey_number}
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {availableActions.map((action) => (
-                    <button
-                      key={action}
-                      onClick={() => handleActionClick(action)}
-                      disabled={isSubmitting}
-                      data-testid={`action-btn-${action}`}
-                      className={`py-4 rounded-lg font-medium transition-colors ${
-                        isSubmitting
-                          ? 'bg-blue-300 text-white cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
-                    >
-                      {t(`action${action}`)}
-                    </button>
-                  ))}
-                  <button
-                    onClick={resetFlow}
-                    className="py-4 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-colors"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Outcome Selection */}
-            {currentStep === 'selectOutcome' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold mb-4">
-                  {t('selectOutcome')} - {selectedAction}
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {availableOutcomes.map((outcome) => (
-                    <button
-                      key={outcome}
-                      onClick={() => handleOutcomeClick(outcome)}
-                      disabled={isSubmitting}
-                      data-testid={`outcome-btn-${outcome}`}
-                      className={`py-4 rounded-lg font-medium transition-colors ${
-                        isSubmitting
-                          ? 'bg-green-300 text-white cursor-not-allowed'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
-                    >
-                      {t(`outcome${outcome}`)}
-                    </button>
-                  ))}
-                  <button
-                    onClick={resetFlow}
-                    className="py-4 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg font-medium transition-colors"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Recipient Selection */}
-            {currentStep === 'selectRecipient' && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold mb-4">
-                  {t('selectRecipient')} - {selectedAction}
-                </h2>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                  {currentTeam.players?.map((player) => (
-                    <button
-                      key={player.id}
-                      onClick={() => handleRecipientClick(player)}
-                      disabled={isSubmitting}
-                      data-testid={`recipient-card-${player.id}`}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center transition-colors ${
-                        isSubmitting
-                          ? 'bg-purple-300 text-white cursor-not-allowed'
-                          : 'bg-purple-600 hover:bg-purple-700 text-white'
-                      }`}
-                    >
-                      <div className="text-3xl font-bold">{player.jersey_number}</div>
-                      <div className="text-xs text-center px-1 mt-1 line-clamp-2">{player.full_name}</div>
-                    </button>
-                  ))}
-                  <button
-                    onClick={resetFlow}
-                    className="aspect-square bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg flex items-center justify-center font-medium"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            )}
+        {buffer && (
+          <div
+            data-testid="keyboard-buffer"
+            className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-2xl font-mono tracking-widest z-50"
+          >
+            <div className="text-xs uppercase text-gray-400 leading-none mb-1">Input</div>
+            <div className="text-3xl font-mono font-bold" data-testid="keyboard-buffer-value">{buffer}</div>
           </div>
-
-          {/* Right: Live Event Feed */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow p-4 sticky top-4">
-              <h2 className="text-lg font-semibold mb-4">{t('liveEvents')}</h2>
-              <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto">
-                {liveEvents.length === 0 ? (
-                  <div className="text-sm text-gray-500 text-center py-8">
-                    {t('noEvents')}
-                  </div>
-                ) : (
-                  liveEvents.slice().reverse().map((event, index) => {
-                    const isHighlighted =
-                      !!duplicateHighlight &&
-                      duplicateHighlight.match_clock === event.match_clock &&
-                      duplicateHighlight.period === event.period &&
-                      duplicateHighlight.team_id === event.team_id;
-                    return (
-                      <div
-                        key={event._id || index}
-                        data-testid="live-event-item"
-                        className={`border rounded p-3 text-sm ${
-                          isHighlighted
-                            ? 'border-amber-500 bg-amber-50 shadow-md'
-                            : 'border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium">{event.type}</span>
-                          <span className="text-xs text-gray-500">
-                            {event.match_clock}
-                          </span>
-                        </div>
-                        <div className="text-gray-600 text-xs">
-                          {event.player_id || 'Team Event'}
-                        </div>
-                        {event.data && (
-                          <div className="mt-1 flex items-center gap-1 text-xs">
-                            {event.data.outcome === 'Complete' && <CheckCircle size={12} className="text-green-600" />}
-                            {event.data.outcome === 'Incomplete' && <XCircle size={12} className="text-red-600" />}
-                            {event.data.outcome && (
-                              <span className="text-gray-500">{event.data.outcome}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+        )}
+        
+        {/* Halftime Panel */}
+        {currentPhase === 'HALFTIME' && (
+          <div className="mb-6">
+            <HalftimePanel
+              timeOffSeconds={match?.time_off_seconds || 0}
+              onStartSecondHalf={transitionToSecondHalf}
+              t={t}
+            />
+          </div>
+        )}
+        
+        {/* Analytics View */}
+        {viewMode === 'analytics' ? (
+          <div className="mb-6">
+            <MatchAnalytics
+              match={match}
+              events={liveEvents}
+              effectiveTime={effectiveTime}
+              t={t}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: Team Selection & Player Grid */}
+            <div className="lg:col-span-2 space-y-4">
+            <div className="flex flex-col gap-2 bg-gray-900/70 border border-gray-800 rounded-xl px-4 py-3 text-xs text-gray-200">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="uppercase tracking-wide text-[11px] text-gray-400">Recent</span>
+                {recentPlayers.length === 0 && (
+                  <span className="text-gray-500">No players yet</span>
                 )}
+                {recentPlayers.map((player) => (
+                  <button
+                    key={player.id}
+                    onClick={() => handlePlayerSelection(player)}
+                    className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-800 hover:bg-gray-700 border border-gray-700 transition-colors"
+                    title={`Select ${player.full_name}`}
+                  >
+                    <span className="font-mono text-yellow-300 font-semibold">#{player.jersey_number}</span>
+                    <span className="text-gray-100 text-xs font-medium truncate max-w-[120px]">
+                      {player.short_name || player.full_name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="uppercase tracking-wide text-[11px] text-gray-400">Hotkeys</span>
+                {hotkeyHints.map((hint) => (
+                  <span
+                    key={hint.action}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-gray-800 border border-gray-700"
+                  >
+                    <kbd className="px-1.5 py-0.5 rounded bg-black/40 border border-gray-700 text-yellow-200 font-semibold text-[11px]">
+                      {hint.key}
+                    </kbd>
+                    <span className="text-gray-200 text-xs">{hint.action}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <TeamSelector match={match} selectedTeam={selectedTeam} onTeamChange={handleTeamChange} disabled={cockpitLocked} />
+
+            <InstructionBanner
+              t={t}
+              currentStep={currentStep}
+              selectedPlayer={selectedPlayer}
+              selectedAction={selectedAction}
+            />
+
+            {currentStep === 'selectPlayer' && match && (
+              <PlayerSelectorPanel
+                match={match}
+                selectedPlayer={selectedPlayer}
+                selectedTeam={selectedTeam}
+                onPlayerClick={handlePlayerSelection}
+                t={t}
+              />
+            )}
+
+            {currentStep === 'selectAction' && (
+              <ActionSelectionPanel
+                actions={availableActions}
+                selectedPlayer={selectedPlayer}
+                isSubmitting={isSubmitting || cockpitLocked}
+                keyHints={KEY_ACTION_MAP}
+                onActionSelect={handleActionClickOverride}
+                onCancel={resetFlow}
+                t={t}
+              />
+            )}
+
+            {currentStep === 'selectOutcome' && (
+              <OutcomeSelectionPanel
+                selectedAction={selectedAction}
+                outcomes={availableOutcomes}
+                isSubmitting={isSubmitting || cockpitLocked}
+                onOutcomeSelect={handleOutcomeSelect}
+                onCancel={resetFlow}
+                t={t}
+              />
+            )}
+
+            {currentStep === 'selectRecipient' && (
+              <RecipientSelectionPanel
+                team={currentTeam}
+                selectedAction={selectedAction}
+                isSubmitting={isSubmitting || cockpitLocked}
+                onRecipientSelect={handleRecipientSelect}
+                onCancel={resetFlow}
+                t={t}
+              />
+            )}
+
+            {/* Turbo Mode Input */}
+            <TurboModeInput
+              enabled={turboModeEnabled}
+              buffer={turboBuffer}
+              parseResult={turboParseResult}
+              match={match}
+              isProcessing={isTurboProcessing}
+              payloadPreview={turboPayloadPreview}
+              safetyWarning={turboSafetyWarning}
+              missingRecipient={turboMissingRecipient}
+              onInputChange={handleTurboInputGuarded}
+              onExecute={executeTurboGuarded}
+              onClear={clearTurboGuarded}
+              onToggle={toggleTurboMode}
+              inputRef={turboInputRef}
+              t={t}
+            />
+          </div>
+
+            {/* Right: Live Event Feed */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-4">
+                <LiveEventFeed
+                  events={liveEvents}
+                  match={match}
+                  duplicateHighlight={duplicateHighlight}
+                  t={t}
+                />
               </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
+
+      {/* Substitution Flow Modal */}
+      {showSubstitutionFlow && match && (
+        <SubstitutionFlow
+          matchId={matchId!}
+          team={substitutionTeam === 'home' ? match.home_team : match.away_team}
+          availablePlayers={
+            substitutionTeam === 'home' ? match.home_team.players : match.away_team.players
+          }
+          onField={(() => {
+            const roster = substitutionTeam === 'home' ? match.home_team.players : match.away_team.players;
+            const starters = roster.slice(0, Math.max(1, roster.length - 1));
+            return new Set(starters.map((p) => p.id));
+          })()}
+          period={operatorPeriod}
+          globalClock={globalClock}
+          onSubmit={(playerOffId, playerOnId, isConcussion) => {
+            if (cockpitLocked) return;
+            // Create substitution event
+            const team = substitutionTeam === 'home' ? match.home_team : match.away_team;
+            const eventData: Omit<MatchEvent, 'match_id' | 'timestamp'> = {
+              match_clock: globalClock,
+              period: operatorPeriod,
+              team_id: team.id,
+              player_id: playerOffId,  // Player leaving the field
+              type: 'Substitution',
+              data: {
+                player_off_id: playerOffId,
+                player_on_id: playerOnId,
+                is_concussion: isConcussion,
+              },
+            };
+            sendEvent(eventData);
+            setShowSubstitutionFlow(false);
+          }}
+          onCancel={() => setShowSubstitutionFlow(false)}
+        />
+      )}
     </div>
   );
 }

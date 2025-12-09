@@ -84,6 +84,7 @@
   "export": "Exportar",
   "import": "Importar",
   "refresh": "Actualizar",
+  "startLogger": "Abrir cabina",
   "success": "Operación exitosa",
   "error": "Ha ocurrido un error",
   "positions": {

@@ -84,6 +84,7 @@
   "export": "Export",
   "import": "Import",
   "refresh": "Refresh",
+  "startLogger": "Open Logger",
   "success": "Operation successful",
   "error": "An error occurred",
   "positions": {
