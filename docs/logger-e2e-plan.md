@@ -16,8 +16,8 @@ _This file tracks planned and in-flight Playwright specs for the logger cockpit.
    - Max subs/windows enforcement; halftime/extra-time windows allowed; prevent re-entry of substituted-out players; bench/active lists persist after reload; opponent concussion compensation reflected.
 3) **logger-event-taxonomy.spec.ts**
    - Log goal + card + foul + offside + set piece; card escalation (YC, 2nd YC, RC); own goal + VAR decision + undo/resend edit flow; penalty shootout outcomes (goal/saved/missed) including sudden death; VAR outcomes matrix (allow/disallow + overturn via undo/resend); verify timeline order, analytics visibility, and reload persistence; future: tighten own-goal edge cases.
-4) **logger-conflicts.spec.ts**
-   - Ingest vs live duplicates; conflict banner; manual resolution flow; deduped timeline; synced analytics/state after resolve.
+4) **logger-conflicts.spec.ts** — ADDED
+   - Ingest vs live duplicates (ingested event pre-seeded, operator re-logs same payload); duplicate banner + dismissal; timeline deduped after duplicate response; analytics visible and state persists after reload.
 5) **logger-resilience-advanced.spec.ts**
    - Websocket drop/reconnect (out-of-order + duplicate server events); optimistic updates; reconciliation without duplicate badges; final counts correct after flush.
 6) **logger-permissions.spec.ts**
