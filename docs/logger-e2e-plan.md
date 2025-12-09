@@ -24,8 +24,8 @@ _This file tracks planned and in-flight Playwright specs for the logger cockpit.
    - Viewer vs analyst vs admin: viewer/analyst blocked from admin-only reset/period transitions; analytics view remains accessible; admin sees reset + transitions enabled.
 7) **logger-analytics-integrity.spec.ts** — ADDED
    - Mixed events (passes, shots, fouls, interceptions); analytics KPIs populated; undo reduces totals; analytics view persists after reload with updated counts.
-8) **logger-l10n-formatting.spec.ts**
-   - Alternate locale/timezone; time/number/date formatting in timeline and exports; translated labels present in forms.
+8) **logger-l10n-formatting.spec.ts** — ADDED
+   - Seeds ES locale via localStorage; analytics panel shows Spanish labels; timeline/effective clock renders mm:ss formatting; locale and analytics access persist after reload.
 9) **logger-error-handling.spec.ts**
    - Stub 4xx/5xx on event post and substitution validate; non-destructive UI, banner/toast shown; retry/backoff; no data loss after recovery.
 
