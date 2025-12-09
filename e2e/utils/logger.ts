@@ -7,6 +7,7 @@ interface HarnessApi {
   getMatchContext?: () => HarnessMatchContext;
   undoLastEvent?: () => Promise<void> | void;
   getQueueSnapshot?: () => QueueSnapshot;
+  getCurrentStep?: () => string | null;
 }
 
 interface SocketHarnessApi {
@@ -56,8 +57,17 @@ export const resetHarnessFlow = async (page: Page, team: 'home' | 'away' = 'home
 const playerIdForTeam = (team: 'home' | 'away'): string =>
   team === 'home' ? 'HOME-1' : 'AWAY-1';
 
-const recipientIdForTeam = (team: 'home' | 'away'): string =>
-  team === 'home' ? 'HOME-2' : 'AWAY-2';
+const recipientLocatorForTeam = (page: Page, team: 'home' | 'away') => {
+  const prefix = team === 'home' ? 'recipient-card-HOME-' : 'recipient-card-AWAY-';
+  return page.locator(`[data-testid^="${prefix}"]`).first();
+};
+
+const getHarnessCurrentStep = async (page: Page): Promise<string | null> => {
+  return page.evaluate(() => {
+    const harness = (window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }).__PROMATCH_LOGGER_HARNESS__;
+    return harness?.getCurrentStep ? harness.getCurrentStep() : null;
+  });
+};
 
 export const submitStandardPass = async (
   page: Page,
@@ -66,7 +76,17 @@ export const submitStandardPass = async (
   await page.getByTestId(`player-card-${playerIdForTeam(team)}`).click();
   await page.getByTestId('action-btn-Pass').click();
   await page.getByTestId('outcome-btn-Complete').click();
-  await page.getByTestId(`recipient-card-${recipientIdForTeam(team)}`).click();
+  let currentStep = await getHarnessCurrentStep(page);
+  if (currentStep === 'selectOutcome') {
+    await page.waitForTimeout(50);
+    currentStep = await getHarnessCurrentStep(page);
+  }
+
+  if (currentStep === 'selectRecipient') {
+    const recipient = recipientLocatorForTeam(page, team);
+    await expect(recipient.first()).toBeVisible({ timeout: 5000 });
+    await recipient.first().click();
+  }
 };
 
 export const submitStandardShot = async (

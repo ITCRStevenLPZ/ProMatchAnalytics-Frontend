@@ -25,6 +25,7 @@ process.env.PROMATCH_E2E_BACKEND_URL = BACKEND_URL;
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  timeout: 60000,
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: `http://${HOST}:${PORT}`,

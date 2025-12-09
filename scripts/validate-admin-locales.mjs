@@ -6,8 +6,7 @@ import process from 'node:process';
 
 const rootDir = process.cwd();
 const localeBase = path.join(rootDir, 'public', 'locales');
-const adminEnPath = path.join(localeBase, 'en', 'admin.json');
-const adminEsPath = path.join(localeBase, 'es', 'admin.json');
+const namespaces = ['admin', 'logger'];
 const validationMessagesPath = path.join(rootDir, 'src', 'lib', 'validationMessages.ts');
 
 const readJson = async (filePath) => {
@@ -88,26 +87,32 @@ const formatIssues = (heading, issues) => {
   return `${heading}:\n${bullets}`;
 };
 
-async function main() {
-  const [enAdmin, esAdmin] = await Promise.all([
-    readJson(adminEnPath),
-    readJson(adminEsPath),
-  ]);
+const loadNamespace = async (namespace) => {
+  const enPath = path.join(localeBase, 'en', `${namespace}.json`);
+  const esPath = path.join(localeBase, 'es', `${namespace}.json`);
+  const [en, es] = await Promise.all([readJson(enPath), readJson(esPath)]);
+  return { en, es, enPath, esPath };
+};
 
-  const enKeys = collectLeafKeys(enAdmin);
-  const esKeys = collectLeafKeys(esAdmin);
-
+async function validateNamespaceParity(namespace) {
+  const { en, es, enPath, esPath } = await loadNamespace(namespace);
+  const enKeys = collectLeafKeys(en);
+  const esKeys = collectLeafKeys(es);
   const missingInEs = diffSets(enKeys, esKeys);
   const missingInEn = diffSets(esKeys, enKeys);
 
   const issues = [];
   if (missingInEs.length) {
-    issues.push(formatIssues('Keys missing in es/admin.json', missingInEs));
+    issues.push(formatIssues(`Keys missing in ${esPath}`, missingInEs));
   }
   if (missingInEn.length) {
-    issues.push(formatIssues('Keys missing in en/admin.json', missingInEn));
+    issues.push(formatIssues(`Keys missing in ${enPath}`, missingInEn));
   }
 
+  return { issues, en, es, enKeysCount: enKeys.size };
+}
+
+async function validateValidationMessages(enAdmin, esAdmin) {
   const validationPairs = await extractValidationMessageMap();
   const missingValidationTranslations = [];
 
@@ -124,19 +129,41 @@ async function main() {
     }
   });
 
+  const issues = [];
   if (missingValidationTranslations.length) {
     issues.push(formatIssues('Validation message translation issues', missingValidationTranslations));
   }
 
+  return { issues, validationCount: validationPairs.length };
+}
+
+async function main() {
+  const issues = [];
+  const namespaceSummaries = [];
+
+  const parityResults = await Promise.all(namespaces.map((ns) => validateNamespaceParity(ns)));
+
+  parityResults.forEach((result, index) => {
+    issues.push(...result.issues);
+    namespaceSummaries.push(`${namespaces[index]}: ${result.enKeysCount} keys`);
+  });
+
+  const adminResult = parityResults[0];
+  const { issues: validationIssues, validationCount } = await validateValidationMessages(
+    adminResult.en,
+    adminResult.es,
+  );
+  issues.push(...validationIssues);
+
   if (issues.length) {
-    console.error('❌ Admin locale validation failed:');
+    console.error('❌ Locale validation failed:');
     console.error(issues.join('\n\n'));
     process.exitCode = 1;
     return;
   }
 
   console.log(
-    `✅ Admin locale validation passed (${enKeys.size} keys, ${validationPairs.length} validation messages).`,
+    `✅ Locale validation passed (${namespaceSummaries.join(', ')}; ${validationCount} validation messages).`,
   );
 }
 

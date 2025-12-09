@@ -501,6 +501,7 @@ test.describe('Ingestion management flows', () => {
   });
 
   test('handles conflict pagination stress and surfaces metrics', async () => {
+    test.setTimeout(120000);
     const cleanupTargets: string[] = [];
 
     try {

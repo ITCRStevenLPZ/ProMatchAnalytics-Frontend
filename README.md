@@ -4,6 +4,8 @@ React + TypeScript frontend application for real-time soccer match logging and a
 
 ## 🚀 Features
 
+- **Logger Cockpit** for rapid match event logging
+- **Keyboard Shortcuts** for high-speed data entry
 - **Real-time Match Logging** via WebSocket
 - **Offline-First Architecture** with IndexedDB
 - **Firebase Authentication** integration
@@ -194,6 +196,33 @@ npm run test:coverage    # Run tests with coverage
 - Tablet and desktop optimized
 - Touch-friendly UI for match logging
 
+## 🎮 Logger Cockpit Guide
+
+The Logger Cockpit is designed for high-speed data entry using a keyboard-first approach.
+
+### Workflow
+1. **Select Player**: Type jersey number (e.g., `10`) + `Enter`.
+2. **Select Action**: Press hotkey (e.g., `P` for Pass).
+3. **Select Outcome**: Type outcome number (e.g., `1`) + `Enter`.
+
+### Keyboard Shortcuts
+
+| Key | Function |
+|---|---|
+| `0-9` | Type jersey number / outcome index |
+| `Enter` | Confirm selection |
+| `Esc` | Cancel / Reset flow |
+| `Space` | Toggle Match Clock |
+| `Ctrl + Z` | Undo last event |
+| `P` | Pass |
+| `S` | Shot |
+| `F` | Foul |
+| `C` | Cross |
+| `T` | Tackle |
+| `I` | Interception |
+
+Visual hints (e.g., `[P]`) are displayed on action buttons.
+
 ## 🚀 Deployment
 
 ### Vercel (Recommended)
@@ -309,13 +338,19 @@ npm test -- --watch
 npm test -- --coverage
 ```
 
-### Playwright E2E (admin CRUD + ingestion)
+### Playwright E2E
 
-End-to-end API coverage for admin models and ingestion lives under `e2e/admin-models-crud.spec.ts`.
+Run the comprehensive E2E test suite:
 
 ```bash
-PROMATCH_E2E_BACKEND_URL=http://127.0.0.1:8000 npx playwright test e2e/admin-models-crud.spec.ts
+# Run all E2E tests (including Logger flows)
+./run_matches_e2e.sh
+
+# Run specific Logger Keyboard test
+./run_matches_e2e.sh e2e/logger-keyboard.spec.ts
 ```
+
+The `run_matches_e2e.sh` script handles the backend setup, database seeding, and cleanup automatically.
 
 The spec expects the backend e2e server to be running (see runbook in `frontend_backend_change_log.md`).
 

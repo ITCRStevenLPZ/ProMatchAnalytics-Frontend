@@ -710,6 +710,14 @@ firebase deploy --only hosting
 
 ---
 
+## Documentation
+
+For more detailed information, please refer to the following documents:
+
+- [Logger Cockpit Guide](docs/logger_cockpit.md): Comprehensive guide to the rapid data entry interface and keyboard shortcuts.
+- [State Management & Offline Sync](docs/state_management.md): Explanation of Zustand stores and IndexedDB synchronization logic.
+- [Match Event Updates](frontend_match_event_updates.md): Details on event data structure changes.
+
 ## Troubleshooting
 
 ### Issue: Firebase Authentication Not Working
