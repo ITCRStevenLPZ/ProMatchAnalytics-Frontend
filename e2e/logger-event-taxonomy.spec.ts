@@ -143,4 +143,58 @@ test.describe('Logger event taxonomy', () => {
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
       .toBeGreaterThanOrEqual(5);
   });
+
+  test('handles card escalation (YC, second YC, RC) and foul variants', async ({ page }) => {
+    test.setTimeout(120000);
+
+    await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    const liveEvents = page.getByTestId('live-event-item');
+
+    await page.getByTestId('btn-start-clock').click();
+    await expect(page.getByTestId('btn-stop-clock')).toBeEnabled({ timeout: 5000 });
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+
+    await sendEventThroughHarness(page, 'FoulCommitted', homeTeamId, 'HOME-4', '00:04.000', {
+      foul_type: 'Standard',
+      outcome: 'Standard',
+    });
+    await sendEventThroughHarness(page, 'Card', homeTeamId, 'HOME-4', '00:04.500', {
+      card_type: 'Yellow',
+      reason: 'Foul',
+    });
+    await sendEventThroughHarness(page, 'Card', homeTeamId, 'HOME-4', '00:05.000', {
+      card_type: 'Yellow (Second)',
+      reason: 'Foul',
+    });
+    await sendEventThroughHarness(page, 'Card', homeTeamId, 'HOME-5', '00:06.000', {
+      card_type: 'Red',
+      reason: 'Serious Foul Play',
+    });
+
+    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(3);
+
+    await expect(liveEvents.filter({ hasText: 'FoulCommitted' })).toHaveCount(1);
+    await expect
+      .poll(async () => await liveEvents.filter({ hasText: 'Card' }).count(), { timeout: 10000 })
+      .toBeGreaterThanOrEqual(2);
+    await expect(liveEvents.filter({ hasText: 'Red' })).toHaveCount(1);
+
+    await page.getByTestId('toggle-analytics').click();
+    const analyticsPanel = page.getByTestId('analytics-panel');
+    await expect(analyticsPanel).toBeVisible();
+    await expect(analyticsPanel.getByTestId('analytics-title')).toBeVisible();
+    await expect(analyticsPanel.getByText(/No data available yet/i)).toBeHidden({ timeout: 20000 });
+
+    await page.reload();
+    await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 15000 })
+      .toBeGreaterThanOrEqual(4);
+  });
 });
