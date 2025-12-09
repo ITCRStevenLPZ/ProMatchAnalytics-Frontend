@@ -1,1 +1,8 @@
-# Pre-commit hook disabled - no tests in production build
+#!/usr/bin/env bash
+
+if ! command -v pre-commit >/dev/null 2>&1; then
+	echo "pre-commit is not installed; install it with 'brew install pre-commit'" >&2
+	exit 1
+fi
+
+pre-commit run --hook-stage commit --color always --show-diff-on-failure

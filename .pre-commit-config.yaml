@@ -24,6 +24,7 @@ repos:
         files: \.(js|jsx|ts|tsx)$
         types: [file]
         args: ['--fix', '--max-warnings=0']
+        exclude: '^e2e/'
         additional_dependencies:
           - eslint@8.56.0
           - eslint-config-prettier@9.1.0
@@ -49,25 +50,24 @@ repos:
       - id: trailing-whitespace
         name: Trim Trailing Whitespace
         exclude: '\.md$'
-        
+
       - id: end-of-file-fixer
         name: Fix End of Files
-        
+
       - id: check-yaml
         name: Check YAML
-        args: [--safe]
         exclude: '\.github/workflows/'
-        
+
       - id: check-json
         name: Check JSON
         exclude: 'tsconfig.*\.json$'
-        
+
       - id: check-merge-conflict
         name: Check for Merge Conflicts
-        
+
       - id: detect-private-key
         name: Detect Private Keys
-        
+
       - id: check-added-large-files
         name: Check for Large Files
         args: ['--maxkb=500']

@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import {
   apiJson,
@@ -8,7 +8,7 @@ import {
   createAdminApiContext,
   uniqueId,
   waitForIngestionStatus,
-} from './utils/admin';
+} from "./utils/admin";
 
 type PlayerIngestionRow = {
   player_id: string;
@@ -47,15 +47,17 @@ type RefereeIngestionRow = {
 const buildPlayerIngestionRow = (
   overrides: Partial<PlayerIngestionRow> = {},
 ): PlayerIngestionRow => ({
-  player_id: overrides.player_id ?? uniqueId('INGPLY'),
-  name: overrides.name ?? `Ingestion Player ${Math.random().toString(16).slice(2, 6)}`,
-  nickname: overrides.nickname ?? 'Playwright Ingested',
+  player_id: overrides.player_id ?? uniqueId("INGPLY"),
+  name:
+    overrides.name ??
+    `Ingestion Player ${Math.random().toString(16).slice(2, 6)}`,
+  nickname: overrides.nickname ?? "Playwright Ingested",
   birth_date:
-    overrides.birth_date ?? new Date('1994-03-15T00:00:00Z').toISOString(),
+    overrides.birth_date ?? new Date("1994-03-15T00:00:00Z").toISOString(),
   player_height: overrides.player_height ?? 183,
   player_weight: overrides.player_weight ?? 79,
-  country_name: overrides.country_name ?? 'USA',
-  position: overrides.position ?? 'CM',
+  country_name: overrides.country_name ?? "USA",
+  position: overrides.position ?? "CM",
   i18n_names: overrides.i18n_names ?? {},
 });
 
@@ -64,21 +66,22 @@ const buildBulkPlayerRow = (
 ): BulkPlayerRow => {
   const baseHeight = overrides.height ?? overrides.player_height ?? 182;
   const baseWeight = overrides.weight ?? overrides.player_weight ?? 76;
-  const baseCountry = overrides.country_name ?? 'USA';
+  const baseCountry = overrides.country_name ?? "USA";
 
   return {
-    player_id: overrides.player_id ?? uniqueId('BULKPLY'),
-    name: overrides.name ?? `Bulk Player ${Math.random().toString(16).slice(2, 6)}`,
-    nickname: overrides.nickname ?? 'BulkNick',
+    player_id: overrides.player_id ?? uniqueId("BULKPLY"),
+    name:
+      overrides.name ?? `Bulk Player ${Math.random().toString(16).slice(2, 6)}`,
+    nickname: overrides.nickname ?? "BulkNick",
     birth_date:
-      overrides.birth_date ?? new Date('1992-05-05T00:00:00Z').toISOString(),
+      overrides.birth_date ?? new Date("1992-05-05T00:00:00Z").toISOString(),
     player_height: overrides.player_height ?? baseHeight,
     player_weight: overrides.player_weight ?? baseWeight,
     height: baseHeight,
     weight: baseWeight,
     country_name: baseCountry,
     nationality: overrides.nationality ?? baseCountry,
-    position: overrides.position ?? 'CM',
+    position: overrides.position ?? "CM",
     i18n_names: overrides.i18n_names ?? {},
   } as BulkPlayerRow;
 };
@@ -86,22 +89,24 @@ const buildBulkPlayerRow = (
 const buildVenueIngestionRow = (
   overrides: Partial<VenueIngestionRow> = {},
 ): VenueIngestionRow => ({
-  venue_id: overrides.venue_id ?? uniqueId('INGVEN'),
+  venue_id: overrides.venue_id ?? uniqueId("INGVEN"),
   name:
-    overrides.name ?? `Ingestion Venue ${Math.random().toString(16).slice(2, 6)}`,
-  city: overrides.city ?? 'Austin',
-  country_name: overrides.country_name ?? 'USA',
+    overrides.name ??
+    `Ingestion Venue ${Math.random().toString(16).slice(2, 6)}`,
+  city: overrides.city ?? "Austin",
+  country_name: overrides.country_name ?? "USA",
   capacity: overrides.capacity ?? 22000,
-  surface: overrides.surface ?? 'Grass',
+  surface: overrides.surface ?? "Grass",
 });
 
 const buildRefereeIngestionRow = (
   overrides: Partial<RefereeIngestionRow> = {},
 ): RefereeIngestionRow => ({
-  referee_id: overrides.referee_id ?? uniqueId('INGREF'),
+  referee_id: overrides.referee_id ?? uniqueId("INGREF"),
   name:
-    overrides.name ?? `Ingestion Referee ${Math.random().toString(16).slice(2, 6)}`,
-  country_name: overrides.country_name ?? 'USA',
+    overrides.name ??
+    `Ingestion Referee ${Math.random().toString(16).slice(2, 6)}`,
+  country_name: overrides.country_name ?? "USA",
   years_of_experience: overrides.years_of_experience ?? 6,
 });
 
@@ -111,30 +116,33 @@ async function createIngestionBatch(
   rows: Array<Record<string, unknown>>,
   batchName: string,
 ): Promise<string> {
-  const response = await api.post('ingestions/', {
+  const response = await api.post("ingestions/", {
     data: {
       target_model: targetModel,
       data: rows,
       batch_name: batchName,
-      metadata: { source: 'playwright-e2e' },
+      metadata: { source: "playwright-e2e" },
     },
   });
   const payload = await apiJson<{ ingestion_id: string }>(response);
   return payload.ingestion_id;
 }
 
-async function cleanupPaths(api: APIRequestContext, paths: string[]): Promise<void> {
+async function cleanupPaths(
+  api: APIRequestContext,
+  paths: string[],
+): Promise<void> {
   for (const path of paths) {
     try {
       await cleanupResource(api, path);
     } catch (error) {
-      console.warn('[ingestion-management] Cleanup skipped', path, error);
+      console.warn("[ingestion-management] Cleanup skipped", path, error);
     }
   }
 }
 
-test.describe('Ingestion management flows', () => {
-  test.describe.configure({ mode: 'serial' });
+test.describe("Ingestion management flows", () => {
+  test.describe.configure({ mode: "serial" });
 
   let api: APIRequestContext;
 
@@ -146,13 +154,39 @@ test.describe('Ingestion management flows', () => {
     await api?.dispose();
   });
 
-  test('deletes settled batches and blocks pending/conflict batches', async () => {
+  test("rejects invalid ingestion payloads early", async () => {
+    const missingModelResp = await api.post("ingestions/", {
+      data: {
+        target_model: "",
+        data: [],
+        batch_name: "Playwright Invalid Batch",
+        metadata: { source: "playwright-e2e-invalid" },
+      },
+    });
+    expect([400, 422]).toContain(missingModelResp.status());
+
+    const unknownModelResp = await api.post("ingestions/", {
+      data: {
+        target_model: "unknown_model",
+        data: [
+          {
+            dummy_field: "noop",
+          },
+        ],
+        batch_name: "Playwright Unknown Model",
+        metadata: { source: "playwright-e2e-invalid" },
+      },
+    });
+    expect([400, 422, 500]).toContain(unknownModelResp.status());
+  });
+
+  test("deletes settled batches and blocks pending/conflict batches", async () => {
     const cleanupTargets: string[] = [];
 
     try {
       const refereeRows = [
-        buildRefereeIngestionRow({ name: 'Delete Batch Referee Alpha' }),
-        buildRefereeIngestionRow({ name: 'Delete Batch Referee Beta' }),
+        buildRefereeIngestionRow({ name: "Delete Batch Referee Alpha" }),
+        buildRefereeIngestionRow({ name: "Delete Batch Referee Beta" }),
       ];
       cleanupTargets.push(
         ...refereeRows.map((row) => `referees/${row.referee_id}`),
@@ -160,54 +194,62 @@ test.describe('Ingestion management flows', () => {
 
       const refereeBatchId = await createIngestionBatch(
         api,
-        'referees',
+        "referees",
         refereeRows,
-        'Playwright Delete Referee Batch',
+        "Playwright Delete Referee Batch",
       );
       const refereeStatus = await waitForIngestionStatus(
         api,
         refereeBatchId,
         /^(success)$/,
       );
-      expect(refereeStatus).toBe('success');
+      expect(refereeStatus).toBe("success");
 
       const deleteResp = await api.delete(`ingestions/${refereeBatchId}`);
       expect(deleteResp.status()).toBe(200);
-      const deletePayload = await apiJson<{ batches_deleted: number }>(deleteResp);
+      const deletePayload = await apiJson<{ batches_deleted: number }>(
+        deleteResp,
+      );
       expect(deletePayload.batches_deleted).toBe(1);
 
-      const listResp = await api.get('ingestions?page=1&page_size=5&status=success');
+      const listResp = await api.get(
+        "ingestions?page=1&page_size=5&status=success",
+      );
       const listPayload = await apiJson<{
         batches: Array<{ ingestion_id: string }>;
       }>(listResp);
       expect(
-        listPayload.batches.some((batch) => batch.ingestion_id === refereeBatchId),
+        listPayload.batches.some(
+          (batch) => batch.ingestion_id === refereeBatchId,
+        ),
       ).toBeFalsy();
 
-      const basePlayerResp = await api.post('players/', {
+      const basePlayerResp = await api.post("players/", {
         data: {
-          player_id: uniqueId('DELBASE'),
-          name: 'Delete Conflict Player',
-          nickname: 'DeleteConf',
-          birth_date: new Date('1994-03-02T00:00:00Z').toISOString(),
+          player_id: uniqueId("DELBASE"),
+          name: "Delete Conflict Player",
+          nickname: "DeleteConf",
+          birth_date: new Date("1994-03-02T00:00:00Z").toISOString(),
           player_height: 182,
           player_weight: 77,
-          country_name: 'USA',
-          position: 'CM',
+          country_name: "USA",
+          position: "CM",
           i18n_names: {},
         },
       });
       expect(basePlayerResp.status()).toBe(201);
-      const basePlayerPayload = await apiJson<{ player_id: string }>(basePlayerResp);
+      const basePlayerPayload = await apiJson<{ player_id: string }>(
+        basePlayerResp,
+      );
       const basePlayerId = basePlayerPayload.player_id;
       cleanupTargets.push(`players/${basePlayerId}`);
 
       const conflictRows = [
         buildPlayerIngestionRow({
-          name: 'Delete Conflict Player',
-          country_name: 'USA',
-          birth_date: new Date('1994-03-02T00:00:00Z').toISOString(),
-          position: 'CM',
+          name: "Delete Conflict Player",
+          country_name: "USA",
+          birth_date: new Date("1994-03-02T00:00:00Z").toISOString(),
+          position: "CM",
         }),
       ];
       cleanupTargets.push(
@@ -216,16 +258,16 @@ test.describe('Ingestion management flows', () => {
 
       const conflictBatchId = await createIngestionBatch(
         api,
-        'players',
+        "players",
         conflictRows,
-        'Playwright Delete Conflict Batch',
+        "Playwright Delete Conflict Batch",
       );
       const conflictStatus = await waitForIngestionStatus(
         api,
         conflictBatchId,
         /^(conflicts)$/,
       );
-      expect(conflictStatus).toBe('conflicts');
+      expect(conflictStatus).toBe("conflicts");
 
       const blockedResp = await api.delete(`ingestions/${conflictBatchId}`);
       expect(blockedResp.status()).toBe(400);
@@ -235,50 +277,48 @@ test.describe('Ingestion management flows', () => {
     }
   });
 
-  test('paginates batches, filters items, and reprocesses conflicts', async () => {
+  test("paginates batches, filters items, and reprocesses conflicts", async () => {
     const cleanupTargets: string[] = [];
 
     try {
       const venueRows = [
-        buildVenueIngestionRow({ name: 'Batch Venue Alpha', city: 'Austin' }),
-        buildVenueIngestionRow({ name: 'Batch Venue Beta', city: 'Dallas' }),
-        buildVenueIngestionRow({ name: 'Batch Venue Gamma', city: 'Houston' }),
+        buildVenueIngestionRow({ name: "Batch Venue Alpha", city: "Austin" }),
+        buildVenueIngestionRow({ name: "Batch Venue Beta", city: "Dallas" }),
+        buildVenueIngestionRow({ name: "Batch Venue Gamma", city: "Houston" }),
       ];
-      cleanupTargets.push(
-        ...venueRows.map((row) => `venues/${row.venue_id}`),
-      );
+      cleanupTargets.push(...venueRows.map((row) => `venues/${row.venue_id}`));
 
       const venueBatchId = await createIngestionBatch(
         api,
-        'venues',
+        "venues",
         venueRows,
-        'Playwright Venue Success',
+        "Playwright Venue Success",
       );
       const successStatus = await waitForIngestionStatus(
         api,
         venueBatchId,
         /^(success)$/,
       );
-      expect(successStatus).toBe('success');
+      expect(successStatus).toBe("success");
 
       const baseConflictPlayers = [
         buildPlayerIngestionRow({
-          player_id: uniqueId('BASEPA'),
-          name: 'Conflict Target Alpha',
-          country_name: 'Canada',
-          position: 'CM',
-          birth_date: new Date('1994-04-20T00:00:00Z').toISOString(),
+          player_id: uniqueId("BASEPA"),
+          name: "Conflict Target Alpha",
+          country_name: "Canada",
+          position: "CM",
+          birth_date: new Date("1994-04-20T00:00:00Z").toISOString(),
         }),
         buildPlayerIngestionRow({
-          player_id: uniqueId('BASEPB'),
-          name: 'Conflict Target Beta',
-          country_name: 'Mexico',
-          position: 'ST',
-          birth_date: new Date('1992-09-12T00:00:00Z').toISOString(),
+          player_id: uniqueId("BASEPB"),
+          name: "Conflict Target Beta",
+          country_name: "Mexico",
+          position: "ST",
+          birth_date: new Date("1992-09-12T00:00:00Z").toISOString(),
         }),
       ];
       for (const existing of baseConflictPlayers) {
-        const resp = await api.post('players/', { data: existing });
+        const resp = await api.post("players/", { data: existing });
         expect(resp.status()).toBe(201);
         cleanupTargets.push(`players/${existing.player_id}`);
       }
@@ -288,15 +328,15 @@ test.describe('Ingestion management flows', () => {
           name: baseConflictPlayers[0].name,
           country_name: baseConflictPlayers[0].country_name,
           birth_date: baseConflictPlayers[0].birth_date,
-          position: 'CDM',
-          nickname: 'Alpha Shadow',
+          position: "CDM",
+          nickname: "Alpha Shadow",
         }),
         buildPlayerIngestionRow({
           name: baseConflictPlayers[1].name,
           country_name: baseConflictPlayers[1].country_name,
           birth_date: baseConflictPlayers[1].birth_date,
-          position: 'CF',
-          nickname: 'Beta Shadow',
+          position: "CF",
+          nickname: "Beta Shadow",
         }),
       ];
       cleanupTargets.push(
@@ -305,19 +345,19 @@ test.describe('Ingestion management flows', () => {
 
       const conflictBatchId = await createIngestionBatch(
         api,
-        'players',
+        "players",
         conflictRows,
-        'Playwright Conflict Batch',
+        "Playwright Conflict Batch",
       );
       const conflictStatus = await waitForIngestionStatus(
         api,
         conflictBatchId,
         /^(conflicts)$/,
       );
-      expect(conflictStatus).toBe('conflicts');
+      expect(conflictStatus).toBe("conflicts");
 
       const successListResp = await api.get(
-        'ingestions?page=1&page_size=10&target_model=venues&status=success',
+        "ingestions?page=1&page_size=10&target_model=venues&status=success",
       );
       const successList = await apiJson<{
         batches: Array<{ ingestion_id: string }>;
@@ -329,7 +369,7 @@ test.describe('Ingestion management flows', () => {
       ).toBeTruthy();
 
       const conflictListResp = await api.get(
-        'ingestions?page=1&page_size=10&target_model=players&status=conflicts',
+        "ingestions?page=1&page_size=10&target_model=players&status=conflicts",
       );
       const conflictList = await apiJson<{
         batches: Array<{ ingestion_id: string }>;
@@ -358,9 +398,7 @@ test.describe('Ingestion management flows', () => {
       expect(conflictItems.total).toBeGreaterThanOrEqual(1);
       expect(
         conflictItems.items.some((item) =>
-          conflictRows.some(
-            (row) => item.raw_payload?.name === row.name,
-          ),
+          conflictRows.some((row) => item.raw_payload?.name === row.name),
         ),
       ).toBeTruthy();
 
@@ -373,7 +411,7 @@ test.describe('Ingestion management flows', () => {
       expect(reprocessPayload.total_items).toBe(conflictRows.length);
 
       const conflictsListResp = await api.get(
-        'ingestions/conflicts/list?target_model=players&page=1&page_size=10',
+        "ingestions/conflicts/list?target_model=players&page=1&page_size=10",
       );
       const conflictsList = await apiJson<{ conflicts: any[]; total: number }>(
         conflictsListResp,
@@ -381,7 +419,7 @@ test.describe('Ingestion management flows', () => {
       expect(conflictsList.total).toBeGreaterThanOrEqual(conflictRows.length);
 
       const invalidFilterResp = await api.get(
-        'ingestions/conflicts/list?status=bogus',
+        "ingestions/conflicts/list?status=bogus",
       );
       expect(invalidFilterResp.status()).toBe(400);
     } finally {
@@ -389,44 +427,44 @@ test.describe('Ingestion management flows', () => {
     }
   });
 
-  test('accepts JSON bulk uploads and rejects malformed CSV', async () => {
+  test("accepts JSON bulk uploads and rejects malformed CSV", async () => {
     const cleanupTargets: string[] = [];
 
     try {
-      const competitionId = uniqueId('BULKCOMP');
-      const venueId = uniqueId('BULKVEN');
-      const refereeId = uniqueId('BULKREF');
+      const competitionId = uniqueId("BULKCOMP");
+      const venueId = uniqueId("BULKVEN");
+      const refereeId = uniqueId("BULKREF");
       const playerRow = buildBulkPlayerRow({
-        player_id: uniqueId('BULKPLY'),
-        country_name: 'USA',
-        position: 'CM',
+        player_id: uniqueId("BULKPLY"),
+        country_name: "USA",
+        position: "CM",
       });
-      const teamId = uniqueId('BULKTEAM');
+      const teamId = uniqueId("BULKTEAM");
 
       const bulkPayload = {
         competitions: [
           {
             competition_id: competitionId,
             name: `Bulk Competition ${competitionId}`,
-            country_name: 'USA',
-            gender: 'male',
+            country_name: "USA",
+            gender: "male",
           },
         ],
         venues: [
           {
             venue_id: venueId,
             name: `Bulk Venue ${venueId}`,
-            city: 'Austin',
-            country_name: 'USA',
+            city: "Austin",
+            country_name: "USA",
             capacity: 25000,
-            surface: 'Grass',
+            surface: "Grass",
           },
         ],
         referees: [
           {
             referee_id: refereeId,
             name: `Bulk Referee ${refereeId}`,
-            country_name: 'USA',
+            country_name: "USA",
             years_of_experience: 6,
           },
         ],
@@ -436,19 +474,19 @@ test.describe('Ingestion management flows', () => {
             team_id: teamId,
             name: `Bulk Team ${teamId}`,
             short_name: teamId.slice(0, 3),
-            gender: 'male',
-            country: 'USA',
-            country_name: 'USA',
+            gender: "male",
+            country: "USA",
+            country_name: "USA",
             founded_year: 2010,
           },
         ],
       };
 
-      const bulkResponse = await api.post('ingestions/bulk', {
+      const bulkResponse = await api.post("ingestions/bulk", {
         data: {
-          format: 'json',
+          format: "json",
           data: bulkPayload,
-          metadata: { source: 'playwright-e2e' },
+          metadata: { source: "playwright-e2e" },
         },
       });
       const bulkResult = await apiJson<{
@@ -457,12 +495,16 @@ test.describe('Ingestion management flows', () => {
         sections: Record<string, number>;
       }>(bulkResponse);
 
-      expect(Object.keys(bulkResult.batch_ids).length).toBeGreaterThanOrEqual(3);
+      expect(Object.keys(bulkResult.batch_ids).length).toBeGreaterThanOrEqual(
+        3,
+      );
 
       for (const [model, batchId] of Object.entries(bulkResult.batch_ids)) {
         const status = await waitForIngestionStatus(api, batchId);
-        expect(['success', 'conflicts']).toContain(status);
-        console.log(`[ingestion-management] Bulk batch ${model} settled as ${status}`);
+        expect(["success", "conflicts"]).toContain(status);
+        console.log(
+          `[ingestion-management] Bulk batch ${model} settled as ${status}`,
+        );
       }
 
       const bulkStatusResp = await api.get(
@@ -473,12 +515,12 @@ test.describe('Ingestion management flows', () => {
         sections: Record<string, number>;
         batch_statuses: Record<string, { status: string }>;
       }>(bulkStatusResp);
-      expect(['success', 'conflicts', 'in_progress']).toContain(
+      expect(["success", "conflicts", "in_progress"]).toContain(
         bulkStatus.status,
       );
       expect(bulkStatus.sections.players).toBe(1);
       expect(
-        ['success', 'conflicts'].includes(
+        ["success", "conflicts"].includes(
           bulkStatus.batch_statuses.players.status,
         ),
       ).toBeTruthy();
@@ -491,8 +533,8 @@ test.describe('Ingestion management flows', () => {
         `players/${playerRow.player_id}`,
       );
 
-      const invalidCsvResponse = await api.post('ingestions/bulk', {
-        data: { format: 'csv' },
+      const invalidCsvResponse = await api.post("ingestions/bulk", {
+        data: { format: "csv" },
       });
       expect(invalidCsvResponse.status()).toBe(400);
     } finally {
@@ -500,7 +542,97 @@ test.describe('Ingestion management flows', () => {
     }
   });
 
-  test('handles conflict pagination stress and surfaces metrics', async () => {
+  test("accepts CSV bulk uploads happy path", async () => {
+    const cleanupTargets: string[] = [];
+
+    try {
+      const ids = {
+        competitionId: uniqueId("CSVCOMP"),
+        venueId: uniqueId("CSVVEN"),
+        refereeId: uniqueId("CSVREF"),
+        playerId: uniqueId("CSVPLY"),
+        teamId: uniqueId("CSVTEAM"),
+      };
+
+      cleanupTargets.push(
+        `competitions/${ids.competitionId}`,
+        `venues/${ids.venueId}`,
+        `referees/${ids.refereeId}`,
+        `players/${ids.playerId}`,
+        `teams/${ids.teamId}`,
+      );
+
+      const csvContent = `# COMPETITIONS
+    competition_id,name,country_name,gender
+    ${ids.competitionId},CSV Competition ${ids.competitionId.slice(-4)},USA,male
+
+    # VENUES
+    venue_id,name,city,country_name,capacity,surface
+    ${ids.venueId},CSV Venue ${ids.venueId.slice(-4)},Austin,USA,18000,Grass
+
+    # REFEREES
+    referee_id,name,country_name,years_of_experience
+    ${ids.refereeId},CSV Ref ${ids.refereeId.slice(-4)},USA,7
+
+    # PLAYERS
+    player_id,name,birth_date,height,weight,nationality,position,country_name,player_height,player_weight
+    ${ids.playerId},CSV Player ${ids.playerId.slice(
+      -4,
+    )},1994-03-15T00:00:00Z,183,77,USA,CM,USA,183,77
+
+    # TEAMS
+    team_id,name,short_name,country,country_name,gender,founded_year
+    ${ids.teamId},CSV Team ${ids.teamId.slice(-4)},CSV,USA,USA,male,2010
+    `;
+
+      const createResp = await api.post("ingestions/bulk", {
+        data: {
+          format: "csv",
+          content: csvContent,
+          metadata: { source: "playwright-e2e-csv" },
+        },
+      });
+
+      expect(createResp.status()).toBe(201);
+      const bulkResult = await apiJson<{
+        bulk_id: string;
+        batch_ids: Record<string, string>;
+        sections: Record<string, number>;
+      }>(createResp);
+
+      expect(Object.keys(bulkResult.batch_ids).length).toBeGreaterThanOrEqual(
+        3,
+      );
+      for (const batchId of Object.values(bulkResult.batch_ids)) {
+        const status = await waitForIngestionStatus(
+          api,
+          batchId,
+          /^(success)$/,
+        );
+        expect(status).toBe("success");
+      }
+
+      const bulkStatusResp = await api.get(
+        `ingestions/bulk/${bulkResult.bulk_id}`,
+      );
+      expect(bulkStatusResp.status()).toBe(200);
+      const bulkStatus = await apiJson<{
+        status: string;
+        batch_statuses: Record<string, { status: string }>;
+      }>(bulkStatusResp);
+
+      expect(bulkStatus.status).toBe("success");
+      expect(
+        Object.values(bulkStatus.batch_statuses).every(
+          (entry) => entry.status === "success",
+        ),
+      ).toBeTruthy();
+    } finally {
+      await cleanupPaths(api, cleanupTargets);
+    }
+  });
+
+  test("handles conflict pagination stress and surfaces metrics", async () => {
     test.setTimeout(120000);
     const cleanupTargets: string[] = [];
 
@@ -510,14 +642,16 @@ test.describe('Ingestion management flows', () => {
         const pageSize = 100;
         while (true) {
           const resp = await api.get(
-            `players?page=${page}&page_size=${pageSize}&search=${encodeURIComponent('Conflict Seed')}`,
+            `players?page=${page}&page_size=${pageSize}&search=${encodeURIComponent(
+              "Conflict Seed",
+            )}`,
           );
           const payload = await apiJson<{
             items: Array<{ player_id: string; name: string }>;
             total_pages: number;
           }>(resp);
-          const seeds = payload.items.filter((player) =>
-            player.name?.startsWith('Conflict Seed'),
+          const seeds = payload.items.filter(
+            (player) => player.name?.startsWith("Conflict Seed"),
           );
           for (const seed of seeds) {
             await cleanupResource(api, `players/${seed.player_id}`);
@@ -533,19 +667,21 @@ test.describe('Ingestion management flows', () => {
 
       const basePayloads: PlayerIngestionRow[] = [];
       const conflictTargets = 60;
-      const seedRunTag = uniqueId('CNFLCTRUN');
+      const seedRunTag = uniqueId("CNFLCTRUN");
 
       for (let idx = 0; idx < conflictTargets; idx += 1) {
         const uniqueCountry = randomUUID();
-        const uniqueBirthDate = new Date(Date.now() - idx * 86400000).toISOString();
+        const uniqueBirthDate = new Date(
+          Date.now() - idx * 86400000,
+        ).toISOString();
         const uniqueNameToken = randomUUID();
         const payload = buildPlayerIngestionRow({
-          player_id: uniqueId('BASEPLY'),
+          player_id: uniqueId("BASEPLY"),
           name: `Conflict Seed ${seedRunTag}-${uniqueNameToken}`,
           nickname: `Seed${idx}`,
           birth_date: uniqueBirthDate,
           country_name: uniqueCountry,
-          position: idx % 3 === 0 ? 'CM' : 'ST',
+          position: idx % 3 === 0 ? "CM" : "ST",
         });
         basePayloads.push(payload);
       }
@@ -555,22 +691,28 @@ test.describe('Ingestion management flows', () => {
       );
       const baselineBatchId = await createIngestionBatch(
         api,
-        'players',
+        "players",
         basePayloads,
-        'Conflict Baseline Seed',
+        "Conflict Baseline Seed",
       );
-      const baselineStatus = await waitForIngestionStatus(api, baselineBatchId, /^(success)$/);
-      expect(baselineStatus).toBe('success');
+      const baselineStatus = await waitForIngestionStatus(
+        api,
+        baselineBatchId,
+        /^(success)$/,
+      );
+      expect(baselineStatus).toBe("success");
       const seededPlayersResp = await api.get(
-        `players?page=1&page_size=${conflictTargets}&search=${encodeURIComponent(seedRunTag)}`,
+        `players?page=1&page_size=${conflictTargets}&search=${encodeURIComponent(
+          seedRunTag,
+        )}`,
       );
       const seededPlayers = await apiJson<{ total: number }>(seededPlayersResp);
       expect(seededPlayers.total).toBe(conflictTargets);
 
       const conflictRows = basePayloads.map((base, index) => {
-        const conflictPosition = base.position === 'CM' ? 'CDM' : 'CF';
+        const conflictPosition = base.position === "CM" ? "CDM" : "CF";
         return buildPlayerIngestionRow({
-          player_id: uniqueId('CNFLCT'),
+          player_id: uniqueId("CNFLCT"),
           name: base.name,
           nickname: `ConflictRow${index}`,
           birth_date: base.birth_date,
@@ -582,16 +724,16 @@ test.describe('Ingestion management flows', () => {
 
       const conflictBatchId = await createIngestionBatch(
         api,
-        'players',
+        "players",
         conflictRows,
-        'Conflict Stress Batch',
+        "Conflict Stress Batch",
       );
       const conflictStatus = await waitForIngestionStatus(
         api,
         conflictBatchId,
         /^(conflicts)$/,
       );
-      expect(conflictStatus).toBe('conflicts');
+      expect(conflictStatus).toBe("conflicts");
 
       const pageSize = 25;
       const fetchConflictsPage = async (page: number) => {
@@ -611,8 +753,12 @@ test.describe('Ingestion management flows', () => {
       expect(secondPage.conflicts).toHaveLength(pageSize);
       expect(thirdPage.conflicts.length).toBeGreaterThan(0);
 
-      const firstPageIds = new Set(firstPage.conflicts.map((conflict) => conflict.conflict_id));
-      const overlap = secondPage.conflicts.some((conflict) => firstPageIds.has(conflict.conflict_id));
+      const firstPageIds = new Set(
+        firstPage.conflicts.map((conflict) => conflict.conflict_id),
+      );
+      const overlap = secondPage.conflicts.some((conflict) =>
+        firstPageIds.has(conflict.conflict_id),
+      );
       expect(overlap).toBeFalsy();
 
       const firstPageNewest = Date.parse(firstPage.conflicts[0].created_at);
@@ -624,16 +770,18 @@ test.describe('Ingestion management flows', () => {
       expect(firstPageOldest).toBeGreaterThanOrEqual(secondPageNewest);
 
       const openConflictsResp = await api.get(
-        'ingestions/conflicts/list?target_model=players&status=open&page=1&page_size=10',
+        "ingestions/conflicts/list?target_model=players&status=open&page=1&page_size=10",
       );
       expect(openConflictsResp.status()).toBe(200);
-      const openConflicts = await apiJson<{ conflicts: any[]; total: number }>(openConflictsResp);
+      const openConflicts = await apiJson<{ conflicts: any[]; total: number }>(
+        openConflictsResp,
+      );
       expect(openConflicts.total).toBeGreaterThan(0);
 
-      const metricsResponse = await api.get('debug/metrics');
+      const metricsResponse = await api.get("debug/metrics");
       expect(metricsResponse.status()).toBe(200);
       const metricsBody = await metricsResponse.text();
-      expect(metricsBody).toContain('match_event_duplicates_total');
+      expect(metricsBody).toContain("match_event_duplicates_total");
     } finally {
       await cleanupPaths(api, cleanupTargets);
     }
