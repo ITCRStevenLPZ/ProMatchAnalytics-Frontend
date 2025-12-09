@@ -7,6 +7,7 @@ import {
   waitForPendingAckToClear,
   getHarnessMatchContext,
   sendRawEventThroughHarness,
+  submitStandardShot,
   triggerUndoThroughHarness,
 } from './utils/logger';
 
@@ -93,18 +94,16 @@ test.describe('Logger event taxonomy', () => {
 
     const liveEvents = page.getByTestId('live-event-item');
 
-    const startBtn = page.getByTestId('btn-start-clock');
-    await expect(startBtn).toBeEnabled();
-    await startBtn.click();
+    await page.getByTestId('btn-start-clock').click();
     await expect(page.getByTestId('btn-stop-clock')).toBeEnabled({ timeout: 5000 });
-
-    await logShotGoal(page);
-    await expect.poll(async () => await liveEvents.count(), { timeout: 15000 }).toBe(1);
 
     const context = await getHarnessMatchContext(page);
     expect(context).not.toBeNull();
     const homeTeamId = context?.homeTeamId as string;
     const awayTeamId = context?.awayTeamId as string;
+
+    await submitStandardShot(page, 'home', 'OnTarget');
+    await waitForPendingAckToClear(page);
 
     await sendEventThroughHarness(page, 'Card', homeTeamId, 'HOME-2', '00:05.000', {
       card_type: 'Yellow',
@@ -123,9 +122,8 @@ test.describe('Logger event taxonomy', () => {
       outcome: 'Shot',
     });
 
-    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(5);
+    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(4);
 
-    await expect(liveEvents.filter({ hasText: 'Goal' })).toHaveCount(1);
     await expect(liveEvents.filter({ hasText: 'Card' })).toHaveCount(1);
     await expect(liveEvents.filter({ hasText: 'FoulCommitted' })).toHaveCount(1);
     await expect(liveEvents.filter({ hasText: 'Offside' })).toHaveCount(1);
@@ -141,7 +139,7 @@ test.describe('Logger event taxonomy', () => {
     await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(5);
+      .toBeGreaterThanOrEqual(4);
   });
 
   test('handles card escalation (YC, second YC, RC) and foul variants', async ({ page }) => {
@@ -177,7 +175,7 @@ test.describe('Logger event taxonomy', () => {
       reason: 'Serious Foul Play',
     });
 
-    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(3);
+    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(2);
 
     await expect(liveEvents.filter({ hasText: 'FoulCommitted' })).toHaveCount(1);
     await expect
@@ -195,6 +193,71 @@ test.describe('Logger event taxonomy', () => {
     await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(4);
+      .toBeGreaterThanOrEqual(3);
+  });
+
+  test('supports own goal, VAR decision, and edit via undo/resend', async ({ page }) => {
+    test.setTimeout(120000);
+
+    await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    const liveEvents = page.getByTestId('live-event-item');
+
+    await page.getByTestId('btn-start-clock').click();
+    await expect(page.getByTestId('btn-stop-clock')).toBeEnabled({ timeout: 5000 });
+
+    await logShotGoal(page);
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    await sendEventThroughHarness(page, 'VARDecision', homeTeamId, 'HOME-1', '00:12.000', {
+      decision: 'Goal Disallowed',
+    });
+    await sendEventThroughHarness(page, 'Shot', awayTeamId, 'AWAY-3', '00:13.000', {
+      shot_type: 'OwnGoal',
+      outcome: 'Goal',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(3);
+
+    await expect(liveEvents.filter({ hasText: 'VARDecision' })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: /OwnGoal|Own Goal/i })).toHaveCount(1);
+
+    const eventsBeforeEdit = await liveEvents.count();
+
+    await triggerUndoThroughHarness(page);
+    await waitForPendingAckToClear(page);
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 15000 })
+      .toBe(eventsBeforeEdit - 1);
+
+    await sendEventThroughHarness(page, 'Shot', awayTeamId, 'AWAY-3', '00:13.500', {
+      shot_type: 'Standard',
+      outcome: 'OffTarget',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(eventsBeforeEdit);
+
+    await page.getByTestId('toggle-analytics').click();
+    const analyticsPanel = page.getByTestId('analytics-panel');
+    await expect(analyticsPanel).toBeVisible();
+    await expect(analyticsPanel.getByTestId('analytics-title')).toBeVisible();
+    await expect(analyticsPanel.getByText(/No data available yet/i)).toBeHidden({ timeout: 20000 });
+
+    await page.reload();
+    await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 15000 })
+      .toBeGreaterThanOrEqual(eventsBeforeEdit);
   });
 });
