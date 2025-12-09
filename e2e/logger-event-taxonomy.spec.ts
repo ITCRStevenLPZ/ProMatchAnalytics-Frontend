@@ -260,4 +260,66 @@ test.describe('Logger event taxonomy', () => {
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
       .toBeGreaterThanOrEqual(eventsBeforeEdit);
   });
+
+  test('covers penalty shootout outcomes and VAR overturn', async ({ page }) => {
+    test.setTimeout(120000);
+
+    await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    const liveEvents = page.getByTestId('live-event-item');
+
+    await page.getByTestId('btn-start-clock').click();
+    await expect(page.getByTestId('btn-stop-clock')).toBeEnabled({ timeout: 5000 });
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-1', '90:00.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-1', '90:30.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Saved',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-2', '91:00.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Missed',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(3);
+
+    await sendEventThroughHarness(page, 'VARDecision', homeTeamId, 'HOME-1', '91:15.000', {
+      decision: 'Penalty Retake',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', homeTeamId, 'HOME-1', '91:30.000', {
+      set_piece_type: 'Penalty',
+      outcome: 'Goal',
+    });
+
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 20000 })
+      .toBeGreaterThanOrEqual(5);
+
+    await expect(liveEvents.filter({ hasText: 'SetPiece' })).toHaveCount(4);
+    await expect(liveEvents.filter({ hasText: 'VARDecision' })).toHaveCount(1);
+
+    await page.getByTestId('toggle-analytics').click();
+    const analyticsPanel = page.getByTestId('analytics-panel');
+    await expect(analyticsPanel).toBeVisible();
+    await expect(analyticsPanel.getByTestId('analytics-title')).toBeVisible();
+    await expect(analyticsPanel.getByText(/No data available yet/i)).toBeHidden({ timeout: 20000 });
+
+    await page.reload();
+    await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
+    await expect
+      .poll(async () => await liveEvents.count(), { timeout: 15000 })
+      .toBeGreaterThanOrEqual(5);
+  });
 });
