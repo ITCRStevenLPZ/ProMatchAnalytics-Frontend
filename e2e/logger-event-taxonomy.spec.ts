@@ -7,6 +7,7 @@ import {
   waitForPendingAckToClear,
   getHarnessMatchContext,
   sendRawEventThroughHarness,
+  triggerUndoThroughHarness,
 } from './utils/logger';
 
 const TAXONOMY_MATCH_ID = 'E2E-MATCH-TAXONOMY';
@@ -45,6 +46,25 @@ const logShotGoal = async (page: Page) => {
   await waitForPendingAckToClear(page);
 };
 
+const sendEventThroughHarness = async (
+  page: Page,
+  type: string,
+  teamId: string,
+  playerId: string,
+  matchClock: string,
+  data: Record<string, any>,
+) => {
+  await sendRawEventThroughHarness(page, {
+    match_clock: matchClock,
+    period: 1,
+    team_id: teamId,
+    player_id: playerId,
+    type,
+    data,
+  });
+  await waitForPendingAckToClear(page);
+};
+
 test.beforeAll(async () => {
   backendRequest = await request.newContext({
     baseURL: BACKEND_BASE_URL,
@@ -64,7 +84,7 @@ test.describe('Logger event taxonomy', () => {
     await page.addInitScript(() => localStorage.setItem('i18nextLng', 'en'));
   });
 
-  test('records goal and pass then reflects in analytics', async ({ page }) => {
+  test('covers goal, card, foul, offside, set piece, and analytics updates', async ({ page }) => {
     test.setTimeout(120000);
 
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -82,36 +102,45 @@ test.describe('Logger event taxonomy', () => {
     await expect.poll(async () => await liveEvents.count(), { timeout: 15000 }).toBe(1);
 
     const context = await getHarnessMatchContext(page);
-    await sendRawEventThroughHarness(page, {
-      match_clock: '00:10.000',
-      period: 1,
-      team_id: context?.homeTeamId,
-      player_id: 'HOME-1',
-      type: 'Pass',
-      data: {
-        pass_type: 'Standard',
-        outcome: 'Complete',
-        receiver_id: 'HOME-2',
-        receiver_name: 'Home Player 2',
-      },
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    await sendEventThroughHarness(page, 'Card', homeTeamId, 'HOME-2', '00:05.000', {
+      card_type: 'Yellow',
+      reason: 'Foul',
     });
-    await waitForPendingAckToClear(page);
-    await expect
-      .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(2);
+    await sendEventThroughHarness(page, 'FoulCommitted', awayTeamId, 'AWAY-1', '00:06.000', {
+      foul_type: 'Penalty',
+      outcome: 'Penalty',
+    });
+    await sendEventThroughHarness(page, 'Offside', homeTeamId, 'HOME-3', '00:07.000', {
+      pass_player_id: 'HOME-1',
+      outcome: 'Standard',
+    });
+    await sendEventThroughHarness(page, 'SetPiece', awayTeamId, 'AWAY-2', '00:08.000', {
+      set_piece_type: 'Free Kick',
+      outcome: 'Shot',
+    });
+
+    await expect.poll(async () => await liveEvents.count(), { timeout: 20000 }).toBeGreaterThanOrEqual(5);
 
     await expect(liveEvents.filter({ hasText: 'Goal' })).toHaveCount(1);
-    await expect(liveEvents.filter({ hasText: 'Pass' })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: 'Card' })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: 'FoulCommitted' })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: 'Offside' })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: 'SetPiece' })).toHaveCount(1);
 
     await page.getByTestId('toggle-analytics').click();
     const analyticsPanel = page.getByTestId('analytics-panel');
     await expect(analyticsPanel).toBeVisible();
     await expect(analyticsPanel.getByTestId('analytics-title')).toBeVisible();
+    await expect(analyticsPanel.getByText(/No data available yet/i)).toBeHidden({ timeout: 20000 });
 
     await page.reload();
     await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(2);
+      .toBeGreaterThanOrEqual(5);
   });
 });
