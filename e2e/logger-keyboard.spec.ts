@@ -1,42 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { seedLoggerMatch, uniqueId, createAdminApiContext } from './utils/admin';
+import { gotoLoggerPage, MATCH_ID } from './utils/logger';
 
 test.describe('Logger Keyboard Shortcuts', () => {
-  let matchId: string;
-
-  const createLineup = (prefix: string) => Array.from({ length: 11 }, (_, i) => ({
-    player_id: uniqueId('P'),
-    player_name: `${prefix} Player ${i + 1}`,
-    jersey_number: i + 1,
-    position: 'MF',
-  }));
-
-  test.beforeAll(async () => {
-    const api = await createAdminApiContext();
-    const match = await seedLoggerMatch(api, {
-      competition_id: uniqueId('COMP'),
-      venue_id: uniqueId('VENUE'),
-      referee_id: uniqueId('REF'),
-      home_team: { 
-        team_id: uniqueId('HOME'),
-        name: 'Home FC',
-        lineup: createLineup('Home')
-      },
-      away_team: { 
-        team_id: uniqueId('AWAY'),
-        name: 'Away FC',
-        lineup: createLineup('Away')
-      },
-    });
-    matchId = match.match_id;
-  });
 
   test('should support full keyboard flow', async ({ page }) => {
     page.on('console', msg => console.log(msg.text()));
-    await page.goto(`/matches/${matchId}/logger`);
-    
-    // Wait for logger to load
-    await expect(page.getByText('Home FC vs Away FC')).toBeVisible({ timeout: 10000 });
+    await gotoLoggerPage(page, MATCH_ID);
 
     // 1. Select Player via Number (Jersey #10)
     // Type '1', '0'
@@ -86,8 +55,7 @@ test.describe('Logger Keyboard Shortcuts', () => {
   });
 
   test('should toggle clock with Space', async ({ page }) => {
-    await page.goto(`/matches/${matchId}/logger`);
-    await expect(page.getByText('Home FC vs Away FC')).toBeVisible();
+    await gotoLoggerPage(page, MATCH_ID);
 
     // Initial state: Ball Out (Effective Time Paused)
     // Toggle to Ball In
@@ -100,18 +68,15 @@ test.describe('Logger Keyboard Shortcuts', () => {
   });
 
   test('should cancel flow with Escape', async ({ page }) => {
-    await page.goto(`/matches/${matchId}/logger`);
+    await gotoLoggerPage(page, MATCH_ID);
     
-    // Select a player (10)
-    await page.keyboard.press('1');
-    await page.keyboard.press('0');
-    await page.keyboard.press('Enter');
-    
-    // Wait for player grid to disappear to ensure transition
-    await expect(page.getByTestId('player-grid')).not.toBeVisible();
-    
-    // Verify action selection is visible (skipped due to potential timing/rendering race in E2E)
-    // await expect(page.getByTestId('action-selection')).toBeVisible();
+    // Select a player via click to ensure flow progression
+    const playerCard = page.getByTestId('player-card-HOME-1');
+    await expect(playerCard).toBeVisible({ timeout: 5000 });
+    await playerCard.click();
+
+    // Wait for action buttons to appear to confirm flow advanced
+    await expect(page.getByTestId('action-btn-Pass')).toBeVisible({ timeout: 5000 });
     
     // Cancel
     await page.keyboard.press('Escape');

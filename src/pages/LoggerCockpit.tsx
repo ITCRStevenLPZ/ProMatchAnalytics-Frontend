@@ -692,8 +692,10 @@ export default function LoggerCockpit() {
       const teamLabel = prefix === 'HOME' ? 'Home' : 'Away';
       return [1, 2].map((n) => ({
         id: `${prefix}-${n}`,
-        jersey_number: `${n}`,
+        jersey_number: n,
         full_name: `${teamLabel} Player ${n}`,
+        short_name: `${teamLabel[0]}P${n}`,
+        position: 'MF',
       })) as Match['home_team']['players'];
     };
 

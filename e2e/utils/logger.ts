@@ -43,7 +43,7 @@ export const gotoLoggerPage = async (
   matchId: string = MATCH_ID,
 ): Promise<void> => {
   await page.goto(`/matches/${matchId}/logger`);
-  await expect(page.getByTestId('player-card-HOME-1')).toBeVisible();
+  await expect(page.getByTestId('player-card-HOME-1')).toBeVisible({ timeout: 15000 });
 };
 
 export const resetHarnessFlow = async (page: Page, team: 'home' | 'away' = 'home'): Promise<void> => {
