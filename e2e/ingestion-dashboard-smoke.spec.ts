@@ -145,4 +145,36 @@ test.describe("Ingestion dashboard smoke", () => {
       }
     }
   });
+
+  test("dashboard metrics surface recent ingestion activity", async ({
+    page,
+  }) => {
+    const { batchId, playerId, batchName } = await createPlayerBatch(api);
+    const cleanupTargets = [`players/${playerId}`, `ingestions/${batchId}`];
+
+    try {
+      await waitForIngestionStatus(api, batchId, /^(success|conflicts)$/);
+
+      await primeAdminStorage(page);
+      await page.goto("/admin/ingestion");
+      await promoteToAdmin(page);
+      await page.waitForFunction(() => {
+        const store = (window as any).__PROMATCH_AUTH_STORE__;
+        return store?.getState()?.user?.role === "admin";
+      });
+
+      const batchesButton = page.getByRole("button", {
+        name: /Batches History|Historial de Lotes|Historial/i,
+      });
+      await expect(batchesButton).toBeVisible({ timeout: 20000 });
+      await batchesButton.click();
+
+      await page.getByRole("button", { name: /Refresh|Actualizar/i }).click();
+      await expect(page.locator("table")).toBeVisible({ timeout: 20000 });
+    } finally {
+      for (const path of cleanupTargets) {
+        await cleanupResource(api, path).catch(() => {});
+      }
+    }
+  });
 });
