@@ -2,6 +2,41 @@ import { create } from "zustand";
 import { db, OfflineEvent } from "../lib/db";
 import { apiClient } from "../lib/api";
 
+const toMatchClock = (minute?: number, second?: number) => {
+  if (minute === undefined) return undefined;
+  const safeMinute = Math.max(0, minute);
+  const sec = Math.max(0, Math.min(59, second ?? 0));
+  return `${safeMinute.toString().padStart(2, "0")}:${sec
+    .toString()
+    .padStart(2, "0")}`;
+};
+
+const normalizePendingEvent = (event: OfflineEvent) => {
+  const match_clock =
+    event.matchClock ??
+    toMatchClock(event.matchMinute, event.matchSecond) ??
+    "00:00";
+
+  const location =
+    event.location ??
+    (event.locationX !== undefined && event.locationY !== undefined
+      ? [event.locationX, event.locationY]
+      : undefined);
+
+  return {
+    client_id: event.clientId,
+    match_id: event.matchId,
+    match_clock,
+    period: event.period ?? 1,
+    team_id: event.teamId ?? event.team,
+    player_id: event.playerId,
+    location,
+    type: event.type ?? event.eventType,
+    data: event.data ?? event.details ?? {},
+    notes: event.notes,
+  };
+};
+
 interface SyncState {
   isSyncing: boolean;
   isOnline: boolean;
@@ -29,7 +64,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   addPendingEvent: async (event) => {
     try {
-      await db.addEvent(event);
+      const normalized = normalizePendingEvent(event);
+      await db.addEvent({
+        ...event,
+        matchClock: normalized.match_clock,
+        period: normalized.period,
+        teamId: normalized.team_id,
+        playerId: normalized.player_id,
+        type: normalized.type,
+        data: normalized.data,
+        notes: normalized.notes,
+        location: normalized.location,
+      });
       await get().updatePendingCount();
 
       // Try to sync immediately if online
@@ -61,35 +107,20 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const match = await db.getMatch(matchId);
 
       // Prepare sync request
-      const toMatchClock = (minute?: number, second?: number) => {
-        if (minute === undefined) return undefined;
-        const sec = second ?? 0;
-        const m = Math.max(0, minute).toString();
-        const s = Math.max(0, Math.min(59, sec)).toString().padStart(2, "0");
-        return `${m}:${s}`;
-      };
-
       const pendingPayloads = pendingEvents.map((event) => {
-        const clock =
-          event.matchClock ??
-          toMatchClock(event.matchMinute, event.matchSecond);
-        const location =
-          event.location ??
-          (event.locationX !== undefined && event.locationY !== undefined
-            ? [event.locationX, event.locationY]
-            : undefined);
+        const normalized = normalizePendingEvent(event);
 
         return {
-          match_id: event.matchId,
-          client_id: event.clientId,
-          match_clock: clock,
-          period: event.period ?? 1,
-          team_id: event.teamId ?? event.team,
-          player_id: event.playerId,
-          location,
-          type: event.type ?? event.eventType,
-          data: event.data ?? event.details ?? {},
-          notes: event.notes,
+          match_id: normalized.match_id,
+          client_id: normalized.client_id,
+          match_clock: normalized.match_clock,
+          period: normalized.period,
+          team_id: normalized.team_id,
+          player_id: normalized.player_id,
+          location: normalized.location,
+          type: normalized.type,
+          data: normalized.data,
+          notes: normalized.notes,
         };
       });
 

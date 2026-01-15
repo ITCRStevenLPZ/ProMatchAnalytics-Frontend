@@ -189,30 +189,22 @@ export interface LineupPlayer {
 }
 
 export interface Event {
-  id: string;
+  _id?: string;
   match_id: string;
-  event_type: EventType;
-  timestamp: Date;
-  match_minute: number;
-  match_second?: number;
-  added_time?: number;
-  team: "home" | "away";
-  player_name?: string;
-  player_number?: number;
-  related_player?: string;
-  related_player_number?: number;
-  location_x?: number;
-  location_y?: number;
-  end_location_x?: number;
-  end_location_y?: number;
-  outcome?: string;
-  details: Record<string, any>;
+  timestamp: string;
+  match_clock: string;
+  period: number;
+  team_id: string;
+  player_id?: string;
+  location?: [number, number];
+  type: string;
+  data: Record<string, any>;
   notes?: string;
-  recorded_by: string;
-  recorded_at: Date;
-  updated_at: Date;
-  sync_status: string;
-  version: number;
+  client_id?: string;
+  recorded_by?: string;
+  recorded_at?: string;
+  updated_at?: string;
+  version?: number;
 }
 
 export enum EventType {
