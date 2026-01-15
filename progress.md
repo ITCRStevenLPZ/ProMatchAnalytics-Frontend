@@ -15,6 +15,8 @@
 
 - [x] Captured Playwright artifacts for lifecycle and match-switch failures and
       added harness reconnect suppression.
+- [x] Synced fix/match-status-display branch (progress.md cleanup, socket
+      formatting) and pushed to origin.
 - [x] Re-ran logger lifecycle and match-switch guardrail specs; all passing
       (3/3).
 - [x] Kept poll logging for action-matrix runs to avoid flake.
