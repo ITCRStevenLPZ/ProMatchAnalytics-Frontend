@@ -1,20 +1,28 @@
-import { useId, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, Upload, AlertCircle, CheckCircle, Download } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { readFileAsText, validateFileType, validateFileSize, parseCSV, parseJSON } from '../lib/csvParser';
+import { useId, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { X, Upload, AlertCircle, CheckCircle, Download } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import {
+  readFileAsText,
+  validateFileType,
+  validateFileSize,
+  parseCSV,
+  parseJSON,
+  precheckData,
+  type IngestionModelType,
+} from "../lib/csvParser";
 import {
   createBatchIngestion,
   createBulkIngestion,
   type CreateBatchResponse,
-} from '../lib/ingestion';
+} from "../lib/ingestion";
 
 interface DataIngestionDialogProps {
-  modelType: 'competitions' | 'venues' | 'referees' | 'players' | 'teams' | 'matches' | 'bulk';
+  modelType: IngestionModelType;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  downloadTemplate: (format: 'csv' | 'json') => void;
+  downloadTemplate: (format: "csv" | "json") => void;
 }
 
 export function DataIngestionDialog({
@@ -22,7 +30,7 @@ export function DataIngestionDialog({
   isOpen,
   onClose,
   onSuccess,
-  downloadTemplate
+  downloadTemplate,
 }: DataIngestionDialogProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -43,7 +51,7 @@ export function DataIngestionDialog({
     setParseErrors([]);
 
     // Validate file
-    const typeError = validateFileType(selectedFile, ['csv', 'json']);
+    const typeError = validateFileType(selectedFile, ["csv", "json"]);
     if (typeError) {
       setParseErrors([typeError]);
       return;
@@ -68,35 +76,35 @@ export function DataIngestionDialog({
     try {
       // Read file content
       const content = await readFileAsText(file);
-      
+
       // Parse based on file type
-      const extension = file.name.split('.').pop()?.toLowerCase();
-      
+      const extension = file.name.split(".").pop()?.toLowerCase();
+
       // Handle bulk vs regular ingestion
-      if (modelType === 'bulk') {
+      if (modelType === "bulk") {
         // For bulk ingestion, send raw content
         const bulkResult = await createBulkIngestion(
-          extension === 'csv' ? 'csv' : 'json',
-          extension === 'csv' ? content : undefined,
-          extension === 'json' ? JSON.parse(content) : undefined,
+          extension === "csv" ? "csv" : "json",
+          extension === "csv" ? content : undefined,
+          extension === "json" ? JSON.parse(content) : undefined,
           {
-            source: 'bulk_upload',
+            source: "bulk_upload",
             file_name: file.name,
-            uploaded_at: new Date().toISOString()
-          }
+            uploaded_at: new Date().toISOString(),
+          },
         );
 
         // For bulk, we'll navigate to a bulk status page (or the first batch)
         const firstBatchId = Object.values(bulkResult.batch_ids)[0];
-        
+
         setResult({
           ingestion_id: bulkResult.bulk_id,
-          target_model: 'bulk',
-          status: 'processing',
+          target_model: "bulk",
+          status: "processing",
           total_rows: bulkResult.total_rows,
-          message: bulkResult.message
+          message: bulkResult.message,
         });
-        
+
         // Navigate to the first batch page to monitor progress
         setTimeout(() => {
           onSuccess();
@@ -106,13 +114,13 @@ export function DataIngestionDialog({
       } else {
         // Regular single-model ingestion - parse and validate
         let parseResult;
-        
-        if (extension === 'csv') {
+
+        if (extension === "csv") {
           parseResult = parseCSV(content);
-        } else if (extension === 'json') {
+        } else if (extension === "json") {
           parseResult = parseJSON(content);
         } else {
-          setParseErrors(['Unsupported file format']);
+          setParseErrors(["Unsupported file format"]);
           setIsProcessing(false);
           return;
         }
@@ -124,21 +132,33 @@ export function DataIngestionDialog({
         }
 
         if (parseResult.data.length === 0) {
-          setParseErrors(['No data found in file']);
+          setParseErrors(["No data found in file"]);
           setIsProcessing(false);
           return;
         }
 
-        const batchName = `${modelType} - ${file.name} - ${new Date().toLocaleString()}`;
+        const precheck = precheckData(
+          modelType,
+          parseResult.data as Array<Record<string, any>>,
+        );
+        if (precheck.errors.length > 0) {
+          setParseErrors(precheck.errors);
+          setIsProcessing(false);
+          return;
+        }
+
+        const batchName = `${modelType} - ${
+          file.name
+        } - ${new Date().toLocaleString()}`;
         const batchResult = await createBatchIngestion(
           modelType,
           parseResult.data,
           batchName,
-          `Uploaded ${parseResult.data.length} rows from ${file.name}`
+          `Uploaded ${parseResult.data.length} rows from ${file.name}`,
         );
 
         setResult(batchResult);
-        
+
         // Navigate to the batch page to monitor progress
         setTimeout(() => {
           onSuccess();
@@ -147,7 +167,7 @@ export function DataIngestionDialog({
         }, 1500);
       }
     } catch (error: any) {
-      setParseErrors([error.message || 'Failed to process file']);
+      setParseErrors([error.message || "Failed to process file"]);
     } finally {
       setIsProcessing(false);
     }
@@ -166,7 +186,7 @@ export function DataIngestionDialog({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-bold text-gray-900">
-            {t('ingestion.importTitle', { model: t(`ingestion.${modelType}`) })}
+            {t("ingestion.importTitle", { model: t(`ingestion.${modelType}`) })}
           </h2>
           <button
             onClick={handleClose}
@@ -182,30 +202,33 @@ export function DataIngestionDialog({
           {/* Template Download */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800 mb-3">
-              {t('ingestion.templatePrompt')}
+              {t("ingestion.templatePrompt")}
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => downloadTemplate('csv')}
+                onClick={() => downloadTemplate("csv")}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
                 <Download size={16} />
-                {t('ingestion.csvTemplate')}
+                {t("ingestion.csvTemplate")}
               </button>
               <button
-                onClick={() => downloadTemplate('json')}
+                onClick={() => downloadTemplate("json")}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
               >
                 <Download size={16} />
-                {t('ingestion.jsonTemplate')}
+                {t("ingestion.jsonTemplate")}
               </button>
             </div>
           </div>
 
           {/* File Upload */}
           <div>
-            <label htmlFor={fileInputId} className="block text-sm font-medium text-gray-700 mb-2">
-              {t('ingestion.selectFile')}
+            <label
+              htmlFor={fileInputId}
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              {t("ingestion.selectFile")}
             </label>
             <div className="flex items-center gap-4">
               <input
@@ -219,7 +242,8 @@ export function DataIngestionDialog({
             </div>
             {file && (
               <p className="mt-2 text-sm text-gray-600">
-                {t('ingestion.selected')}: {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                {t("ingestion.selected")}: {file.name} (
+                {(file.size / 1024).toFixed(2)} KB)
               </p>
             )}
           </div>
@@ -228,10 +252,13 @@ export function DataIngestionDialog({
           {parseErrors.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                <AlertCircle
+                  className="text-red-600 flex-shrink-0 mt-0.5"
+                  size={20}
+                />
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-red-900 mb-2">
-                    {t('ingestion.fileParsingErrors')}
+                    {t("ingestion.fileParsingErrors")}
                   </h3>
                   <ul className="text-sm text-red-800 space-y-1">
                     {parseErrors.map((error, index) => (
@@ -247,33 +274,46 @@ export function DataIngestionDialog({
           {result && (
             <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
               <div className="flex items-start gap-3">
-                <CheckCircle className="flex-shrink-0 mt-0.5 text-blue-600" size={20} />
+                <CheckCircle
+                  className="flex-shrink-0 mt-0.5 text-blue-600"
+                  size={20}
+                />
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold mb-2 text-blue-900">
-                    {t('ingestion.batchCreated')}
+                    {t("ingestion.batchCreated")}
                   </h3>
-                  <p className="text-sm text-blue-800 mb-3">
-                    {result.message}
-                  </p>
-                  
+                  <p className="text-sm text-blue-800 mb-3">{result.message}</p>
+
                   {/* Batch Info */}
                   <div className="bg-white rounded border border-blue-200 p-3 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{t('ingestion.batchId')}:</span>
-                      <span className="font-mono text-gray-900">{result.ingestion_id}</span>
+                      <span className="text-gray-600">
+                        {t("ingestion.batchId")}:
+                      </span>
+                      <span className="font-mono text-gray-900">
+                        {result.ingestion_id}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{t('ingestion.status')}:</span>
-                      <span className="font-medium text-blue-700">{result.status.toUpperCase()}</span>
+                      <span className="text-gray-600">
+                        {t("ingestion.status")}:
+                      </span>
+                      <span className="font-medium text-blue-700">
+                        {result.status.toUpperCase()}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">{t('ingestion.totalRows')}:</span>
-                      <span className="font-bold text-gray-900">{result.total_rows}</span>
+                      <span className="text-gray-600">
+                        {t("ingestion.totalRows")}:
+                      </span>
+                      <span className="font-bold text-gray-900">
+                        {result.total_rows}
+                      </span>
                     </div>
                   </div>
 
                   <p className="text-xs text-blue-700 mt-3">
-                    {t('ingestion.redirectingToBatch')}
+                    {t("ingestion.redirectingToBatch")}
                   </p>
                 </div>
               </div>
@@ -288,7 +328,7 @@ export function DataIngestionDialog({
             className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
             disabled={isProcessing}
           >
-            {result ? t('ingestion.close') : t('ingestion.cancel')}
+            {result ? t("ingestion.close") : t("ingestion.cancel")}
           </button>
           {!result && (
             <button
@@ -299,12 +339,12 @@ export function DataIngestionDialog({
               {isProcessing ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  {t('ingestion.processing')}
+                  {t("ingestion.processing")}
                 </>
               ) : (
                 <>
                   <Upload size={18} />
-                  {t('ingestion.importData')}
+                  {t("ingestion.importData")}
                 </>
               )}
             </button>

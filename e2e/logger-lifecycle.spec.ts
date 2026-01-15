@@ -192,7 +192,30 @@ test.describe("Logger lifecycle and clocks", () => {
       await expect(lockBanner).toBeVisible();
     }
 
+    await expect
+      .poll(
+        async () => {
+          const res = await backendRequest.get(
+            `/api/v1/logger/matches/${TIMER_MATCH_ID}`,
+          );
+          if (!res.ok()) return `HTTP_${res.status()}`;
+          const body = await res.json();
+          return body.status as string | undefined;
+        },
+        { timeout: 45000, interval: 500 },
+      )
+      .toBe("Fulltime");
+
     await page.reload();
+
+    await expect(
+      page.getByTestId("period-status-fulltime").first(),
+    ).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("clock-locked-banner").first()).toBeVisible({
+      timeout: 15000,
+    });
     await expect(startBtn).toBeDisabled({ timeout: 15000 });
     await expect(stopBtn).toBeDisabled({ timeout: 15000 });
   });

@@ -1,4 +1,4 @@
-import type { Venue, VenueSurface } from '../types';
+import type { Venue, VenueSurface } from "../types";
 
 export interface VenueApiResponse {
   _id?: string;
@@ -13,16 +13,16 @@ export interface VenueApiResponse {
 }
 
 export const VENUE_SURFACES: VenueSurface[] = [
-  'Natural Grass',
-  'Artificial Turf',
-  'Hybrid',
+  "Natural Grass",
+  "Artificial Turf",
+  "Hybrid",
 ];
 
 const toNumberOrUndefined = (value: unknown): number | undefined => {
-  if (value === null || value === undefined || value === '') {
+  if (value === null || value === undefined || value === "") {
     return undefined;
   }
-  const parsed = typeof value === 'number' ? value : Number(value);
+  const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
@@ -38,10 +38,12 @@ const trimOrUndefined = (value?: string | null) => {
   return trimmed ? trimmed : undefined;
 };
 
-const sanitizeI18nNames = (names?: Record<string, string | undefined | null>) => {
+const sanitizeI18nNames = (
+  names?: Record<string, string | undefined | null>,
+) => {
   if (!names) return undefined;
   const normalized = Object.entries(names)
-    .map(([locale, value]) => [locale, (value ?? '').trim()])
+    .map(([locale, value]) => [locale, (value ?? "").trim()])
     .filter(([, value]) => Boolean(value));
   return normalized.length > 0 ? Object.fromEntries(normalized) : undefined;
 };
@@ -51,7 +53,7 @@ export const normalizeVenue = (venue: VenueApiResponse): Venue => ({
   venue_id: venue.venue_id,
   name: venue.name,
   city: venue.city,
-  country_name: venue.country_name ?? venue.country ?? '',
+  country_name: venue.country_name ?? venue.country ?? "",
   capacity: toNumberOrUndefined(venue.capacity),
   surface: sanitizeSurface(venue.surface),
   i18n_names: venue.i18n_names ?? undefined,
@@ -62,7 +64,6 @@ export const normalizeVenues = (venues: VenueApiResponse[]): Venue[] =>
 
 export const buildVenuePayload = (data: Partial<Venue>) => {
   const payload = {
-    venue_id: trimOrUndefined(data.venue_id),
     name: trimOrUndefined(data.name),
     city: trimOrUndefined(data.city),
     country_name: trimOrUndefined(data.country_name),

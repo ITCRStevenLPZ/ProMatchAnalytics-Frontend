@@ -8,7 +8,7 @@ export interface PaginatedResponse<T> {
 }
 
 // User Types
-export type UserRole = 'admin' | 'analyst' | 'guest';
+export type UserRole = "admin" | "analyst" | "guest";
 
 export interface UserData {
   _id?: string;
@@ -28,12 +28,12 @@ export interface Competition {
   competition_id: string;
   name: string;
   short_name?: string;
-  gender: 'male' | 'female';
+  gender: "male" | "female";
   country_name: string;
   i18n_names?: Record<string, string>;
 }
 
-export type VenueSurface = 'Natural Grass' | 'Artificial Turf' | 'Hybrid';
+export type VenueSurface = "Natural Grass" | "Artificial Turf" | "Hybrid";
 
 export interface Venue {
   _id?: string;
@@ -54,11 +54,26 @@ export interface Referee {
   years_of_experience?: number;
 }
 
-export type PlayerPosition = 
-  | 'GK'  // Goalkeeper
-  | 'CB' | 'LB' | 'RB' | 'LWB' | 'RWB' | 'SW'  // Defenders
-  | 'CDM' | 'CM' | 'CAM' | 'LM' | 'RM' | 'LW' | 'RW'  // Midfielders
-  | 'CF' | 'ST' | 'LF' | 'RF' | 'SS';  // Forwards
+export type PlayerPosition =
+  | "GK" // Goalkeeper
+  | "CB"
+  | "LB"
+  | "RB"
+  | "LWB"
+  | "RWB"
+  | "SW" // Defenders
+  | "CDM"
+  | "CM"
+  | "CAM"
+  | "LM"
+  | "RM"
+  | "LW"
+  | "RW" // Midfielders
+  | "CF"
+  | "ST"
+  | "LF"
+  | "RF"
+  | "SS"; // Forwards
 
 export interface PlayerData {
   _id?: string;
@@ -93,7 +108,7 @@ export interface Team {
   name: string;
   short_name?: string;
   country_name: string;
-  gender: 'male' | 'female';
+  gender: "male" | "female";
   manager?: ManagerInfo;
   managers?: ManagerInfo[];
   technical_staff?: TechnicalStaffMember[];
@@ -115,7 +130,7 @@ export interface TeamPlayer {
   player_id: string;
   jersey_number: number;
   position: PlayerPosition;
-  is_active: boolean;
+  is_starter?: boolean;
   joined_date?: string;
   player_name?: string;
   team_name?: string;
@@ -158,12 +173,12 @@ export interface Match {
 }
 
 export enum MatchStatus {
-  SCHEDULED = 'scheduled',
-  LIVE = 'live',
-  HALF_TIME = 'half_time',
-  FINISHED = 'finished',
-  POSTPONED = 'postponed',
-  CANCELLED = 'cancelled',
+  SCHEDULED = "scheduled",
+  LIVE = "live",
+  HALF_TIME = "half_time",
+  FINISHED = "finished",
+  POSTPONED = "postponed",
+  CANCELLED = "cancelled",
 }
 
 export interface LineupPlayer {
@@ -181,7 +196,7 @@ export interface Event {
   match_minute: number;
   match_second?: number;
   added_time?: number;
-  team: 'home' | 'away';
+  team: "home" | "away";
   player_name?: string;
   player_number?: number;
   related_player?: string;
@@ -201,39 +216,39 @@ export interface Event {
 }
 
 export enum EventType {
-  GOAL = 'goal',
-  SHOT = 'shot',
-  SHOT_ON_TARGET = 'shot_on_target',
-  SHOT_OFF_TARGET = 'shot_off_target',
-  SHOT_BLOCKED = 'shot_blocked',
-  PASS = 'pass',
-  KEY_PASS = 'key_pass',
-  ASSIST = 'assist',
-  CROSS = 'cross',
-  CORNER = 'corner',
-  FREE_KICK = 'free_kick',
-  THROW_IN = 'throw_in',
-  PENALTY = 'penalty',
-  FOUL = 'foul',
-  OFFSIDE = 'offside',
-  YELLOW_CARD = 'yellow_card',
-  RED_CARD = 'red_card',
-  SUBSTITUTION = 'substitution',
-  INJURY = 'injury',
-  SAVE = 'save',
-  TACKLE = 'tackle',
-  INTERCEPTION = 'interception',
-  CLEARANCE = 'clearance',
-  DRIBBLE = 'dribble',
-  AERIAL_DUEL = 'aerial_duel',
-  BALL_RECOVERY = 'ball_recovery',
-  POSSESSION_LOST = 'possession_lost',
-  POSSESSION_WON = 'possession_won',
-  VAR_REVIEW = 'var_review',
-  HALF_START = 'half_start',
-  HALF_END = 'half_end',
-  MATCH_START = 'match_start',
-  MATCH_END = 'match_end',
+  GOAL = "goal",
+  SHOT = "shot",
+  SHOT_ON_TARGET = "shot_on_target",
+  SHOT_OFF_TARGET = "shot_off_target",
+  SHOT_BLOCKED = "shot_blocked",
+  PASS = "pass",
+  KEY_PASS = "key_pass",
+  ASSIST = "assist",
+  CROSS = "cross",
+  CORNER = "corner",
+  FREE_KICK = "free_kick",
+  THROW_IN = "throw_in",
+  PENALTY = "penalty",
+  FOUL = "foul",
+  OFFSIDE = "offside",
+  YELLOW_CARD = "yellow_card",
+  RED_CARD = "red_card",
+  SUBSTITUTION = "substitution",
+  INJURY = "injury",
+  SAVE = "save",
+  TACKLE = "tackle",
+  INTERCEPTION = "interception",
+  CLEARANCE = "clearance",
+  DRIBBLE = "dribble",
+  AERIAL_DUEL = "aerial_duel",
+  BALL_RECOVERY = "ball_recovery",
+  POSSESSION_LOST = "possession_lost",
+  POSSESSION_WON = "possession_won",
+  VAR_REVIEW = "var_review",
+  HALF_START = "half_start",
+  HALF_END = "half_end",
+  MATCH_START = "match_start",
+  MATCH_END = "match_end",
 }
 
 export interface User {

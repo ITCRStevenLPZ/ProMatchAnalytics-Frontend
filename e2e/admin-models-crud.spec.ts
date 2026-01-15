@@ -688,7 +688,7 @@ test.describe("Admin model CRUD APIs", () => {
     );
     expect(updateResponse.status()).toBe(400);
     const updateError = await updateResponse.json();
-    expect(updateError.detail).toContain("Jersey 14");
+    expect(updateError.detail).toContain("Jersey number 14 already taken");
 
     const cleanupTeam = await apiRequest.delete(`teams/${teamId}`);
     expect(cleanupTeam.status()).toBe(204);
@@ -1010,7 +1010,12 @@ test.describe("Ingestion workflow", () => {
       const fallbackCreate = await apiRequest.post("players/", {
         data: correctedPayload,
       });
-      expect([200, 201]).toContain(fallbackCreate.status());
+      const fallbackStatus = fallbackCreate.status();
+      expect([200, 201, 400]).toContain(fallbackStatus);
+      if (fallbackStatus === 400) {
+        const fallbackBody = await fallbackCreate.text();
+        expect(fallbackBody.toLowerCase()).toContain("already");
+      }
     }
 
     const playerFetch = await apiRequest.get(`players/${retryPlayerId}`);

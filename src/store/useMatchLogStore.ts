@@ -1,16 +1,16 @@
 /**
  * Match Log Store with Offline-First Architecture
  * Based on Section 4.3: Data Synchronization Flow (Offline-First Strategy)
- * 
+ *
  * Implements:
  * - Zustand state management
  * - persist middleware with IndexedDB storage (idb-keyval)
  * - isConnected, liveEvents, queuedEvents state
  * - Automatic hydration from IndexedDB on page load
  */
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { get, set, del } from 'idb-keyval';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { get, set, del } from "idb-keyval";
 
 /**
  * MatchEvent interface based on backend MatchEvent model
@@ -54,24 +54,24 @@ export interface DuplicateStats {
  */
 export interface PendingAckEntry {
   event: MatchEvent;
-  source: 'live' | 'queue';
+  source: "live" | "queue";
 }
 
 interface MatchLogState {
   // Connection status
   isConnected: boolean;
   isHydrated: boolean;
-  
+
   // Events for this session (rendered in UI)
   liveEvents: MatchEvent[];
-  
+
   // Events pending server sync (persisted to IndexedDB)
   queuedEvents: MatchEvent[];
   queuedEventsByMatch: Record<string, MatchEvent[]>;
 
   // Optimistic events awaiting ack keyed by client request id
   pendingAcks: Record<string, PendingAckEntry>;
-  
+
   // Current match ID
   currentMatchId: string | null;
   undoStack: string[];
@@ -83,7 +83,7 @@ interface MatchLogState {
   effectiveTime: number; // Accumulated effective time in seconds
   isBallInPlay: boolean;
   lastTimelineRefreshRequest: number;
-  
+
   // Actions
   setConnected: (connected: boolean) => void;
   setIsHydrated: (hydrated: boolean) => void;
@@ -100,8 +100,13 @@ interface MatchLogState {
   upsertPendingAck: (clientId: string, entry: PendingAckEntry) => void;
   resolvePendingAck: (clientId: string) => PendingAckEntry | undefined;
   rejectPendingAck: (clientId: string) => PendingAckEntry | undefined;
-  setQueuedEventClientId: (matchId: string, timestamp: string, clientId: string) => void;
+  setQueuedEventClientId: (
+    matchId: string,
+    timestamp: string,
+    clientId: string,
+  ) => void;
   clearQueuedEvents: () => void;
+  clearPendingAcks: () => void;
   setCurrentMatch: (matchId: string | null) => void;
   pushUndoCandidate: (clientId: string) => void;
   removeUndoCandidate: (clientId: string) => void;
@@ -119,7 +124,10 @@ interface MatchLogState {
   setOperatorPeriod: (period: number) => void;
   setEffectiveTime: (time: number) => void;
   setIsBallInPlay: (inPlay: boolean) => void;
-  resetOperatorControls: (defaults?: { clock?: string; period?: number }) => void;
+  resetOperatorControls: (defaults?: {
+    clock?: string;
+    period?: number;
+  }) => void;
   requestTimelineRefresh: () => void;
   resetStore: () => void;
 }
@@ -134,7 +142,7 @@ const indexedDBStorage = {
       const value = await get(name);
       return value || null;
     } catch (error) {
-      console.error('Error reading from IndexedDB:', error);
+      console.error("Error reading from IndexedDB:", error);
       return null;
     }
   },
@@ -142,14 +150,14 @@ const indexedDBStorage = {
     try {
       await set(name, value);
     } catch (error) {
-      console.error('Error writing to IndexedDB:', error);
+      console.error("Error writing to IndexedDB:", error);
     }
   },
   removeItem: async (name: string): Promise<void> => {
     try {
       await del(name);
     } catch (error) {
-      console.error('Error removing from IndexedDB:', error);
+      console.error("Error removing from IndexedDB:", error);
     }
   },
 };
@@ -172,12 +180,12 @@ export const useMatchLogStore = create<MatchLogState>()(
       undoStack: [],
       duplicateHighlight: null,
       duplicateStats: { count: 0 },
-      operatorClock: '00:00.000',
+      operatorClock: "00:00.000",
       operatorPeriod: 1,
       effectiveTime: 0,
       isBallInPlay: false,
       lastTimelineRefreshRequest: 0,
-      
+
       // Set connection status
       setConnected: (connected: boolean) => {
         set({ isConnected: connected });
@@ -186,7 +194,7 @@ export const useMatchLogStore = create<MatchLogState>()(
       setIsHydrated: (hydrated: boolean) => {
         set({ isHydrated: hydrated });
       },
-      
+
       // Add event to live feed (optimistic UI)
       addLiveEvent: (event: MatchEvent) => {
         set((state) => ({
@@ -209,7 +217,7 @@ export const useMatchLogStore = create<MatchLogState>()(
           // Merge fetched events with local queued events
           // Avoid duplicates based on client_id or timestamp+type
           const merged = [...events];
-          
+
           queued.forEach((qEvent) => {
             const exists = merged.some((e) => {
               if (e.client_id && qEvent.client_id) {
@@ -217,14 +225,17 @@ export const useMatchLogStore = create<MatchLogState>()(
               }
               return e.timestamp === qEvent.timestamp && e.type === qEvent.type;
             });
-            
+
             if (!exists) {
               merged.push(qEvent);
             }
           });
 
           // Sort by timestamp to maintain timeline order
-          merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          merged.sort(
+            (a, b) =>
+              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+          );
 
           return { liveEvents: merged };
         });
@@ -255,14 +266,18 @@ export const useMatchLogStore = create<MatchLogState>()(
 
       removeLiveEventByTimestamp: (timestamp: string) => {
         set((state) => ({
-          liveEvents: state.liveEvents.filter((event) => event.timestamp !== timestamp),
+          liveEvents: state.liveEvents.filter(
+            (event) => event.timestamp !== timestamp,
+          ),
         }));
       },
 
       removeLiveEventByClientId: (clientId: string) => {
         if (!clientId) return;
         set((state) => ({
-          liveEvents: state.liveEvents.filter((event) => event.client_id !== clientId),
+          liveEvents: state.liveEvents.filter(
+            (event) => event.client_id !== clientId,
+          ),
         }));
       },
 
@@ -276,18 +291,20 @@ export const useMatchLogStore = create<MatchLogState>()(
       updateLiveEventId: (timestamp: string, serverId: string) => {
         set((state) => ({
           liveEvents: state.liveEvents.map((event) =>
-            event.timestamp === timestamp ? { ...event, _id: serverId } : event
+            event.timestamp === timestamp ? { ...event, _id: serverId } : event,
           ),
         }));
       },
-      
+
       // Add event to queue (offline persistence)
       addQueuedEvent: (event: MatchEvent) => {
         set((state) => {
           const matchQueue = state.queuedEventsByMatch[event.match_id] || [];
           const isCurrentMatch = state.currentMatchId === event.match_id;
           return {
-            queuedEvents: isCurrentMatch ? [...state.queuedEvents, event] : state.queuedEvents,
+            queuedEvents: isCurrentMatch
+              ? [...state.queuedEvents, event]
+              : state.queuedEvents,
             queuedEventsByMatch: {
               ...state.queuedEventsByMatch,
               [event.match_id]: [...matchQueue, event],
@@ -295,13 +312,13 @@ export const useMatchLogStore = create<MatchLogState>()(
           };
         });
       },
-      
+
       // Remove event from queue (after successful sync)
       removeQueuedEvent: (event: MatchEvent) => {
         set((state) => {
           const matchQueue = state.queuedEventsByMatch[event.match_id] || [];
           const filteredMatchQueue = matchQueue.filter(
-            (e) => e.timestamp !== event.timestamp || e.type !== event.type
+            (e) => e.timestamp !== event.timestamp || e.type !== event.type,
           );
           const updatedByMatch = {
             ...state.queuedEventsByMatch,
@@ -314,7 +331,7 @@ export const useMatchLogStore = create<MatchLogState>()(
           const isCurrentMatch = state.currentMatchId === event.match_id;
           const filtered = isCurrentMatch
             ? state.queuedEvents.filter(
-                (e) => e.timestamp !== event.timestamp || e.type !== event.type
+                (e) => e.timestamp !== event.timestamp || e.type !== event.type,
               )
             : state.queuedEvents;
 
@@ -329,15 +346,19 @@ export const useMatchLogStore = create<MatchLogState>()(
         if (!clientId) return;
         set((state) => {
           const updatedByMatch: Record<string, MatchEvent[]> = {};
-          Object.entries(state.queuedEventsByMatch).forEach(([matchId, events]) => {
-            const filtered = events.filter((event) => event.client_id !== clientId);
-            if (filtered.length) {
-              updatedByMatch[matchId] = filtered;
-            }
-          });
+          Object.entries(state.queuedEventsByMatch).forEach(
+            ([matchId, events]) => {
+              const filtered = events.filter(
+                (event) => event.client_id !== clientId,
+              );
+              if (filtered.length) {
+                updatedByMatch[matchId] = filtered;
+              }
+            },
+          );
 
           const filteredQueue = state.queuedEvents.filter(
-            (event) => event.client_id !== clientId
+            (event) => event.client_id !== clientId,
           );
 
           return {
@@ -376,7 +397,11 @@ export const useMatchLogStore = create<MatchLogState>()(
         return pending;
       },
 
-      setQueuedEventClientId: (matchId: string, timestamp: string, clientId: string) => {
+      setQueuedEventClientId: (
+        matchId: string,
+        timestamp: string,
+        clientId: string,
+      ) => {
         set((state) => {
           const queue = state.queuedEventsByMatch[matchId];
           if (!queue?.length) {
@@ -384,7 +409,9 @@ export const useMatchLogStore = create<MatchLogState>()(
           }
 
           const updatedQueue = queue.map((event) =>
-            event.timestamp === timestamp ? { ...event, client_id: clientId } : event
+            event.timestamp === timestamp
+              ? { ...event, client_id: clientId }
+              : event,
           );
 
           const updates: Partial<MatchLogState> = {
@@ -396,22 +423,29 @@ export const useMatchLogStore = create<MatchLogState>()(
 
           if (state.currentMatchId === matchId) {
             updates.queuedEvents = state.queuedEvents.map((event) =>
-              event.timestamp === timestamp ? { ...event, client_id: clientId } : event
+              event.timestamp === timestamp
+                ? { ...event, client_id: clientId }
+                : event,
             );
           }
 
           return updates;
         });
       },
-      
+
       // Clear all queued events
       clearQueuedEvents: () => {
         set({ queuedEvents: [], queuedEventsByMatch: {} });
       },
-      
+
+      // Clear all pending acks
+      clearPendingAcks: () => {
+        set({ pendingAcks: {} });
+      },
+
       // Set current match ID
       setCurrentMatch: (matchId: string | null) => {
-        set({ 
+        set({
           currentMatchId: matchId,
           liveEvents: [], // Clear live events when switching matches
           queuedEvents: matchId ? get().queuedEventsByMatch[matchId] || [] : [],
@@ -486,7 +520,7 @@ export const useMatchLogStore = create<MatchLogState>()(
 
       resetOperatorControls: (defaults) => {
         set({
-          operatorClock: defaults?.clock ?? '00:00.000',
+          operatorClock: defaults?.clock ?? "00:00.000",
           operatorPeriod: defaults?.period ?? 1,
           effectiveTime: 0,
           isBallInPlay: false,
@@ -496,7 +530,7 @@ export const useMatchLogStore = create<MatchLogState>()(
       requestTimelineRefresh: () => {
         set({ lastTimelineRefreshRequest: Date.now() });
       },
-      
+
       // Reset store to initial state
       resetStore: () => {
         set({
@@ -510,7 +544,7 @@ export const useMatchLogStore = create<MatchLogState>()(
           undoStack: [],
           duplicateHighlight: null,
           duplicateStats: { count: 0 },
-          operatorClock: '00:00.000',
+          operatorClock: "00:00.000",
           operatorPeriod: 1,
           effectiveTime: 0,
           isBallInPlay: false,
@@ -519,7 +553,7 @@ export const useMatchLogStore = create<MatchLogState>()(
       },
     }),
     {
-      name: 'match-log-storage', // IndexedDB key
+      name: "match-log-storage", // IndexedDB key
       storage: createJSONStorage(() => indexedDBStorage),
       // Only persist queued events map and current match
       partialize: (state) => ({
@@ -534,6 +568,6 @@ export const useMatchLogStore = create<MatchLogState>()(
       onRehydrateStorage: () => (state) => {
         state?.setIsHydrated(true);
       },
-    }
-  )
+    },
+  ),
 );

@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { db, OfflineEvent } from '../lib/db';
-import { apiClient } from '../lib/api';
+import { create } from "zustand";
+import { db, OfflineEvent } from "../lib/db";
+import { apiClient } from "../lib/api";
 
 interface SyncState {
   isSyncing: boolean;
@@ -9,7 +9,7 @@ interface SyncState {
   pendingCount: number;
   setOnline: (isOnline: boolean) => void;
   syncEvents: (matchId: string) => Promise<void>;
-  addPendingEvent: (event: Omit<OfflineEvent, 'id'>) => Promise<void>;
+  addPendingEvent: (event: Omit<OfflineEvent, "id">) => Promise<void>;
   updatePendingCount: () => Promise<void>;
 }
 
@@ -31,13 +31,13 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     try {
       await db.addEvent(event);
       await get().updatePendingCount();
-      
+
       // Try to sync immediately if online
       if (get().isOnline && event.matchId) {
         get().syncEvents(event.matchId);
       }
     } catch (error) {
-      console.error('Failed to add pending event:', error);
+      console.error("Failed to add pending event:", error);
       throw error;
     }
   },
@@ -51,7 +51,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
     try {
       const pendingEvents = await db.getPendingEvents(matchId);
-      
+
       if (pendingEvents.length === 0) {
         set({ isSyncing: false, lastSync: new Date() });
         return;
@@ -61,33 +61,58 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const match = await db.getMatch(matchId);
 
       // Prepare sync request
-      const syncRequest = {
-        last_sync: match?.lastSync,
-        pending_events: pendingEvents.map((event) => ({
+      const toMatchClock = (minute?: number, second?: number) => {
+        if (minute === undefined) return undefined;
+        const sec = second ?? 0;
+        const m = Math.max(0, minute).toString();
+        const s = Math.max(0, Math.min(59, sec)).toString().padStart(2, "0");
+        return `${m}:${s}`;
+      };
+
+      const pendingPayloads = pendingEvents.map((event) => {
+        const clock =
+          event.matchClock ??
+          toMatchClock(event.matchMinute, event.matchSecond);
+        const location =
+          event.location ??
+          (event.locationX !== undefined && event.locationY !== undefined
+            ? [event.locationX, event.locationY]
+            : undefined);
+
+        return {
           match_id: event.matchId,
           client_id: event.clientId,
-          event_type: event.eventType,
-          match_minute: event.matchMinute,
-          match_second: event.matchSecond,
-          added_time: event.addedTime,
-          team: event.team,
-          player_name: event.playerName,
-          player_number: event.playerNumber,
-          related_player: event.relatedPlayer,
-          related_player_number: event.relatedPlayerNumber,
-          location_x: event.locationX,
-          location_y: event.locationY,
-          end_location_x: event.endLocationX,
-          end_location_y: event.endLocationY,
-          outcome: event.outcome,
-          details: event.details,
+          match_clock: clock,
+          period: event.period ?? 1,
+          team_id: event.teamId ?? event.team,
+          player_id: event.playerId,
+          location,
+          type: event.type ?? event.eventType,
+          data: event.data ?? event.details ?? {},
           notes: event.notes,
-        })),
+        };
+      });
+
+      const syncRequest = {
+        last_sync: match?.lastSync,
+        pending_events: pendingPayloads,
         client_version: match?.version || 1,
+        pending_match_updates: match?.data
+          ? {
+              status: match.data.status,
+              home_score: match.data.home_score,
+              away_score: match.data.away_score,
+              clock_mode: match.data.clock_mode,
+              match_time_seconds: match.data.match_time_seconds,
+            }
+          : undefined,
       };
 
       // Sync with server
-      const response = await apiClient.post<any>(`/sync/match/${matchId}`, syncRequest);
+      const response = await apiClient.post<any>(
+        `/sync/match/${matchId}`,
+        syncRequest,
+      );
 
       // Mark events as synced
       for (const event of pendingEvents) {
@@ -108,7 +133,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
       // Handle conflicts
       if (response.conflicts && response.conflicts.length > 0) {
-        console.warn('Sync conflicts detected:', response.conflicts);
+        console.warn("Sync conflicts detected:", response.conflicts);
         // TODO: Implement conflict resolution UI
       }
 
@@ -118,8 +143,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       // Clean up old synced events
       await db.clearSyncedEvents();
     } catch (error) {
-      console.error('Sync failed:', error);
-      
+      console.error("Sync failed:", error);
+
       // Mark events as failed
       const pendingEvents = await db.getPendingEvents(matchId);
       for (const event of pendingEvents) {
@@ -137,16 +162,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const pending = await db.getPendingEvents();
       set({ pendingCount: pending.length });
     } catch (error) {
-      console.error('Failed to update pending count:', error);
+      console.error("Failed to update pending count:", error);
     }
   },
 }));
 
 // Listen for online/offline events
-window.addEventListener('online', () => {
+window.addEventListener("online", () => {
   useSyncStore.getState().setOnline(true);
 });
 
-window.addEventListener('offline', () => {
+window.addEventListener("offline", () => {
   useSyncStore.getState().setOnline(false);
 });

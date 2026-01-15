@@ -1,4 +1,5 @@
-import { MatchEvent } from '../../store/useMatchLogStore';
+import { MatchEvent } from "../../store/useMatchLogStore";
+export type { MatchEvent };
 
 export interface Player {
   id: string;
@@ -6,31 +7,34 @@ export interface Player {
   short_name?: string;
   jersey_number: number;
   position: string;
+  is_starter?: boolean;
 }
 
 export interface Team {
   id: string;
+  team_id?: string;
   name: string;
   short_name: string;
+  score?: number;
   players: Player[];
 }
 
 export type MatchStatus =
-  | 'Scheduled'
-  | 'Live'
-  | 'Halftime'
-  | 'Completed'
-  | 'Live_First_Half'
-  | 'Live_Second_Half'
-  | 'Fulltime'
-  | 'Abandoned'
-  | 'Pending'
-  | 'Live_Extra_First'
-  | 'Extra_Halftime'
-  | 'Live_Extra_Second'
-  | 'Penalties';
+  | "Scheduled"
+  | "Live"
+  | "Halftime"
+  | "Completed"
+  | "Live_First_Half"
+  | "Live_Second_Half"
+  | "Fulltime"
+  | "Abandoned"
+  | "Pending"
+  | "Live_Extra_First"
+  | "Extra_Halftime"
+  | "Live_Extra_Second"
+  | "Penalties";
 
-export type ClockMode = 'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF';
+export type ClockMode = "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF";
 
 export interface Match {
   id: string;
@@ -48,40 +52,44 @@ export interface Match {
 }
 
 export type EventType =
-  | 'Pass'
-  | 'Shot'
-  | 'Duel'
-  | 'FoulCommitted'
-  | 'Card'
-  | 'Substitution'
-  | 'GameStoppage'
-  | 'VARDecision'
-  | 'Interception'
-  | 'Clearance'
-  | 'Block'
-  | 'Recovery'
-  | 'Offside'
-  | 'SetPiece'
-  | 'GoalkeeperAction';
+  | "Pass"
+  | "Shot"
+  | "Duel"
+  | "FoulCommitted"
+  | "Card"
+  | "Substitution"
+  | "GameStoppage"
+  | "VARDecision"
+  | "Interception"
+  | "Clearance"
+  | "Block"
+  | "Recovery"
+  | "Offside"
+  | "SetPiece"
+  | "GoalkeeperAction";
 
 export type ActionStep =
-  | 'selectPlayer'
-  | 'selectAction'
-  | 'selectOutcome'
-  | 'selectRecipient';
+  | "selectPlayer"
+  | "selectAction"
+  | "selectOutcome"
+  | "selectRecipient";
 
 export interface ActionConfig {
   actions: string[];
   outcomes?: Record<string, string[]>;
   needsRecipient?: boolean;
-  isSpecial?: boolean;  // For actions requiring special UI (e.g., substitution flow)
+  isSpecial?: boolean; // For actions requiring special UI (e.g., substitution flow)
 }
 
 export interface LoggerHarness {
   resetFlow: () => void;
-  setSelectedTeam: (team: 'home' | 'away') => void;
+  setSelectedTeam: (team: "home" | "away") => void;
   getCurrentStep: () => ActionStep;
-  sendPassEvent: (options: { team: 'home' | 'away'; passerId: string; recipientId: string }) => void;
+  sendPassEvent: (options: {
+    team: "home" | "away";
+    passerId: string;
+    recipientId: string;
+  }) => void;
   sendRawEvent: (payload: Record<string, any>) => void;
   getMatchContext: () => {
     matchId: string;
@@ -90,6 +98,7 @@ export interface LoggerHarness {
   };
   undoLastEvent: () => Promise<void> | void;
   getQueueSnapshot: () => QueueSnapshot;
+  clearQueue: () => void;
 }
 
 export interface QueuedEventSummary {

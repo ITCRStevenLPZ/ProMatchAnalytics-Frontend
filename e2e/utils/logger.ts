@@ -94,9 +94,21 @@ export const submitStandardPass = async (
 ): Promise<void> => {
   const playerCard = page.getByTestId(`player-card-${playerIdForTeam(team)}`);
   await expect(playerCard).toBeVisible({ timeout: 30000 });
+  if (await playerCard.isDisabled()) {
+    const startBtn = page.getByTestId("btn-start-clock");
+    if (await startBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const disabled = await startBtn.isDisabled().catch(() => false);
+      if (!disabled) {
+        await startBtn.click({ force: true });
+        await page.waitForTimeout(200);
+      }
+    }
+  }
   await playerCard.click({ force: true });
   await page.getByTestId("action-btn-Pass").click();
-  await page.getByTestId("outcome-btn-Complete").click();
+  const outcomeBtn = page.getByTestId("outcome-btn-Complete");
+  await expect(outcomeBtn).toBeVisible({ timeout: 10000 });
+  await outcomeBtn.click({ force: true });
   let currentStep = await getHarnessCurrentStep(page);
   if (currentStep === "selectOutcome") {
     await page.waitForTimeout(50);

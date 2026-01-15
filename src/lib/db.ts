@@ -1,15 +1,27 @@
-import Dexie, { Table } from 'dexie';
+import Dexie, { Table } from "dexie";
 
 // Types
+// Normalized offline event aligned to MatchEvent schema
 export interface OfflineEvent {
   id?: number;
   clientId: string;
   matchId: string;
-  eventType: string;
-  matchMinute: number;
+  matchClock?: string; // MM:SS(.mmm)
+  period?: number; // 1-5
+  teamId?: string;
+  playerId?: string;
+  location?: [number, number];
+  type?: string;
+  data?: Record<string, any>;
+  notes?: string;
+  timestamp: Date;
+  syncStatus: "pending" | "synced" | "failed";
+  // Legacy fields for backward compatibility; prefer the normalized ones above
+  eventType?: string;
+  matchMinute?: number;
   matchSecond?: number;
   addedTime?: number;
-  team: string;
+  team?: string;
   playerName?: string;
   playerNumber?: number;
   relatedPlayer?: string;
@@ -19,10 +31,7 @@ export interface OfflineEvent {
   endLocationX?: number;
   endLocationY?: number;
   outcome?: string;
-  details: Record<string, any>;
-  notes?: string;
-  timestamp: Date;
-  syncStatus: 'pending' | 'synced' | 'failed';
+  details?: Record<string, any>;
 }
 
 export interface OfflineMatch {
@@ -38,35 +47,35 @@ class OfflineDatabase extends Dexie {
   matches!: Table<OfflineMatch, string>;
 
   constructor() {
-    super('ProMatchAnalytics');
-    
+    super("ProMatchAnalytics");
+
     this.version(1).stores({
-      events: '++id, clientId, matchId, syncStatus, timestamp',
-      matches: 'id, lastSync',
+      events: "++id, clientId, matchId, syncStatus, timestamp",
+      matches: "id, lastSync",
     });
   }
 
   // Event operations
-  async addEvent(event: Omit<OfflineEvent, 'id'>): Promise<number> {
+  async addEvent(event: Omit<OfflineEvent, "id">): Promise<number> {
     return await this.events.add(event);
   }
 
   async getPendingEvents(matchId?: string): Promise<OfflineEvent[]> {
-    let query = this.events.where('syncStatus').equals('pending');
-    
+    let query = this.events.where("syncStatus").equals("pending");
+
     if (matchId) {
       return await query.and((event) => event.matchId === matchId).toArray();
     }
-    
+
     return await query.toArray();
   }
 
   async markEventSynced(id: number): Promise<void> {
-    await this.events.update(id, { syncStatus: 'synced' });
+    await this.events.update(id, { syncStatus: "synced" });
   }
 
   async markEventFailed(id: number): Promise<void> {
-    await this.events.update(id, { syncStatus: 'failed' });
+    await this.events.update(id, { syncStatus: "failed" });
   }
 
   async deleteEvent(id: number): Promise<void> {
@@ -74,7 +83,7 @@ class OfflineDatabase extends Dexie {
   }
 
   async getMatchEvents(matchId: string): Promise<OfflineEvent[]> {
-    return await this.events.where('matchId').equals(matchId).toArray();
+    return await this.events.where("matchId").equals(matchId).toArray();
   }
 
   // Match operations
@@ -86,12 +95,15 @@ class OfflineDatabase extends Dexie {
     return await this.matches.get(matchId);
   }
 
-  async updateMatch(matchId: string, data: Partial<OfflineMatch>): Promise<void> {
+  async updateMatch(
+    matchId: string,
+    data: Partial<OfflineMatch>,
+  ): Promise<void> {
     await this.matches.update(matchId, data);
   }
 
   async clearSyncedEvents(): Promise<void> {
-    await this.events.where('syncStatus').equals('synced').delete();
+    await this.events.where("syncStatus").equals("synced").delete();
   }
 }
 
