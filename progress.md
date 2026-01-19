@@ -13,6 +13,8 @@
 
 ## What Was Completed (since last update)
 
+- [x] Aligned pre-commit hooks with CI (lint, tsc, unit tests) before
+      commit.
 - [x] Fixed TypeScript build errors (router future flag, logger period phases,
       test typing, and unused imports).
 - [x] Captured Playwright artifacts for lifecycle and match-switch failures and

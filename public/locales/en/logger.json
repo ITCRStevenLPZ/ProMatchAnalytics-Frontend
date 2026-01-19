@@ -81,11 +81,6 @@
     "firstHalf": "1st Half",
     "secondHalf": "2nd Half",
     "extraTimeOne": "Extra Time 1",
-      "1h": "1H",
-      "2h": "2H",
-      "et": "ET",
-      "pen": "PEN"
-    },
     "extraTimeTwo": "Extra Time 2",
     "firstHalfDesc": "First 45 minutes",
     "secondHalfDesc": "Second 45 minutes",
@@ -118,6 +113,8 @@
   "lockReasonFulltime": "Match is Fulltime. Cockpit is read-only.",
   "lockBanner": "Match is closed (Fulltime). Editing is disabled.",
   "lockNotice": "Cockpit locked. Match is finished.",
+  "playerSelectLocked": "Player selection is paused",
+  "playerSelectLockedHint": "Start the clock to enable selecting players.",
   "statusLabel": "Status",
   "phaseLabel": "Phase",
   "clockModeLabel": "Clock Mode",
@@ -198,6 +195,7 @@
   "pending": "Pending",
   "pendingEvents": "Events awaiting confirmation",
   "duplicate": "Duplicate",
+  "deletePending": "Delete pending event",
   "active": "Active",
   "recentPlayers": "Recent Players",
   "combos": "Quick Combos",
@@ -380,6 +378,12 @@
   "logger": {
     "view": "Logger",
     "analytics": "Analytics",
+    "progress": {
+      "1h": "1H",
+      "2h": "2H",
+      "et": "ET",
+      "pen": "PEN"
+    },
     "period": {
       "firstHalfInProgress": "1st Half",
       "inProgress": "In Progress",
