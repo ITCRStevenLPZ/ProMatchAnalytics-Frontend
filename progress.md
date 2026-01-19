@@ -13,6 +13,8 @@
 
 ## What Was Completed (since last update)
 
+- [x] Fixed TypeScript build errors (router future flag, logger period phases,
+      test typing, and unused imports).
 - [x] Captured Playwright artifacts for lifecycle and match-switch failures and
       added harness reconnect suppression.
 - [x] Synced fix/match-status-display branch (progress.md cleanup, socket
@@ -25,6 +27,7 @@
 
 - Frontend: `npm run test:e2e -- e2e/logger-lifecycle.spec.ts
 e2e/logger-match-switch-guardrails.spec.ts` -> PASS (3/3)
+- Frontend: `npx tsc --noEmit` -> PASS
 
 ## Next Steps
 
