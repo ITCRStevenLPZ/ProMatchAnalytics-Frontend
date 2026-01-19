@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { Match } from '../types';
-import { formatMatchClock } from '../utils';
-import { updateMatchStatus, updateMatch } from '../../../lib/loggerApi';
+import { useState, useEffect, useRef } from "react";
+import { Match } from "../types";
+import { formatMatchClock } from "../utils";
+import { updateMatchStatus, updateMatch } from "../../../lib/loggerApi";
 
 /**
  * Safely parse a timestamp string to milliseconds.
@@ -10,24 +10,30 @@ import { updateMatchStatus, updateMatch } from '../../../lib/loggerApi';
 const parseTimestamp = (timestamp: string | undefined | null): number => {
   if (!timestamp) return 0;
   // If timestamp doesn't end with Z and doesn't have timezone info, treat as UTC
-  const normalized = timestamp.endsWith('Z') || timestamp.includes('+') || timestamp.includes('-', 10)
-    ? timestamp
-    : `${timestamp}Z`;
+  const normalized =
+    timestamp.endsWith("Z") ||
+    timestamp.includes("+") ||
+    timestamp.includes("-", 10)
+      ? timestamp
+      : `${timestamp}Z`;
   return new Date(normalized).getTime();
 };
 
 export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
-  const [globalClock, setGlobalClock] = useState('00:00');
+  const [globalClock, setGlobalClock] = useState("00:00");
   const [effectiveTime, setEffectiveTime] = useState(0);
-  const [effectiveClock, setEffectiveClock] = useState('00:00');
-  const [ineffectiveClock, setIneffectiveClock] = useState('00:00');
-  const [timeOffClock, setTimeOffClock] = useState('00:00');
-  
-  const [clockMode, setClockMode] = useState<'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF'>('EFFECTIVE');
-  const [accumulatedIneffectiveTime, setAccumulatedIneffectiveTime] = useState(0);
+  const [effectiveClock, setEffectiveClock] = useState("00:00");
+  const [ineffectiveClock, setIneffectiveClock] = useState("00:00");
+  const [timeOffClock, setTimeOffClock] = useState("00:00");
+
+  const [clockMode, setClockMode] = useState<
+    "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF"
+  >("EFFECTIVE");
+  const [accumulatedIneffectiveTime, setAccumulatedIneffectiveTime] =
+    useState(0);
   const [accumulatedTimeOff, setAccumulatedTimeOff] = useState(0);
   const [isClockRunning, setClockRunning] = useState(false);
-  
+
   // Track current calculated values for mode switch calculations
   const currentEffectiveRef = useRef(0);
   const currentIneffectiveRef = useRef(0);
@@ -38,7 +44,7 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
     if (match) {
       setAccumulatedIneffectiveTime(match.ineffective_time_seconds || 0);
       setAccumulatedTimeOff(match.time_off_seconds || 0);
-      setClockMode((match.clock_mode as any) || 'EFFECTIVE');
+      setClockMode((match.clock_mode as any) || "EFFECTIVE");
     }
   }, [match]);
 
@@ -48,12 +54,13 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
 
     const updateTimers = () => {
       const now = Date.now();
-      
+
       // 1. Calculate Sub-Clocks based on Mode
       let currentEffectiveSeconds = match.match_time_seconds || 0;
       // If clock is stopped (no current_period_start), use the stored time
       if (!match.current_period_start_timestamp) {
-         currentEffectiveSeconds = match.clock_seconds_at_period_start || match.match_time_seconds || 0;
+        currentEffectiveSeconds =
+          match.clock_seconds_at_period_start || match.match_time_seconds || 0;
       }
 
       let currentIneffectiveSeconds = accumulatedIneffectiveTime;
@@ -61,33 +68,54 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
 
       // If global clock is running (according to backend)
       if (match.current_period_start_timestamp) {
-         const start = parseTimestamp(match.current_period_start_timestamp);
-         const elapsed = Math.max(0, (now - start) / 1000);
-         
-         // Add elapsed to the active mode accumulator
-         if (clockMode === 'EFFECTIVE') {
-             currentEffectiveSeconds = (match.clock_seconds_at_period_start || 0) + elapsed;
-         } else if (clockMode === 'INEFFECTIVE') {
-             if (match.last_mode_change_timestamp) {
-                 const lastChange = parseTimestamp(match.last_mode_change_timestamp);
-                 const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
-                 currentIneffectiveSeconds += elapsedSinceChange;
-             }
-         } else if (clockMode === 'TIMEOFF') {
-             if (match.last_mode_change_timestamp) {
-                 const lastChange = parseTimestamp(match.last_mode_change_timestamp);
-                 const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
-                 currentTimeOffSeconds += elapsedSinceChange;
-             }
-         }
-         
-         setClockRunning(true);
+        const start = parseTimestamp(match.current_period_start_timestamp);
+        const elapsed = Math.max(0, (now - start) / 1000);
+
+        // Add elapsed to the active mode accumulator
+        // IMPORTANT: Only accumulate if the backend match state matches our local optimistic clockMode.
+        // Otherwise, we might calculate elapsed time using a timestamp from the WRONG mode (e.g. previous mode start),
+        // leading to massive time jumps (phantom accumulation) which can be permanently saved if a save triggers during the glitch.
+        if (clockMode === "EFFECTIVE") {
+          if (match.clock_mode === "EFFECTIVE") {
+            currentEffectiveSeconds =
+              (match.clock_seconds_at_period_start || 0) + elapsed;
+          } else {
+            // Waiting for sync: use the stored value
+            currentEffectiveSeconds =
+              match.clock_seconds_at_period_start ||
+              match.match_time_seconds ||
+              0;
+          }
+        } else if (clockMode === "INEFFECTIVE") {
+          if (
+            match.clock_mode === "INEFFECTIVE" &&
+            match.last_mode_change_timestamp
+          ) {
+            const lastChange = parseTimestamp(match.last_mode_change_timestamp);
+            const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
+            currentIneffectiveSeconds += elapsedSinceChange;
+          }
+        } else if (clockMode === "TIMEOFF") {
+          if (
+            match.clock_mode === "TIMEOFF" &&
+            match.last_mode_change_timestamp
+          ) {
+            const lastChange = parseTimestamp(match.last_mode_change_timestamp);
+            const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
+            currentTimeOffSeconds += elapsedSinceChange;
+          }
+        }
+
+        setClockRunning(true);
       } else {
-         setClockRunning(false);
+        setClockRunning(false);
       }
 
       // 2. Calculate Global Time (Sum of all)
-      const globalSeconds = currentEffectiveSeconds + currentIneffectiveSeconds + currentTimeOffSeconds;
+      const globalSeconds =
+        currentEffectiveSeconds +
+        currentIneffectiveSeconds +
+        currentTimeOffSeconds;
 
       // Update refs for mode switch calculations
       currentEffectiveRef.current = currentEffectiveSeconds;
@@ -112,10 +140,10 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
   const handleGlobalClockStart = async () => {
     if (!match) return;
     try {
-      await updateMatchStatus(match.id, undefined, 'start');
+      await updateMatchStatus(match.id, undefined, "start");
       fetchMatch();
     } catch (error) {
-      console.error('Failed to start global clock:', error);
+      console.error("Failed to start global clock:", error);
     }
   };
 
@@ -124,10 +152,10 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
     try {
       // Capture current time before network call to avoid delay
       const currentTime = Math.round(currentEffectiveRef.current);
-      await updateMatchStatus(match.id, undefined, 'stop', currentTime);
+      await updateMatchStatus(match.id, undefined, "stop", currentTime);
       fetchMatch();
     } catch (error) {
-      console.error('Failed to stop global clock:', error);
+      console.error("Failed to stop global clock:", error);
     }
   };
 
@@ -136,13 +164,16 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
     try {
       // Attempt to reset status/clocks via status endpoint; backend may reject Fulltime→Pending
       try {
-        if (match.status === 'Completed' || match.status === 'Fulltime') {
-          await updateMatchStatus(match.id, undefined, 'reset', 0);
+        if (match.status === "Completed" || match.status === "Fulltime") {
+          await updateMatchStatus(match.id, undefined, "reset", 0);
         } else {
-          await updateMatchStatus(match.id, 'Pending', 'reset', 0);
+          await updateMatchStatus(match.id, "Pending", "reset", 0);
         }
       } catch (statusError) {
-        console.warn('[Reset] Status reset rejected, continuing with clock reset', statusError);
+        console.warn(
+          "[Reset] Status reset rejected, continuing with clock reset",
+          statusError,
+        );
       }
 
       await updateMatch(match.id, {
@@ -153,47 +184,54 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
         current_period_start_timestamp: null,
         last_mode_change_timestamp: null,
         period_timestamps: {},
-        clock_mode: 'EFFECTIVE',
+        clock_mode: "EFFECTIVE",
       });
       fetchMatch();
     } catch (error) {
-      console.error('Failed to reset global clock:', error);
+      console.error("Failed to reset global clock:", error);
     }
   };
 
-  const handleModeSwitch = async (newMode: 'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF') => {
+  const handleModeSwitch = async (
+    newMode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF",
+  ) => {
     if (!match) return;
-    
+
     const previousMode = clockMode;
-    
+
     // Optimistic update
     setClockMode(newMode);
-    
+
     try {
       const updates: Record<string, any> = {
         clock_mode: newMode,
         last_mode_change_timestamp: new Date().toISOString(),
+        current_period_start_timestamp: new Date().toISOString(),
       };
 
       // Persist accumulated times based on the mode we're leaving
-      if (previousMode === 'EFFECTIVE') {
+      if (previousMode === "EFFECTIVE") {
         // Save the current effective time when leaving EFFECTIVE mode
         updates.match_time_seconds = Math.round(currentEffectiveRef.current);
-        updates.clock_seconds_at_period_start = Math.round(currentEffectiveRef.current);
-      } else if (previousMode === 'INEFFECTIVE') {
+        updates.clock_seconds_at_period_start = Math.round(
+          currentEffectiveRef.current,
+        );
+      } else if (previousMode === "INEFFECTIVE") {
         // Save the current ineffective time when leaving INEFFECTIVE mode
-        updates.ineffective_time_seconds = Math.round(currentIneffectiveRef.current);
-      } else if (previousMode === 'TIMEOFF') {
+        updates.ineffective_time_seconds = Math.round(
+          currentIneffectiveRef.current,
+        );
+      } else if (previousMode === "TIMEOFF") {
         // Save the current time-off when leaving TIMEOFF mode
         updates.time_off_seconds = Math.round(currentTimeOffRef.current);
       }
-      
+
       await updateMatch(match.id, updates);
       fetchMatch();
     } catch (error) {
-      console.error('Failed to switch clock mode:', error);
+      console.error("Failed to switch clock mode:", error);
       // Revert optimistic update
-      setClockMode((match.clock_mode as any) || 'EFFECTIVE');
+      setClockMode((match.clock_mode as any) || "EFFECTIVE");
     }
   };
 

@@ -1,41 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MatchEvent } from '../../../store/useMatchLogStore';
-import { ACTION_FLOWS } from '../constants';
-import { ActionStep, EventType, Match, Player, Team } from '../types';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MatchEvent } from "../../../store/useMatchLogStore";
+import { ACTION_FLOWS } from "../constants";
+import { ActionStep, EventType, Match, Player, Team } from "../types";
 
 interface UseActionFlowParams {
   match: Match | null;
   globalClock: string;
-  operatorClock: string;
   operatorPeriod: number;
-  selectedTeam: 'home' | 'away' | 'both';
+  selectedTeam: "home" | "away" | "both";
   isSubmitting: boolean;
-  sendEvent: (event: Omit<MatchEvent, 'match_id' | 'timestamp'>) => void;
+  sendEvent: (event: Omit<MatchEvent, "match_id" | "timestamp">) => void;
 }
 
 const resolveEventType = (action: string): EventType => {
-  if (action === 'Pass') return 'Pass';
-  if (action === 'Shot') return 'Shot';
-  if (action === 'Duel') return 'Duel';
-  if (action === 'Foul') return 'FoulCommitted';
-  if (action === 'Card') return 'Card';
-  if (action === 'Interception') return 'Interception';
-  if (action === 'Clearance') return 'Clearance';
-  if (action === 'Block') return 'Block';
-  if (action === 'Recovery' || action === 'Carry') return 'Recovery';
-  if (action === 'Offside') return 'Offside';
-  if (['Corner', 'Free Kick', 'Throw-in', 'Goal Kick', 'Penalty', 'Kick Off'].includes(action)) {
-    return 'SetPiece';
+  if (action === "Pass") return "Pass";
+  if (action === "Shot") return "Shot";
+  if (action === "Duel") return "Duel";
+  if (action === "Foul") return "FoulCommitted";
+  if (action === "Card") return "Card";
+  if (action === "Interception") return "Interception";
+  if (action === "Clearance") return "Clearance";
+  if (action === "Block") return "Block";
+  if (action === "Recovery" || action === "Carry") return "Recovery";
+  if (action === "Offside") return "Offside";
+  if (
+    [
+      "Corner",
+      "Free Kick",
+      "Throw-in",
+      "Goal Kick",
+      "Penalty",
+      "Kick Off",
+    ].includes(action)
+  ) {
+    return "SetPiece";
   }
-  if (['Save', 'Claim', 'Punch', 'Pick Up', 'Smother'].includes(action)) {
-    return 'GoalkeeperAction';
+  if (["Save", "Claim", "Punch", "Pick Up", "Smother"].includes(action)) {
+    return "GoalkeeperAction";
   }
-  return 'Pass';
+  return "Pass";
 };
 
 const getActionConfig = (action?: string | null) => {
   if (!action) return undefined;
-  return Object.values(ACTION_FLOWS).find((config) => config.actions.includes(action));
+  return Object.values(ACTION_FLOWS).find((config) =>
+    config.actions.includes(action),
+  );
 };
 
 const buildEventPayload = (
@@ -45,13 +55,13 @@ const buildEventPayload = (
   currentTeam: Team,
   selectedPlayer: Player,
   globalClock: string,
-  operatorClock: string,
-  operatorPeriod: number
-): Omit<MatchEvent, 'match_id' | 'timestamp'> => {
+  operatorPeriod: number,
+): Omit<MatchEvent, "match_id" | "timestamp"> => {
   const eventType = resolveEventType(action);
-  const matchClock = operatorClock?.trim() || globalClock;
+  // Always use the live global clock for event timestamps to avoid stale operator-clock values.
+  const matchClock = globalClock;
 
-  const eventData: Omit<MatchEvent, 'match_id' | 'timestamp'> = {
+  const eventData: Omit<MatchEvent, "match_id" | "timestamp"> = {
     match_clock: matchClock,
     period: operatorPeriod,
     team_id: currentTeam.id,
@@ -61,74 +71,74 @@ const buildEventPayload = (
   };
 
   switch (eventType) {
-    case 'Pass':
+    case "Pass":
       eventData.data = {
-        pass_type: 'Standard',
-        outcome: outcome || 'Complete',
+        pass_type: "Standard",
+        outcome: outcome || "Complete",
         receiver_id: recipient?.id,
         receiver_name: recipient?.full_name,
       };
       break;
-    case 'Shot':
+    case "Shot":
       eventData.data = {
-        shot_type: 'Standard',
-        outcome: outcome || 'OnTarget',
+        shot_type: "Standard",
+        outcome: outcome || "OnTarget",
       };
       break;
-    case 'Duel':
+    case "Duel":
       eventData.data = {
-        duel_type: 'Ground',
-        outcome: outcome || 'Won',
+        duel_type: "Ground",
+        outcome: outcome || "Won",
       };
       break;
-    case 'FoulCommitted':
+    case "FoulCommitted":
       eventData.data = {
-        foul_type: 'Standard',
-        outcome: outcome || 'Standard',
+        foul_type: "Standard",
+        outcome: outcome || "Standard",
       };
       break;
-    case 'Card':
+    case "Card":
       eventData.data = {
-        card_type: outcome || 'Yellow',
-        reason: 'Foul',
+        card_type: outcome || "Yellow",
+        reason: "Foul",
       };
       break;
-    case 'Interception':
+    case "Interception":
       eventData.data = {
-        outcome: outcome || 'Success',
+        outcome: outcome || "Success",
       };
       break;
-    case 'Clearance':
+    case "Clearance":
       eventData.data = {
-        outcome: outcome || 'Success',
+        outcome: outcome || "Success",
       };
       break;
-    case 'Block':
+    case "Block":
       eventData.data = {
-        block_type: 'Shot',
-        outcome: outcome || 'Success',
+        block_type: "Shot",
+        outcome: outcome || "Success",
       };
       break;
-    case 'Recovery':
+    case "Recovery":
       eventData.data = {
-        recovery_type: outcome || 'Loose Ball',
+        recovery_type: outcome || "Loose Ball",
       };
       break;
-    case 'Offside':
+    case "Offside":
       eventData.data = {
         pass_player_id: null,
       };
       break;
-    case 'SetPiece':
+    case "SetPiece":
       eventData.data = {
         set_piece_type: action,
-        outcome: outcome || 'Complete',
+        outcome: outcome || "Complete",
       };
       break;
-    case 'GoalkeeperAction':
+    case "GoalkeeperAction":
       eventData.data = {
         action_type: action,
-        outcome: outcome || 'Success',
+        outcome: outcome || "Success",
       };
       break;
     default:
@@ -141,27 +151,30 @@ const buildEventPayload = (
 export const useActionFlow = ({
   match,
   globalClock,
-  operatorClock,
   operatorPeriod,
   selectedTeam,
   isSubmitting,
   sendEvent,
 }: UseActionFlowParams) => {
-  const [currentStep, setCurrentStep] = useState<ActionStep>('selectPlayer');
+  const [currentStep, setCurrentStep] = useState<ActionStep>("selectPlayer");
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [pendingOutcome, setPendingOutcome] = useState<string | null>(null);
-  const currentStepRef = useRef<ActionStep>('selectPlayer');
+  const currentStepRef = useRef<ActionStep>("selectPlayer");
 
   const currentTeam = useMemo<Team | undefined>(() => {
     if (!match) return undefined;
-    if (selectedTeam === 'home') return match.home_team;
-    if (selectedTeam === 'away') return match.away_team;
+    if (selectedTeam === "home") return match.home_team;
+    if (selectedTeam === "away") return match.away_team;
     // If viewing both, defer to selected player's team if available
     if (selectedPlayer) {
-      const isHome = match.home_team.players.some((p) => p.id === selectedPlayer.id);
+      const isHome = match.home_team.players.some(
+        (p) => p.id === selectedPlayer.id,
+      );
       if (isHome) return match.home_team;
-      const isAway = match.away_team.players.some((p) => p.id === selectedPlayer.id);
+      const isAway = match.away_team.players.some(
+        (p) => p.id === selectedPlayer.id,
+      );
       if (isAway) return match.away_team;
     }
     return undefined;
@@ -178,7 +191,7 @@ export const useActionFlow = ({
   }, [selectedAction]);
 
   const resetFlow = useCallback(() => {
-    setCurrentStep('selectPlayer');
+    setCurrentStep("selectPlayer");
     setSelectedPlayer(null);
     setSelectedAction(null);
     setPendingOutcome(null);
@@ -195,8 +208,7 @@ export const useActionFlow = ({
         currentTeam,
         selectedPlayer,
         globalClock,
-        operatorClock,
-        operatorPeriod
+        operatorPeriod,
       );
       sendEvent(payload);
       return true;
@@ -209,47 +221,47 @@ export const useActionFlow = ({
       globalClock,
       operatorPeriod,
       sendEvent,
-    ]
+    ],
   );
 
   const handlePlayerClick = useCallback((player: Player) => {
     setSelectedPlayer(player);
-    setCurrentStep('selectAction');
+    setCurrentStep("selectAction");
   }, []);
 
   const handleActionClick = useCallback((action: string) => {
     setSelectedAction(action);
     setPendingOutcome(null);
-    setCurrentStep('selectOutcome');
+    setCurrentStep("selectOutcome");
   }, []);
 
   const handleOutcomeClick = useCallback(
     (outcome: string) => {
       if (!selectedAction) return;
       const config = getActionConfig(selectedAction);
-      console.log('[useActionFlow] handleOutcomeClick:', { 
-        outcome, 
-        selectedAction, 
+      console.log("[useActionFlow] handleOutcomeClick:", {
+        outcome,
+        selectedAction,
         config,
-        needsRecipient: config?.needsRecipient 
+        needsRecipient: config?.needsRecipient,
       });
       if (config?.needsRecipient) {
-        // Auto-resolve a recipient to keep keyboard flow snappy; fall back to explicit selection when none available.
-        const autoRecipient = currentTeam?.players?.find((p) => p.id !== selectedPlayer?.id) ?? selectedPlayer ?? null;
-        if (autoRecipient && dispatchEvent(selectedAction, outcome, autoRecipient)) {
-          resetFlow();
-          return;
-        }
         setPendingOutcome(outcome);
-        setCurrentStep('selectRecipient');
-        console.log('[useActionFlow] Transitioning to selectRecipient step');
+        setCurrentStep("selectRecipient");
+        console.log("[useActionFlow] Transitioning to selectRecipient step");
         return;
       }
       if (dispatchEvent(selectedAction, outcome, null)) {
         resetFlow();
       }
     },
-    [dispatchEvent, resetFlow, selectedAction, currentTeam?.players, selectedPlayer]
+    [
+      dispatchEvent,
+      resetFlow,
+      selectedAction,
+      currentTeam?.players,
+      selectedPlayer,
+    ],
   );
 
   const handleRecipientClick = useCallback(
@@ -259,12 +271,12 @@ export const useActionFlow = ({
         resetFlow();
       }
     },
-    [dispatchEvent, pendingOutcome, resetFlow, selectedAction]
+    [dispatchEvent, pendingOutcome, resetFlow, selectedAction],
   );
 
   useEffect(() => {
     currentStepRef.current = currentStep;
-    console.log('[useActionFlow] currentStep changed to:', currentStep);
+    console.log("[useActionFlow] currentStep changed to:", currentStep);
   }, [currentStep]);
 
   return {

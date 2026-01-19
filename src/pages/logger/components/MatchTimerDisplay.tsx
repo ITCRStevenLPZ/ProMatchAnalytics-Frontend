@@ -1,6 +1,6 @@
-import React from 'react';
-import { Play, Pause } from 'lucide-react';
-import { Match } from '../types';
+import React from "react";
+import { Play, Pause } from "lucide-react";
+import { Match } from "../types";
 
 interface MatchTimerDisplayProps {
   match: Match | null;
@@ -9,14 +9,14 @@ interface MatchTimerDisplayProps {
   effectiveClock: string;
   ineffectiveClock: string;
   timeOffClock: string;
-  clockMode: 'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF';
+  clockMode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF";
   isClockRunning: boolean;
   onGlobalStart: () => void;
   onGlobalStop: () => void;
   isBallInPlay?: boolean;
   locked?: boolean;
   lockReason?: string;
-  onModeSwitch: (mode: 'EFFECTIVE' | 'INEFFECTIVE' | 'TIMEOFF') => void;
+  onModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => void;
   t: any;
 }
 
@@ -38,22 +38,34 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   t,
 }) => {
   const startDisabled = locked || !!match?.current_period_start_timestamp;
-  const stopDisabled = locked || (!match?.current_period_start_timestamp && !(match?.period_timestamps?.[String(operatorPeriod)]?.start && !match?.period_timestamps?.[String(operatorPeriod)]?.end));
+  const stopDisabled =
+    locked ||
+    (!match?.current_period_start_timestamp &&
+      !(
+        match?.period_timestamps?.[String(operatorPeriod)]?.start &&
+        !match?.period_timestamps?.[String(operatorPeriod)]?.end
+      ));
   const modeSwitchDisabled = locked || !match?.current_period_start_timestamp;
-  const lockNotice = lockReason || t('lockNotice', 'Cockpit locked. Match is finished.');
-  const trimMs = (value: string) => value.split('.')[0] || value;
+  const lockNotice =
+    lockReason || t("lockNotice", "Cockpit locked. Match is finished.");
+  const trimMs = (value: string) => value.split(".")[0] || value;
   const globalClockDisplay = trimMs(globalClock);
 
   return (
-    <div className="bg-white rounded-lg p-4 border border-gray-200">
+    <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 shadow-sm">
       {locked && (
-        <div className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2" data-testid="clock-locked-banner">
+        <div
+          className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2"
+          data-testid="clock-locked-banner"
+        >
           {lockNotice}
         </div>
       )}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-gray-700">{t('globalClock', 'Global Clock')}</p>
+          <p className="text-sm font-semibold text-slate-400">
+            {t("globalClock", "Global Clock")}
+          </p>
           {isClockRunning && (
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -61,23 +73,69 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
             </span>
           )}
         </div>
-        <span className={`text-xl font-mono font-bold ${isClockRunning ? 'text-green-700' : 'text-gray-900'}`}>
-          {globalClockDisplay}
+        <span
+          className={`text-3xl font-mono font-bold tracking-wider ${
+            isClockRunning ? "text-green-400" : "text-slate-100"
+          }`}
+        >
+          {(() => {
+            const [mm, ss] = globalClockDisplay.split(":").map(Number);
+            const totalSeconds = mm * 60 + (ss || 0);
+
+            let regulationLimit = 0;
+            if (operatorPeriod === 1) regulationLimit = 45 * 60;
+            else if (operatorPeriod === 2) regulationLimit = 90 * 60;
+            else if (operatorPeriod === 3)
+              regulationLimit =
+                (90 + 15) * 60; // Extra Time 1st Half (105 mins)
+            else if (operatorPeriod === 4)
+              regulationLimit = (90 + 15 + 15) * 60; // Extra Time 2nd Half (120 mins)
+
+            // Only split if we are significantly over (e.g. > 0 seconds over) and in a relevant period
+            if (regulationLimit > 0 && totalSeconds > regulationLimit) {
+              const stoppageSeconds = totalSeconds - regulationLimit;
+              const regM = Math.floor(regulationLimit / 60)
+                .toString()
+                .padStart(2, "0");
+              const stopM = Math.floor(stoppageSeconds / 60)
+                .toString()
+                .padStart(2, "0");
+              const stopS = (stoppageSeconds % 60).toString().padStart(2, "0");
+
+              return (
+                <div className="flex items-baseline gap-2">
+                  <span>{regM}:00</span>
+                  <span className="text-xl text-yellow-500 font-bold animate-pulse">
+                    + {stopM}:{stopS}
+                  </span>
+                </div>
+              );
+            }
+            return globalClockDisplay;
+          })()}
         </span>
       </div>
 
-      <div className="flex items-center justify-between mb-3 bg-white border border-gray-200 rounded-md px-3 py-2">
-        <span className="text-sm font-semibold text-gray-700">
-          {isBallInPlay ? t('ballInPlay', 'Balón en Juego') : t('ballOutOfPlay', 'Balón Fuera')}
+      <div className="flex items-center justify-between mb-4 bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3">
+        <span className="text-sm font-semibold text-slate-300">
+          {isBallInPlay
+            ? t("ballInPlay", "Balón en Juego")
+            : t("ballOutOfPlay", "Balón Fuera")}
         </span>
         <button
           type="button"
           data-testid="effective-time-toggle"
           onClick={isBallInPlay ? onGlobalStop : onGlobalStart}
-          className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            isBallInPlay
+              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50"
+              : "bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50"
+          }`}
           disabled={locked}
         >
-          {isBallInPlay ? t('stopClock', 'Detener reloj') : t('startClock', 'Iniciar reloj')}
+          {isBallInPlay
+            ? t("stopClock", "Detener reloj")
+            : t("startClock", "Iniciar reloj")}
         </button>
       </div>
 
@@ -87,73 +145,104 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
           data-testid="btn-start-clock"
           onClick={onGlobalStart}
           disabled={startDisabled}
-          className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          className="flex-1 px-3 py-2 bg-emerald-900/40 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-900/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
         >
-          <Play size={12} />
-          {t('start', 'Start')}
+          <Play size={14} />
+          {t("start", "Start")}
         </button>
         <button
           data-testid="btn-stop-clock"
           onClick={onGlobalStop}
           disabled={stopDisabled}
-          className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          className="flex-1 px-3 py-2 bg-amber-900/40 text-amber-300 border border-amber-500/30 rounded hover:bg-amber-900/60 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
         >
-          <Pause size={12} />
-          {t('stop', 'Stop')}
+          <Pause size={14} />
+          {t("stop", "Stop")}
         </button>
       </div>
 
       {/* Sub Clocks */}
-      <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+      <div className="grid grid-cols-3 gap-3 mb-4 text-center">
         <div
-          className={`p-2 rounded border bg-gray-50 ${clockMode === 'EFFECTIVE' ? 'border-green-200 ring-1 ring-green-200' : 'border-gray-200'}`}
+          className={`p-3 rounded-lg border transition-colors ${
+            clockMode === "EFFECTIVE"
+              ? "bg-emerald-900/20 border-emerald-500/50 ring-1 ring-emerald-500/30"
+              : "bg-slate-700/30 border-slate-700"
+          }`}
           data-testid="effective-time-card"
         >
-          <p className="text-xs text-gray-500 mb-1">{t('effectiveTime', 'Tiempo Efectivo')}</p>
-          <div className="font-mono font-semibold text-green-700" data-testid="effective-clock-value">{effectiveClock}</div>
+          <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
+            {t("effectiveTime", "Effective")}
+          </p>
+          <div
+            className="font-mono font-bold text-lg text-emerald-400"
+            data-testid="effective-clock-value"
+          >
+            {effectiveClock}
+          </div>
         </div>
-        <div className={`p-2 rounded border ${clockMode === 'INEFFECTIVE' ? 'bg-red-50 border-red-200' : 'bg-gray-100 border-gray-200'}`}>
-          <p className="text-xs text-gray-500 mb-1">{t('ineffectiveTime', 'Tiempo Inefectivo')}</p>
-          <div className="font-mono font-semibold text-red-700">{trimMs(ineffectiveClock)}</div>
+        <div
+          className={`p-3 rounded-lg border transition-colors ${
+            clockMode === "INEFFECTIVE"
+              ? "bg-rose-900/20 border-rose-500/50 ring-1 ring-rose-500/30"
+              : "bg-slate-700/30 border-slate-700"
+          }`}
+        >
+          <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
+            {t("ineffectiveTime", "Ineffective")}
+          </p>
+          <div className="font-mono font-bold text-lg text-rose-400">
+            {trimMs(ineffectiveClock)}
+          </div>
         </div>
-        <div className={`p-2 rounded border ${clockMode === 'TIMEOFF' ? 'bg-blue-50 border-blue-200' : 'bg-gray-100 border-gray-200'}`}>
-          <p className="text-xs text-gray-500 mb-1">{t('timeOff', 'Tiempo Fuera')}</p>
-          <div className="font-mono font-semibold text-blue-700">{trimMs(timeOffClock)}</div>
+        <div
+          className={`p-3 rounded-lg border transition-colors ${
+            clockMode === "TIMEOFF"
+              ? "bg-blue-900/20 border-blue-500/50 ring-1 ring-blue-500/30"
+              : "bg-slate-700/30 border-slate-700"
+          }`}
+        >
+          <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
+            {t("timeOff", "Time Off")}
+          </p>
+          <div className="font-mono font-bold text-lg text-blue-400">
+            {trimMs(timeOffClock)}
+          </div>
         </div>
       </div>
 
       {/* Mode Controls */}
       <div className="flex flex-col gap-2">
-        {clockMode === 'EFFECTIVE' ? (
+        {clockMode === "EFFECTIVE" ? (
           <div className="grid grid-cols-2 gap-2">
             <button
               data-testid="btn-ineffective-event"
-              onClick={() => onModeSwitch('INEFFECTIVE')}
-              className="flex items-center justify-center gap-2 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md font-medium text-sm transition-colors disabled:opacity-50"
+              onClick={() => onModeSwitch("INEFFECTIVE")}
+              className="flex items-center justify-center gap-2 py-3 bg-rose-900/30 text-rose-300 border border-rose-500/30 hover:bg-rose-900/50 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
               disabled={modeSwitchDisabled}
             >
               <Pause size={14} />
-              {t('ineffectiveEvent', 'Ineffective Event')}
+              {t("ineffectiveEvent", "Ineffective")}
             </button>
             <button
               data-testid="btn-time-off"
-              onClick={() => onModeSwitch('TIMEOFF')}
-              className="flex items-center justify-center gap-2 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-md font-medium text-sm transition-colors disabled:opacity-50"
+              onClick={() => onModeSwitch("TIMEOFF")}
+              className="flex items-center justify-center gap-2 py-3 bg-blue-900/30 text-blue-300 border border-blue-500/30 hover:bg-blue-900/50 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
               disabled={modeSwitchDisabled}
             >
               <Pause size={14} />
-              {t('timeOffEvent', 'Time Off')}
+              {t("timeOffEvent", "Time Off")}
             </button>
           </div>
         ) : (
           <button
             data-testid="btn-resume-effective"
-            onClick={() => onModeSwitch('EFFECTIVE')}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md font-medium text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => onModeSwitch("EFFECTIVE")}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={locked}
           >
             <Play size={14} />
-            {t('resumeEffective', 'Resume Effective Time')}
+            {t("resumeEffective", "Resume Effective Time")}
           </button>
         )}
       </div>

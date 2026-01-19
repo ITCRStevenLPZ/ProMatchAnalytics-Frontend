@@ -1,12 +1,13 @@
-import type { MatchEvent } from '../store/useMatchLogStore';
+import type { MatchEvent } from "../store/useMatchLogStore";
 
 const buildApiBase = (raw?: string) => {
-  const sanitized = (raw || 'http://localhost:8000').replace(/\/+$/, '');
-  return sanitized.endsWith('/api/v1') ? sanitized : `${sanitized}/api/v1`;
+  const sanitized = (raw || "http://localhost:8000").replace(/\/+$/, "");
+  return sanitized.endsWith("/api/v1") ? sanitized : `${sanitized}/api/v1`;
 };
 
-export const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === 'true';
-const E2E_BYPASS_TOKEN = import.meta.env.VITE_E2E_BYPASS_TOKEN ?? 'e2e-playwright';
+export const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === "true";
+const E2E_BYPASS_TOKEN =
+  import.meta.env.VITE_E2E_BYPASS_TOKEN ?? "e2e-playwright";
 
 const API_URL = buildApiBase(import.meta.env.VITE_API_URL);
 export const LOGGER_API_URL = `${API_URL}/logger`;
@@ -26,11 +27,11 @@ const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
   return headers;
 };
 
-import { auth } from './firebase';
+import { auth } from "./firebase";
 
 export const fetchLoggerWithAuth = async (url: string, init?: RequestInit) => {
-  let token = '';
-  
+  let token = "";
+
   if (IS_E2E_TEST_MODE) {
     token = E2E_BYPASS_TOKEN;
   } else {
@@ -39,7 +40,7 @@ export const fetchLoggerWithAuth = async (url: string, init?: RequestInit) => {
       try {
         token = await user.getIdToken();
       } catch (e) {
-        console.error('[loggerApi] token error', e);
+        console.error("[loggerApi] token error", e);
       }
     }
   }
@@ -80,7 +81,7 @@ export const fetchAllMatchEvents = async (
       `${LOGGER_API_URL}/matches/${matchId}/events?${params.toString()}`,
     );
     if (!response.ok) {
-      const errorPayload = await response.text().catch(() => '');
+      const errorPayload = await response.text().catch(() => "");
       throw new Error(
         `Failed to fetch events (${response.status} ${response.statusText}): ${errorPayload}`,
       );
@@ -105,49 +106,95 @@ export const fetchAllMatchEvents = async (
   return aggregated;
 };
 
-export const updateMatchStatus = async (matchId: string, status?: string, clockOperation?: 'start' | 'stop' | 'reset', matchTime?: number) => {
+export const updateMatchStatus = async (
+  matchId: string,
+  status?: string,
+  clockOperation?: "start" | "stop" | "reset",
+  matchTime?: number,
+) => {
   const body: any = { status, clock_operation: clockOperation };
   if (matchTime !== undefined) {
     body.match_time_seconds = matchTime;
   }
-  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const response = await fetchLoggerWithAuth(
+    `${LOGGER_API_URL}/matches/${matchId}/status`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 
   if (!response.ok) {
-    const errorPayload = await response.text().catch(() => '');
-    console.error('Update status failed:', response.status, response.statusText, errorPayload);
+    const errorPayload = await response.text().catch(() => "");
+    console.error(
+      "Update status failed:",
+      response.status,
+      response.statusText,
+      errorPayload,
+    );
     throw new Error(`Failed to update match status: ${errorPayload}`);
   }
 
   return response.json();
 };
 
-export const updateMatch = async (matchId: string, updates: Record<string, any>) => {
+export const updateMatch = async (
+  matchId: string,
+  updates: Record<string, any>,
+) => {
   // Use the clock-mode endpoint for clock-related updates
-  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}/clock-mode`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
+  const response = await fetchLoggerWithAuth(
+    `${LOGGER_API_URL}/matches/${matchId}/clock-mode`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    },
+  );
 
   if (!response.ok) {
-    const errorPayload = await response.text().catch(() => '');
-    console.error('Update match failed:', response.status, response.statusText, errorPayload);
+    const errorPayload = await response.text().catch(() => "");
+    console.error(
+      "Update match failed:",
+      response.status,
+      response.statusText,
+      errorPayload,
+    );
     throw new Error(`Failed to update match: ${errorPayload}`);
   }
 
   return response.json();
 };
 
+export const resetMatch = async (matchId: string) => {
+  const response = await fetchLoggerWithAuth(
+    `${LOGGER_API_URL}/matches/${matchId}/reset`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => "");
+    throw new Error(`Failed to reset match: ${errorPayload}`);
+  }
+
+  return response.json();
+};
 
 export const getMatch = async (matchId: string) => {
-  const response = await fetchLoggerWithAuth(`${LOGGER_API_URL}/matches/${matchId}`);
+  const response = await fetchLoggerWithAuth(
+    `${LOGGER_API_URL}/matches/${matchId}`,
+  );
   if (!response.ok) {
-    const errorPayload = await response.text().catch(() => '');
-    console.error('Get match failed:', response.status, response.statusText, errorPayload);
+    const errorPayload = await response.text().catch(() => "");
+    console.error(
+      "Get match failed:",
+      response.status,
+      response.statusText,
+      errorPayload,
+    );
     throw new Error(`Failed to fetch match: ${errorPayload}`);
   }
   return response.json();

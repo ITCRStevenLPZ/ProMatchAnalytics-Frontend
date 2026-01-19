@@ -15,31 +15,24 @@ repos:
             public/locales/.*\.json
           )$
 
-  # ESLint - JavaScript/TypeScript linting
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v8.56.0
-    hooks:
-      - id: eslint
-        name: ESLint
-        files: \.(js|jsx|ts|tsx)$
-        types: [file]
-        args: ['--fix', '--max-warnings=0']
-        additional_dependencies:
-          - eslint@8.56.0
-          - eslint-config-prettier@9.1.0
-          - '@typescript-eslint/eslint-plugin@6.19.0'
-          - '@typescript-eslint/parser@6.19.0'
-          - eslint-plugin-react@7.33.2
-          - eslint-plugin-react-hooks@4.6.0
-
-  # TypeScript type checking
+  # CI parity checks (lint, typecheck, tests)
   - repo: local
     hooks:
+      - id: ci-lint
+        name: CI Lint
+        entry: npm run lint
+        language: system
+        pass_filenames: false
       - id: tsc
         name: TypeScript Check
         entry: npx tsc --noEmit
         language: system
         types: [ts, tsx]
+        pass_filenames: false
+      - id: ci-test
+        name: CI Unit Tests
+        entry: npm test --if-present
+        language: system
         pass_filenames: false
 
   # Standard pre-commit hooks
@@ -49,25 +42,24 @@ repos:
       - id: trailing-whitespace
         name: Trim Trailing Whitespace
         exclude: '\.md$'
-        
+
       - id: end-of-file-fixer
         name: Fix End of Files
-        
+
       - id: check-yaml
         name: Check YAML
-        args: [--safe]
         exclude: '\.github/workflows/'
-        
+
       - id: check-json
         name: Check JSON
         exclude: 'tsconfig.*\.json$'
-        
+
       - id: check-merge-conflict
         name: Check for Merge Conflicts
-        
+
       - id: detect-private-key
         name: Detect Private Keys
-        
+
       - id: check-added-large-files
         name: Check for Large Files
         args: ['--maxkb=500']

@@ -1,22 +1,59 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Upload, FileText, AlertCircle, Trophy, MapPin, User as UserIcon, Users, Shield, Copy, Check, History, ExternalLink, Trash2, X, type LucideIcon } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { BatchDetailsModal } from '../components/ingestion/BatchDetailsModal';
-import { ConfirmationModal } from '../components/ConfirmationModal';
-import { deleteBatch, listBatches, type IngestionBatchSummary } from '../lib/ingestion';
-const DataIngestionDialog = lazy(() => import('../components/DataIngestionDialog'));
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Upload,
+  FileText,
+  AlertCircle,
+  Trophy,
+  MapPin,
+  User as UserIcon,
+  Users,
+  Shield,
+  Copy,
+  Check,
+  History,
+  ExternalLink,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { BatchDetailsModal } from "../components/ingestion/BatchDetailsModal";
+import { ConfirmationModal } from "../components/ConfirmationModal";
+import {
+  deleteBatch,
+  listBatches,
+  type IngestionBatchSummary,
+} from "../lib/ingestion";
+const DataIngestionDialog = lazy(
+  () => import("../components/DataIngestionDialog"),
+);
 import {
   downloadCompetitionTemplate,
   downloadVenueTemplate,
   downloadRefereeTemplate,
   downloadPlayerTemplate,
+  downloadPlayerWithTeamTemplate,
   downloadTeamTemplate,
-  downloadBulkTemplate
-} from '../lib/export';
+  downloadBulkTemplate,
+} from "../lib/export";
 
-type ModelType = 'competitions' | 'venues' | 'referees' | 'players' | 'teams' | 'bulk';
+type ModelType =
+  | "competitions"
+  | "venues"
+  | "referees"
+  | "players"
+  | "players_with_team"
+  | "teams"
+  | "bulk";
 
 interface DataModel {
   id: ModelType;
@@ -25,26 +62,31 @@ interface DataModel {
   icon: LucideIcon;
   fields: string[];
   aiPrompt: string;
-  downloadTemplate: (format: 'csv' | 'json') => void;
+  downloadTemplate: (format: "csv" | "json") => void;
 }
 
 export default function IngestionManager() {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'upload' | 'batches'>('upload');
+  const [activeTab, setActiveTab] = useState<"upload" | "batches">("upload");
   const [selectedModel, setSelectedModel] = useState<ModelType | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [modelFilter, setModelFilter] = useState<string>('');
-  const [selectedBatch, setSelectedBatch] = useState<IngestionBatchSummary | null>(null);
-  const [pendingDeleteBatch, setPendingDeleteBatch] = useState<IngestionBatchSummary | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [modelFilter, setModelFilter] = useState<string>("");
+  const [selectedBatch, setSelectedBatch] =
+    useState<IngestionBatchSummary | null>(null);
+  const [pendingDeleteBatch, setPendingDeleteBatch] =
+    useState<IngestionBatchSummary | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [bannerMessage, setBannerMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [bannerMessage, setBannerMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const closeDeleteDialog = useCallback(() => setPendingDeleteBatch(null), []);
   useEffect(() => {
-    if (activeTab !== 'batches' && bannerMessage) {
+    if (activeTab !== "batches" && bannerMessage) {
       setBannerMessage(null);
     }
   }, [activeTab, bannerMessage]);
@@ -58,137 +100,191 @@ export default function IngestionManager() {
     return () => window.clearTimeout(timeoutId);
   }, [bannerMessage]);
 
-
   // Fetch batches list
-  const { data: batchesData, isLoading: batchesLoading, refetch } = useQuery({
-    queryKey: ['batches', page, statusFilter, modelFilter],
-    queryFn: () => listBatches({
-      page,
-      page_size: 20,
-      status: statusFilter || undefined,
-      target_model: modelFilter || undefined,
-    }),
-    enabled: activeTab === 'batches',
+  const {
+    data: batchesData,
+    isLoading: batchesLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["batches", page, statusFilter, modelFilter],
+    queryFn: () =>
+      listBatches({
+        page,
+        page_size: 20,
+        status: statusFilter || undefined,
+        target_model: modelFilter || undefined,
+      }),
+    enabled: activeTab === "batches",
   });
 
   const models: DataModel[] = [
     {
-      id: 'competitions',
-      label: t('ingestion.competitions'),
-      description: t('ingestion.competitionsDesc'),
+      id: "competitions",
+      label: t("ingestion.competitions"),
+      description: t("ingestion.competitionsDesc"),
       icon: Trophy,
-      fields: ['name', 'short_name', 'gender', 'country'],
-      aiPrompt: `Transform the following competition data into CSV format with these exact columns: name, short_name, gender, country.
+      fields: ["name", "short_name", "gender", "country_name"],
+      aiPrompt: `Transform the following competition data into CSV format with these exact columns: name, short_name, gender, country_name.
 
 Requirements:
 - name: Full official competition name
 - short_name: Abbreviated name (3-4 characters, e.g., "EPL", "UCL")
 - gender: Must be exactly "male" or "female" (lowercase)
-- country: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy", "Netherlands", "Portugal", "Belgium", "Croatia", "Uruguay", "Colombia", "Mexico", "USA", "Japan", "South Korea", "Australia")
+- country_name: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy", "Netherlands", "Portugal", "Belgium", "Croatia", "Uruguay", "Colombia", "Mexico", "USA", "Japan", "South Korea", "Australia")
 
 Output format: CSV with headers
 Example:
-name,short_name,gender,country
+name,short_name,gender,country_name
 Premier League,EPL,male,England
 UEFA Champions League,UCL,male,Europe
 Liga F,LF,female,Spain`,
-      downloadTemplate: downloadCompetitionTemplate
+      downloadTemplate: downloadCompetitionTemplate,
     },
     {
-      id: 'venues',
-      label: t('ingestion.venues'),
-      description: t('ingestion.venuesDesc'),
+      id: "venues",
+      label: t("ingestion.venues"),
+      description: t("ingestion.venuesDesc"),
       icon: MapPin,
-      fields: ['name', 'city', 'country', 'capacity', 'surface'],
-      aiPrompt: `Transform the following venue/stadium data into CSV format with these exact columns: name, city, country, capacity, surface.
+      fields: ["name", "city", "country_name", "capacity", "surface"],
+      aiPrompt: `Transform the following venue/stadium data into CSV format with these exact columns: name, city, country_name, capacity, surface.
 
 Requirements:
 - name: Full stadium/venue name
 - city: City where venue is located
-- country: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy")
+- country_name: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy")
 - capacity: Numeric seating capacity (integer, e.g., 75000)
 - surface: Must be exactly one of: "Natural Grass", "Artificial Turf", or "Hybrid"
 
 Output format: CSV with headers
 Example:
-name,city,country,capacity,surface
+name,city,country_name,capacity,surface
 Santiago Bernabéu,Madrid,Spain,81044,Hybrid
 Camp Nou,Barcelona,Spain,99354,Natural Grass
 Emirates Stadium,London,England,60704,Natural Grass`,
-      downloadTemplate: downloadVenueTemplate
+      downloadTemplate: downloadVenueTemplate,
     },
     {
-      id: 'referees',
-      label: t('ingestion.referees'),
-      description: t('ingestion.refereesDesc'),
+      id: "referees",
+      label: t("ingestion.referees"),
+      description: t("ingestion.refereesDesc"),
       icon: UserIcon,
-      fields: ['name', 'country', 'years_of_experience'],
-      aiPrompt: `Transform the following referee data into CSV format with these exact columns: name, country, years_of_experience.
+      fields: ["name", "country_name", "years_of_experience"],
+      aiPrompt: `Transform the following referee data into CSV format with these exact columns: name, country_name, years_of_experience.
 
 Requirements:
 - name: Full referee name (First and Last name)
-- country: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy")
+- country_name: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil", "Germany", "France", "Italy")
 - years_of_experience: Numeric value representing years of professional refereeing experience (integer, e.g., 15)
 
 Output format: CSV with headers
 Example:
-name,country,years_of_experience
+name,country_name,years_of_experience
 Michael Oliver,England,18
 Björn Kuipers,Netherlands,20
 Pierluigi Collina,Italy,28`,
-      downloadTemplate: downloadRefereeTemplate
+      downloadTemplate: downloadRefereeTemplate,
     },
     {
-      id: 'players',
-      label: t('ingestion.players'),
-      description: t('ingestion.playersDesc'),
+      id: "players",
+      label: t("ingestion.players"),
+      description: t("ingestion.playersDesc"),
       icon: Users,
-      fields: ['name', 'position', 'nationality', 'birth_date', 'height', 'weight', 'jersey_number'],
-      aiPrompt: `Transform the following player data into CSV format with these exact columns: name, position, nationality, birth_date, height, weight, jersey_number, gender.
+      fields: [
+        "name",
+        "position",
+        "country_name",
+        "birth_date",
+        "player_height",
+        "player_weight",
+        "gender",
+      ],
+      aiPrompt: `Transform the following player data into CSV format with these exact columns: name, position, country_name, birth_date, player_height, player_weight, gender.
 
 Requirements:
 - name: Full player name (First and Last name)
-- position: Must be exactly one of: "Goalkeeper", "Defender", "Midfielder", "Forward"
-- nationality: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil")
+- position: Must be exactly one of these codes: GK, CB, LB, RB, LWB, RWB, SW, CDM, CM, CAM, LM, RM, LW, RW, CF, ST, LF, RF, SS
+- country_name: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil")
 - birth_date: ISO 8601 format YYYY-MM-DD (e.g., "1995-06-24")
-- height: Height in centimeters (numeric, e.g., 180)
-- weight: Weight in kilograms (numeric, e.g., 75)
-- jersey_number: Shirt number (integer 1-99, e.g., 10)
+- player_height: Height in centimeters (numeric, e.g., 180)
+- player_weight: Weight in kilograms (numeric, e.g., 75)
 - gender: Must be exactly "male" or "female" (lowercase)
 
 Output format: CSV with headers
 Example:
-name,position,nationality,birth_date,height,weight,jersey_number,gender
-Lionel Messi,Forward,Argentina,1987-06-24,170,72,10,male
-Alexia Putellas,Midfielder,Spain,1994-02-04,170,65,11,female
-Kevin De Bruyne,Midfielder,Belgium,1991-06-28,181,70,17,male`,
-      downloadTemplate: downloadPlayerTemplate
+name,position,country_name,birth_date,player_height,player_weight,gender
+Lionel Messi,ST,Argentina,1987-06-24,170,72,male
+Alexia Putellas,CM,Spain,1994-02-04,170,65,female
+Kevin De Bruyne,CM,Belgium,1991-06-28,181,70,male`,
+      downloadTemplate: downloadPlayerTemplate,
     },
     {
-      id: 'teams',
-      label: t('ingestion.teams'),
-      description: t('ingestion.teamsDesc'),
+      id: "players_with_team",
+      label: "Players with Teams",
+      description:
+        "Create/link players into existing teams with jersey numbers.",
+      icon: Users,
+      fields: [
+        "name",
+        "position",
+        "country_name",
+        "birth_date",
+        "player_height",
+        "player_weight",
+        "team_name",
+        "jersey_number",
+      ],
+      aiPrompt: `Transform the following player-team data into CSV with these exact columns: name, position, country_name, birth_date, player_height, player_weight, team_name, jersey_number.
+
+Requirements:
+- name: Full player name (First and Last name)
+- position: Must be one of GK, CB, LB, RB, LWB, RWB, SW, CDM, CM, CAM, LM, RM, LW, RW, CF, ST, LF, RF, SS
+- country_name: Must match an existing country in the system
+- birth_date: ISO 8601 format YYYY-MM-DD (e.g., "1995-06-24")
+- player_height: Height in centimeters (numeric, e.g., 180)
+- player_weight: Weight in kilograms (numeric, e.g., 75)
+- team_name: Must match an existing team name already stored in the app (exact match)
+- jersey_number: Player jersey number within the team (1-99)
+
+Output format: CSV with headers
+Example:
+name,position,country_name,birth_date,player_height,player_weight,team_name,jersey_number
+Erling Haaland,ST,Norway,2000-07-21,194,88,Manchester City,9
+Alexia Putellas,CM,Spain,1994-02-04,170,58,FC Barcelona,11`,
+      downloadTemplate: downloadPlayerWithTeamTemplate,
+    },
+    {
+      id: "teams",
+      label: t("ingestion.teams"),
+      description: t("ingestion.teamsDesc"),
       icon: Shield,
-      fields: ['name', 'short_name', 'country', 'gender', 'founded_year', 'stadium', 'manager'],
-      aiPrompt: `Transform the following team data into CSV format with these exact columns: name, short_name, country, gender, founded_year, stadium, manager.
+      fields: [
+        "name",
+        "short_name",
+        "country_name",
+        "gender",
+        "founded_year",
+        "stadium",
+        "manager_name",
+      ],
+      aiPrompt: `Transform the following team data into CSV format with these exact columns: name, short_name, country_name, gender, founded_year, stadium, manager_name. If a manager is provided, emit it in manager_name; the backend will map manager_name to the managers array.
 
 Requirements:
 - name: Full official team name
 - short_name: Abbreviated team name (3-4 characters, e.g., "RMA", "FCB", "MCI")
-- country: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil")
+- country_name: Must match one of the 60+ predefined countries (e.g., "England", "Spain", "Argentina", "Brazil")
 - gender: Must be exactly "male" or "female" (lowercase)
 - founded_year: Year team was founded (4-digit integer, e.g., 1902)
 - stadium: Home stadium name (must match existing venue in database)
-- manager: Current team manager/coach name
+- manager_name: Current team manager/coach name (single primary manager)
 
 Output format: CSV with headers
 Example:
-name,short_name,country,gender,founded_year,stadium,manager
+name,short_name,country_name,gender,founded_year,stadium,manager_name
 Real Madrid,RMA,Spain,male,1902,Santiago Bernabéu,Carlo Ancelotti
 FC Barcelona,FCB,Spain,female,1970,Camp Nou,Jonatan Giráldez
 Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
-      downloadTemplate: downloadTeamTemplate
-    }
+      downloadTemplate: downloadTeamTemplate,
+    },
   ];
 
   const handleImport = (modelType: ModelType) => {
@@ -198,7 +294,7 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
 
   const handleImportSuccess = () => {
     // Refresh data or show notification
-    console.log('Import successful for', selectedModel);
+    console.log("Import successful for", selectedModel);
   };
 
   const handleCopyPrompt = async (modelId: string, prompt: string) => {
@@ -207,7 +303,7 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
       setCopiedPrompt(modelId);
       setTimeout(() => setCopiedPrompt(null), 2000);
     } catch (err) {
-      console.error('Failed to copy prompt:', err);
+      console.error("Failed to copy prompt:", err);
     }
   };
 
@@ -215,13 +311,13 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
   const total = batchesData?.total || 0;
   const totalPages = Math.ceil(total / 20);
 
-  const deletableStatuses = useMemo(() => new Set(['success', 'failed']), []);
+  const deletableStatuses = useMemo(() => new Set(["success", "failed"]), []);
 
   const canDeleteBatch = (batch: IngestionBatchSummary) => {
     if (deletableStatuses.has(batch.status)) {
       return true;
     }
-    return batch.status === 'conflicts' && batch.conflicts_open === 0;
+    return batch.status === "conflicts" && batch.conflicts_open === 0;
   };
 
   const requestBatchDeletion = (batch: IngestionBatchSummary) => {
@@ -249,15 +345,18 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
         setSelectedBatch(null);
       }
       setBannerMessage({
-        type: 'success',
-        text: t('ingestion.deleteBatchSuccess', 'Batch deleted successfully.'),
+        type: "success",
+        text: t("ingestion.deleteBatchSuccess", "Batch deleted successfully."),
       });
       await refetch();
     } catch (error) {
-      console.error('Failed to delete batch', error);
+      console.error("Failed to delete batch", error);
       setBannerMessage({
-        type: 'error',
-        text: t('ingestion.deleteBatchError', 'We could not delete this batch.'),
+        type: "error",
+        text: t(
+          "ingestion.deleteBatchError",
+          "We could not delete this batch.",
+        ),
       });
     } finally {
       setDeletingId(null);
@@ -266,36 +365,41 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
   };
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
+    const statusConfig: Record<
+      string,
+      { bg: string; text: string; label: string }
+    > = {
       queued: {
-        bg: 'bg-gray-100',
-        text: 'text-gray-700',
-        label: t('ingestion.statusLabels.queued', 'Queued'),
+        bg: "bg-gray-100",
+        text: "text-gray-700",
+        label: t("ingestion.statusLabels.queued", "Queued"),
       },
       in_progress: {
-        bg: 'bg-blue-100',
-        text: 'text-blue-700',
-        label: t('ingestion.statusLabels.in_progress', 'Processing'),
+        bg: "bg-blue-100",
+        text: "text-blue-700",
+        label: t("ingestion.statusLabels.in_progress", "Processing"),
       },
       conflicts: {
-        bg: 'bg-yellow-100',
-        text: 'text-yellow-700',
-        label: t('ingestion.statusLabels.conflicts', 'Has Conflicts'),
+        bg: "bg-yellow-100",
+        text: "text-yellow-700",
+        label: t("ingestion.statusLabels.conflicts", "Has Conflicts"),
       },
       failed: {
-        bg: 'bg-red-100',
-        text: 'text-red-700',
-        label: t('ingestion.statusLabels.failed', 'Failed'),
+        bg: "bg-red-100",
+        text: "text-red-700",
+        label: t("ingestion.statusLabels.failed", "Failed"),
       },
       success: {
-        bg: 'bg-green-100',
-        text: 'text-green-700',
-        label: t('ingestion.statusLabels.success', 'Success'),
+        bg: "bg-green-100",
+        text: "text-green-700",
+        label: t("ingestion.statusLabels.success", "Success"),
       },
     };
     const config = statusConfig[status] || statusConfig.queued;
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}
+      >
         {config.label}
       </span>
     );
@@ -306,22 +410,20 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {t('ingestion.title')}
+          {t("ingestion.title")}
         </h1>
-        <p className="text-gray-600">
-          {t('ingestion.subtitle')}
-        </p>
+        <p className="text-gray-600">{t("ingestion.subtitle")}</p>
       </div>
 
       {/* Tabs */}
       <div className="mb-6 border-b border-gray-200">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
-            onClick={() => setActiveTab('upload')}
+            onClick={() => setActiveTab("upload")}
             className={`${
-              activeTab === 'upload'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === "upload"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             <Upload size={18} />
@@ -329,13 +431,13 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
           </button>
           <button
             onClick={() => {
-              setActiveTab('batches');
+              setActiveTab("batches");
               refetch();
             }}
             className={`${
-              activeTab === 'batches'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              activeTab === "batches"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             } flex items-center gap-2 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             <History size={18} />
@@ -350,231 +452,240 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
       </div>
 
       {/* Upload Tab Content */}
-      {activeTab === 'upload' && (
+      {activeTab === "upload" && (
         <div>
-
-      {/* Important Notice */}
-      <div className="mb-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
-          <div>
-            <h3 className="text-sm font-semibold text-yellow-900 mb-1">
-              {t('ingestion.adminOnly')}
-            </h3>
-            <p className="text-sm text-yellow-800">
-              {t('ingestion.adminOnlyDesc')}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Bulk Import Card - Featured */}
-      <div className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-6 hover:shadow-xl transition-shadow">
-        <div className="flex items-start gap-4">
-          <div className="bg-purple-100 p-4 rounded-lg">
-            <Upload size={32} className="text-purple-600" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-xl font-bold text-gray-900">{t('ingestion.bulk')}</h3>
-              <span className="text-xs bg-purple-600 text-white px-2 py-1 rounded-full font-semibold">
-                NEW
-              </span>
-            </div>
-            <p className="text-gray-700 mb-4">
-              {t('ingestion.bulkDesc')}
-            </p>
-            
-            {/* AI Prompt for Bulk */}
-            <div className="bg-white/80 border border-purple-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-semibold text-purple-900 uppercase flex items-center gap-1">
-                  <span>🤖</span> {t('ingestion.aiPromptTitle')}
-                </h4>
-                <button
-                  onClick={() => handleCopyPrompt('bulk', t('ingestion.bulkPrompt'))}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-                >
-                  {copiedPrompt === 'bulk' ? (
-                    <>
-                      <Check size={12} />
-                      {t('ingestion.aiPromptCopied')}
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} />
-                      {t('ingestion.aiPromptCopy')}
-                    </>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-purple-800 leading-relaxed">
-                {t('ingestion.bulkTemplateNote')}
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleImport('bulk' as ModelType)}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-              >
-                <Upload size={18} />
-                {t('ingestion.importData')}
-              </button>
-              <button
-                onClick={() => downloadBulkTemplate('csv')}
-                className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors font-medium"
-              >
-                <FileText size={18} />
-                {t('ingestion.downloadTemplate')}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Model Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {models.map((model) => (
-          <div
-            key={model.id}
-            className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
-          >
-            {/* Icon and Title */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <model.icon size={28} className="text-blue-600" />
-              </div>
+          {/* Important Notice */}
+          <div className="mb-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle
+                className="text-yellow-600 flex-shrink-0 mt-0.5"
+                size={20}
+              />
               <div>
-                <h3 className="text-lg font-bold text-gray-900">{model.label}</h3>
-                <p className="text-sm text-gray-600">{model.description}</p>
-              </div>
-            </div>
-
-            {/* Fields */}
-            <div className="mb-4">
-              <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase">
-                {t('ingestion.requiredFields')}
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {model.fields.slice(0, 4).map((field) => (
-                  <span
-                    key={field}
-                    className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
-                  >
-                    {field}
-                  </span>
-                ))}
-                {model.fields.length > 4 && (
-                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                    +{model.fields.length - 4} more
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* AI Prompt */}
-            <div className="mb-4">
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-semibold text-purple-900 uppercase flex items-center gap-1">
-                    <span>🤖</span> {t('ingestion.aiPromptTitle')}
-                  </h4>
-                  <button
-                    onClick={() => handleCopyPrompt(model.id, model.aiPrompt)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-                    title={t('ingestion.aiPromptCopyTooltip')}
-                  >
-                    {copiedPrompt === model.id ? (
-                      <>
-                        <Check size={12} />
-                        {t('ingestion.aiPromptCopied')}
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} />
-                        {t('ingestion.aiPromptCopy')}
-                      </>
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-purple-800 leading-relaxed">
-                  {t('ingestion.aiPromptDescription')}
+                <h3 className="text-sm font-semibold text-yellow-900 mb-1">
+                  {t("ingestion.adminOnly")}
+                </h3>
+                <p className="text-sm text-yellow-800">
+                  {t("ingestion.adminOnlyDesc")}
                 </p>
               </div>
             </div>
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => handleImport(model.id)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Upload size={16} />
-                {t('ingestion.importData')}
-              </button>
-              <button
-                onClick={() => model.downloadTemplate('csv')}
-                className="flex items-center justify-center gap-2 w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <FileText size={16} />
-                {t('ingestion.downloadTemplate')}
-              </button>
+          {/* Bulk Import Card - Featured */}
+          <div className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-6 hover:shadow-xl transition-shadow">
+            <div className="flex items-start gap-4">
+              <div className="bg-purple-100 p-4 rounded-lg">
+                <Upload size={32} className="text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {t("ingestion.bulk")}
+                  </h3>
+                  <span className="text-xs bg-purple-600 text-white px-2 py-1 rounded-full font-semibold">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-gray-700 mb-4">{t("ingestion.bulkDesc")}</p>
+
+                {/* AI Prompt for Bulk */}
+                <div className="bg-white/80 border border-purple-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-semibold text-purple-900 uppercase flex items-center gap-1">
+                      <span>🤖</span> {t("ingestion.aiPromptTitle")}
+                    </h4>
+                    <button
+                      onClick={() =>
+                        handleCopyPrompt("bulk", t("ingestion.bulkPrompt"))
+                      }
+                      className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                    >
+                      {copiedPrompt === "bulk" ? (
+                        <>
+                          <Check size={12} />
+                          {t("ingestion.aiPromptCopied")}
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          {t("ingestion.aiPromptCopy")}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-purple-800 leading-relaxed">
+                    {t("ingestion.bulkTemplateNote")}
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleImport("bulk" as ModelType)}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    <Upload size={18} />
+                    {t("ingestion.importData")}
+                  </button>
+                  <button
+                    onClick={() => downloadBulkTemplate("csv")}
+                    className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50 transition-colors font-medium"
+                  >
+                    <FileText size={18} />
+                    {t("ingestion.downloadTemplate")}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Validation Rules Info */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="text-lg font-bold text-blue-900 mb-4">
-          {t('ingestion.validationRules')}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.countries')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.countriesDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.playerPositions')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.playerPositionsDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.genders')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.gendersDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.surfaces')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.surfacesDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.duplicates')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.duplicatesDesc')}
-            </p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-blue-900 mb-2">{t('ingestion.matches')}</h4>
-            <p className="text-blue-800">
-              {t('ingestion.matchesDesc')}
-            </p>
-          </div>
-        </div>
-      </div>
+          {/* Model Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {models.map((model) => (
+              <div
+                key={model.id}
+                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              >
+                {/* Icon and Title */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-blue-100 p-3 rounded-lg">
+                    <model.icon size={28} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {model.label}
+                    </h3>
+                    <p className="text-sm text-gray-600">{model.description}</p>
+                  </div>
+                </div>
 
+                {/* Fields */}
+                <div className="mb-4">
+                  <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase">
+                    {t("ingestion.requiredFields")}
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {model.fields.slice(0, 4).map((field) => (
+                      <span
+                        key={field}
+                        className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
+                      >
+                        {field}
+                      </span>
+                    ))}
+                    {model.fields.length > 4 && (
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        +{model.fields.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* AI Prompt */}
+                <div className="mb-4">
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold text-purple-900 uppercase flex items-center gap-1">
+                        <span>🤖</span> {t("ingestion.aiPromptTitle")}
+                      </h4>
+                      <button
+                        onClick={() =>
+                          handleCopyPrompt(model.id, model.aiPrompt)
+                        }
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                        title={t("ingestion.aiPromptCopyTooltip")}
+                      >
+                        {copiedPrompt === model.id ? (
+                          <>
+                            <Check size={12} />
+                            {t("ingestion.aiPromptCopied")}
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} />
+                            {t("ingestion.aiPromptCopy")}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-purple-800 leading-relaxed">
+                      {t("ingestion.aiPromptDescription")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => handleImport(model.id)}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Upload size={16} />
+                    {t("ingestion.importData")}
+                  </button>
+                  <button
+                    onClick={() => model.downloadTemplate("csv")}
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <FileText size={16} />
+                    {t("ingestion.downloadTemplate")}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Validation Rules Info */}
+          <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 className="text-lg font-bold text-blue-900 mb-4">
+              {t("ingestion.validationRules")}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.countries")}
+                </h4>
+                <p className="text-blue-800">{t("ingestion.countriesDesc")}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.playerPositions")}
+                </h4>
+                <p className="text-blue-800">
+                  {t("ingestion.playerPositionsDesc")}
+                </p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.genders")}
+                </h4>
+                <p className="text-blue-800">{t("ingestion.gendersDesc")}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.surfaces")}
+                </h4>
+                <p className="text-blue-800">{t("ingestion.surfacesDesc")}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.duplicates")}
+                </h4>
+                <p className="text-blue-800">{t("ingestion.duplicatesDesc")}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  {t("ingestion.matches")}
+                </h4>
+                <p className="text-blue-800">{t("ingestion.matchesDesc")}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Batches History Tab Content */}
-      {activeTab === 'batches' && (
+      {activeTab === "batches" && (
         <div>
           {/* Filters */}
           <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -599,7 +710,7 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                   <option value="teams">Teams</option>
                 </select>
               </div>
-              
+
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Status
@@ -645,7 +756,8 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
 
           {!batchesLoading && batches.length === 0 && (
             <div className="bg-white rounded-lg shadow p-8 text-center text-gray-600">
-              No batches found. Upload your first batch using the "Upload Data" tab.
+              No batches found. Upload your first batch using the "Upload Data"
+              tab.
             </div>
           )}
 
@@ -655,19 +767,19 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.batchId')}
+                      {t("ingestion.batchId")}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.status')}
+                      {t("ingestion.status")}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.conflicts')}
+                      {t("ingestion.conflicts")}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.created')}
+                      {t("ingestion.created")}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t('ingestion.actions')}
+                      {t("ingestion.actions")}
                     </th>
                   </tr>
                 </thead>
@@ -686,7 +798,10 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                           {batch.ingestion_id.slice(0, 8)}
                         </div>
                         <div className="mt-1 text-xs text-gray-500 uppercase">
-                          {t(`ingestion.${batch.target_model}` as any, batch.target_model)}
+                          {t(
+                            `ingestion.${batch.target_model}` as any,
+                            batch.target_model,
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -697,17 +812,15 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                           <span className="text-yellow-600 font-medium">
                             {batch.conflicts_open}
                           </span>
-                          {' / '}
+                          {" / "}
                           <span className="text-green-600">
                             {batch.accepted}
                           </span>
-                          {' / '}
-                          <span className="text-red-600">
-                            {batch.rejected}
-                          </span>
+                          {" / "}
+                          <span className="text-red-600">{batch.rejected}</span>
                         </div>
                         <div className="text-xs text-gray-500">
-                          {t('ingestion.conflictsBreakdown')}
+                          {t("ingestion.conflictsBreakdown")}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -718,11 +831,13 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                           <button
                             onClick={(event) => {
                               event.stopPropagation();
-                              navigate(`/admin/ingestion/${batch.ingestion_id}`);
+                              navigate(
+                                `/admin/ingestion/${batch.ingestion_id}`,
+                              );
                             }}
                             className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
                           >
-                            {t('ingestion.viewDetails')}
+                            {t("ingestion.viewDetails")}
                             <ExternalLink size={14} />
                           </button>
                           <button
@@ -730,17 +845,23 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
                               event.stopPropagation();
                               requestBatchDeletion(batch);
                             }}
-                            disabled={!canDeleteBatch(batch) || deletingId === batch.ingestion_id}
+                            disabled={
+                              !canDeleteBatch(batch) ||
+                              deletingId === batch.ingestion_id
+                            }
                             className="inline-flex items-center gap-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:hover:text-gray-400 disabled:cursor-not-allowed"
                             title={
                               canDeleteBatch(batch)
                                 ? undefined
-                                : t('ingestion.deleteBatchDisabledTooltip', 'This batch cannot be removed while pending.')
+                                : t(
+                                    "ingestion.deleteBatchDisabledTooltip",
+                                    "This batch cannot be removed while pending.",
+                                  )
                             }
                           >
                             {deletingId === batch.ingestion_id
-                              ? t('common:loading', 'Loading...')
-                              : t('ingestion.deleteBatch', 'Delete batch')}
+                              ? t("common:loading", "Loading...")
+                              : t("ingestion.deleteBatch", "Delete batch")}
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -786,7 +907,7 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
         <Suspense
           fallback={
             <div className="fixed inset-0 flex items-center justify-center bg-black/40 text-white text-sm">
-              {t('common:loading', 'Loading...')}
+              {t("common:loading", "Loading...")}
             </div>
           }
         >
@@ -799,9 +920,10 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
             }}
             onSuccess={handleImportSuccess}
             downloadTemplate={
-              selectedModel === 'bulk'
+              selectedModel === "bulk"
                 ? downloadBulkTemplate
-                : (models.find((m) => m.id === selectedModel)?.downloadTemplate || (() => {}))
+                : models.find((m) => m.id === selectedModel)
+                    ?.downloadTemplate || (() => {})
             }
           />
         </Suspense>
@@ -818,38 +940,44 @@ Manchester City,MCI,England,male,1880,Etihad Stadium,Pep Guardiola`,
 
       <ConfirmationModal
         isOpen={Boolean(pendingDeleteBatch)}
-        title={t('ingestion.deleteBatchTitle', 'Remove this batch?')}
+        title={t("ingestion.deleteBatchTitle", "Remove this batch?")}
         description={
           pendingDeleteBatch
-            ? t('ingestion.deleteBatchConfirm', {
-                name: pendingDeleteBatch.batch_name || pendingDeleteBatch.ingestion_id.slice(0, 8),
+            ? t("ingestion.deleteBatchConfirm", {
+                name:
+                  pendingDeleteBatch.batch_name ||
+                  pendingDeleteBatch.ingestion_id.slice(0, 8),
               })
             : undefined
         }
-        confirmLabel={t('ingestion.deleteBatch', 'Delete batch')}
-        cancelLabel={t('common:cancel', 'Cancel')}
-        closeLabel={t('common:close', 'Close')}
+        confirmLabel={t("ingestion.deleteBatch", "Delete batch")}
+        cancelLabel={t("common:cancel", "Cancel")}
+        closeLabel={t("common:close", "Close")}
         confirmVariant="danger"
         isConfirming={Boolean(
-          pendingDeleteBatch && deletingId === pendingDeleteBatch.ingestion_id
+          pendingDeleteBatch && deletingId === pendingDeleteBatch.ingestion_id,
         )}
         onCancel={closeDeleteDialog}
         onConfirm={handleDeleteBatch}
       />
 
       {bannerMessage && (
-        <div className="fixed bottom-6 right-6 z-50" role="status" aria-live="polite">
+        <div
+          className="fixed bottom-6 right-6 z-50"
+          role="status"
+          aria-live="polite"
+        >
           <div
             className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-sm transition-all duration-200 ${
-              bannerMessage.type === 'success'
-                ? 'bg-white/95 text-green-900 border-green-200'
-                : 'bg-white/95 text-red-900 border-red-200'
+              bannerMessage.type === "success"
+                ? "bg-white/95 text-green-900 border-green-200"
+                : "bg-white/95 text-red-900 border-red-200"
             }`}
           >
             <span className="text-sm font-medium">{bannerMessage.text}</span>
             <button
               onClick={() => setBannerMessage(null)}
-              aria-label={t('common:close', 'Close')}
+              aria-label={t("common:close", "Close")}
               className="text-current hover:opacity-70"
             >
               <X size={16} />

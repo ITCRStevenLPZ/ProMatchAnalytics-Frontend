@@ -40,6 +40,8 @@
   "waitingForServer": "Esperando confirmación del servidor…",
   "liveEvents": "Eventos en Vivo",
   "noEvents": "Aún no hay eventos",
+  "starters": "Titulares",
+  "substitutes": "Suplentes",
   "instructionSelectPlayer": "Haz clic en un jugador para comenzar a registrar un evento",
   "instructionSelectAction": "Selecciona una acción para {{player}}",
   "instructionSelectOutcome": "Selecciona el resultado para {{action}}",
@@ -111,6 +113,8 @@
   "lockReasonFulltime": "El partido está en tiempo completo. La cabina es de solo lectura.",
   "lockBanner": "Partido cerrado (Tiempo completo). Edición deshabilitada.",
   "lockNotice": "Cabina bloqueada. El partido terminó.",
+  "playerSelectLocked": "Selección de jugadores pausada",
+  "playerSelectLockedHint": "Inicia el reloj para habilitar la selección de jugadores.",
   "statusLabel": "Estado",
   "phaseLabel": "Fase",
   "clockModeLabel": "Modo de reloj",
@@ -118,9 +122,14 @@
   "runningYes": "Sí",
   "runningNo": "No",
   "matchTitle": "{{home}} vs {{away}}",
+  "vs": "VS",
   "queuedLabel": "En cola: {{count}}",
   "pendingAckLabel": "Acks pendientes: {{count}}",
   "adminOnlyTransitions": "Solo administradores: cambios de estado bloqueados.",
+  "transitionMinimumFirstHalf": "Se necesitan al menos 45:00 de tiempo efectivo para terminar el 1.er tiempo (actual {{clock}}).",
+  "transitionMinimumSecondHalf": "Se necesitan al menos 90:00 de tiempo efectivo para terminar el 2.º tiempo (actual {{clock}}).",
+  "transitionMinimumExtraFirstHalf": "Se necesitan al menos 15:00 de prórroga para terminar el 1.er tiempo extra (actual {{clock}}).",
+  "transitionMinimumExtraSecondHalf": "Se necesitan al menos 15:00 de prórroga para terminar el 2.º tiempo extra (actual {{clock}}).",
   "transitionGuardMessage": "Sigue el orden: Pending → Live_First_Half → Halftime → Live_Second_Half → Fulltime (actual: {{status}}).",
   "resetBlockedQueued": "{{count}} evento(s) en cola — límpialos antes de reiniciar.",
   "resetBlockedPending": "{{count}} evento(s) esperando confirmación del servidor.",
@@ -131,6 +140,7 @@
   "resync": "Resincronizar",
   "selectAction": "Seleccionar acción",
   "selectOutcome": "Seleccionar resultado",
+  "onPitch": "En cancha",
   "effectiveTime": "Tiempo Efectivo",
   "ballInPlay": "Balón en Juego",
   "ballOutOfPlay": "Balón Fuera",
@@ -185,6 +195,7 @@
   "pending": "Pendiente",
   "pendingEvents": "Eventos en espera de confirmación",
   "duplicate": "Duplicado",
+  "deletePending": "Eliminar evento pendiente",
   "active": "Activo",
   "recentPlayers": "Jugadores recientes",
   "combos": "Combos rápidos",
@@ -200,6 +211,10 @@
   "eventsLogged": "eventos registrados",
   "selectPeriodPrompt": "Selecciona el periodo actual del partido:",
   "matchProgress": "Progreso del Partido",
+  "progress": {
+    "1h": "1T",
+    "2h": "2T"
+  },
   "phase": {
     "notStarted": "No Iniciado",
     "firstHalf": "Primer Tiempo",
@@ -363,6 +378,12 @@
   "logger": {
     "view": "Cabina",
     "analytics": "Analítica",
+    "progress": {
+      "1h": "1T",
+      "2h": "2T",
+      "et": "ET",
+      "pen": "PEN"
+    },
     "period": {
       "firstHalfInProgress": "1.er tiempo",
       "inProgress": "En progreso",

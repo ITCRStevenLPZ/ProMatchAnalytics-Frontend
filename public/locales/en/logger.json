@@ -40,6 +40,8 @@
   "waitingForServer": "Awaiting server confirmation…",
   "liveEvents": "Live Events",
   "noEvents": "No events yet",
+  "starters": "Starters",
+  "substitutes": "Substitutes",
   "instructionSelectPlayer": "Click on a player to start logging an event",
   "instructionSelectAction": "Select an action for {{player}}",
   "instructionSelectOutcome": "Select the outcome for {{action}}",
@@ -111,6 +113,8 @@
   "lockReasonFulltime": "Match is Fulltime. Cockpit is read-only.",
   "lockBanner": "Match is closed (Fulltime). Editing is disabled.",
   "lockNotice": "Cockpit locked. Match is finished.",
+  "playerSelectLocked": "Player selection is paused",
+  "playerSelectLockedHint": "Start the clock to enable selecting players.",
   "statusLabel": "Status",
   "phaseLabel": "Phase",
   "clockModeLabel": "Clock Mode",
@@ -118,9 +122,14 @@
   "runningYes": "Yes",
   "runningNo": "No",
   "matchTitle": "{{home}} vs {{away}}",
+  "vs": "VS",
   "queuedLabel": "Queued: {{count}}",
   "pendingAckLabel": "Pending acks: {{count}}",
   "adminOnlyTransitions": "Admin only: match status changes are locked.",
+  "transitionMinimumFirstHalf": "Need at least 45:00 of effective time to end 1st half (current {{clock}}).",
+  "transitionMinimumSecondHalf": "Need at least 90:00 of effective time to end 2nd half (current {{clock}}).",
+  "transitionMinimumExtraFirstHalf": "Need at least 15:00 of extra time to end ET 1st half (current {{clock}}).",
+  "transitionMinimumExtraSecondHalf": "Need at least 15:00 of extra time to end ET 2nd half (current {{clock}}).",
   "transitionGuardMessage": "Follow order: Pending → Live_First_Half → Halftime → Live_Second_Half → Fulltime (current: {{status}}).",
   "resetBlockedQueued": "{{count}} event(s) queued — clear them before reset.",
   "resetBlockedPending": "{{count}} event(s) awaiting server confirmation.",
@@ -131,6 +140,7 @@
   "resync": "Resync",
   "selectAction": "Select Action",
   "selectOutcome": "Select Outcome",
+  "onPitch": "On Pitch",
   "effectiveTime": "Effective Time",
   "ballInPlay": "Ball In Play",
   "ballOutOfPlay": "Ball Out of Play",
@@ -185,6 +195,7 @@
   "pending": "Pending",
   "pendingEvents": "Events awaiting confirmation",
   "duplicate": "Duplicate",
+  "deletePending": "Delete pending event",
   "active": "Active",
   "recentPlayers": "Recent Players",
   "combos": "Quick Combos",
@@ -200,6 +211,10 @@
   "eventsLogged": "events logged",
   "selectPeriodPrompt": "Select the current match period:",
   "matchProgress": "Match Progress",
+  "progress": {
+    "1h": "1H",
+    "2h": "2H"
+  },
   "phase": {
     "notStarted": "Not Started",
     "firstHalf": "First Half",
@@ -363,6 +378,12 @@
   "logger": {
     "view": "Logger",
     "analytics": "Analytics",
+    "progress": {
+      "1h": "1H",
+      "2h": "2H",
+      "et": "ET",
+      "pen": "PEN"
+    },
     "period": {
       "firstHalfInProgress": "1st Half",
       "inProgress": "In Progress",

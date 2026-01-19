@@ -1,4 +1,4 @@
-import type { Referee } from '../types';
+import type { Referee } from "../types";
 
 export interface RefereeApiResponse {
   _id?: string;
@@ -9,10 +9,10 @@ export interface RefereeApiResponse {
 }
 
 const toNumberOrUndefined = (value: unknown): number | undefined => {
-  if (value === null || value === undefined || value === '') {
+  if (value === null || value === undefined || value === "") {
     return undefined;
   }
-  const parsed = typeof value === 'number' ? value : Number(value);
+  const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
@@ -20,7 +20,7 @@ export const normalizeReferee = (referee: RefereeApiResponse): Referee => ({
   _id: referee._id,
   referee_id: referee.referee_id,
   name: referee.name,
-  country_name: referee.country_name ?? '',
+  country_name: referee.country_name ?? "",
   years_of_experience: toNumberOrUndefined(referee.years_of_experience),
 });
 
@@ -34,7 +34,6 @@ const trimOrUndefined = (value?: string | null) => {
 
 export const buildRefereePayload = (data: Partial<Referee>) => {
   const payload = {
-    referee_id: trimOrUndefined(data.referee_id),
     name: trimOrUndefined(data.name),
     country_name: trimOrUndefined(data.country_name),
     years_of_experience: toNumberOrUndefined(data.years_of_experience),
