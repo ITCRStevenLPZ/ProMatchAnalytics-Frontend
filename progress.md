@@ -13,6 +13,7 @@
 
 ## What Was Completed (since last update)
 
+- [x] Fixed WebSocket base URL resolution to honor cloud API host and wss.
 - [x] Aligned pre-commit hooks with CI (lint, tsc, unit tests) before
       commit.
 - [x] Fixed TypeScript build errors (router future flag, logger period phases,
