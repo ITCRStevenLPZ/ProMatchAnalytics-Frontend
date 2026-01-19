@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MatchEvent } from "../../../store/useMatchLogStore";
 import { ACTION_FLOWS } from "../constants";
 import { ActionStep, EventType, Match, Player, Team } from "../types";
-import { normalizeMatchClock } from "../utils";
 
 interface UseActionFlowParams {
   match: Match | null;

@@ -17,9 +17,12 @@ export type PeriodPhase =
   | "FIRST_HALF"
   | "FIRST_HALF_EXTRA_TIME"
   | "HALFTIME"
+  | "EXTRA_HALFTIME"
   | "SECOND_HALF"
   | "SECOND_HALF_EXTRA_TIME"
-  | "FULLTIME";
+  | "PENALTIES"
+  | "FULLTIME"
+  | "COMPLETED";
 
 interface PeriodInfo {
   period: number;
@@ -29,6 +32,12 @@ interface PeriodInfo {
   shouldShowExtraTimeWarning: boolean;
   canTransitionToHalftime: boolean;
   canTransitionToSecondHalf: boolean;
+  canTransitionToFulltime: boolean;
+  canTransitionToExtraTimeFirst: boolean;
+  canTransitionToExtraHalftime: boolean;
+  canTransitionToExtraTimeSecond: boolean;
+  canTransitionToPenalties: boolean;
+  canFinishMatch: boolean;
 }
 
 // Map match status to phase
@@ -97,8 +106,8 @@ export const usePeriodManager = (
     if (!phaseFromStatus) return;
 
     setCurrentPhase((prev) => {
-      // If we are already in a "later" phase locally, don't regress unless explicit reset
-      // (Simplified: just trust backend for now, but handle periods carefully)
+      // If we are already in a later phase locally, don't regress unless explicit reset.
+      if (phaseRank[phaseFromStatus] < phaseRank[prev]) return prev;
       return phaseFromStatus;
     });
   }, [match?.status]);
@@ -119,7 +128,10 @@ export const usePeriodManager = (
   const getPeriodInfo = useCallback((): PeriodInfo => {
     let phase: PeriodPhase = currentPhase;
     let period = operatorPeriod;
-    let isExtraTime = false;
+    let isExtraTime =
+      currentPhase === "FIRST_HALF_EXTRA_TIME" ||
+      currentPhase === "EXTRA_HALFTIME" ||
+      currentPhase === "SECOND_HALF_EXTRA_TIME";
     let extraTimeSeconds = 0;
     let shouldShowExtraTimeWarning = false;
 

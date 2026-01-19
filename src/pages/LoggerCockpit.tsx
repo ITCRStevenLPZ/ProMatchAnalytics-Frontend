@@ -55,8 +55,6 @@ import ExtraTimeAlert from "./logger/components/ExtraTimeAlert";
 import HalftimePanel from "./logger/components/HalftimePanel";
 import SubstitutionFlow from "./logger/components/SubstitutionFlow";
 import { MatchAnalytics } from "./logger/components/MatchAnalytics";
-import PossessionBar from "./logger/components/PossessionBar";
-import QuickStats from "./logger/components/QuickStats";
 
 import { useAuthStore } from "../store/authStore";
 
@@ -168,23 +166,6 @@ export default function LoggerCockpit() {
   const lastDriftAutoSyncRef = useRef<number>(0);
   const driftExceededAtRef = useRef<number | null>(null);
 
-  const recentPlayers = useMemo(() => {
-    if (!match) return [] as Player[];
-    const allPlayers = [...match.home_team.players, ...match.away_team.players];
-    const seen = new Set<string>();
-    const ordered: Player[] = [];
-    [...liveEvents].reverse().forEach((event) => {
-      if (event.player_id && !seen.has(event.player_id)) {
-        const found = allPlayers.find((p) => p.id === event.player_id);
-        if (found) {
-          seen.add(event.player_id);
-          ordered.push(found);
-        }
-      }
-    });
-    return ordered.slice(0, 5);
-  }, [liveEvents, match]);
-
   const getInitialOnField = useCallback((players: Player[]) => {
     const starters = players.filter((p) => p.is_starter !== false);
     if (starters.length) return starters;
@@ -241,23 +222,6 @@ export default function LoggerCockpit() {
     },
     [],
   );
-
-  const hotkeyHints = useMemo(() => {
-    const entries = Object.entries(KEY_ACTION_MAP)
-      .filter(([key]) => key.length === 1)
-      .filter(([key]) => key === key.toLowerCase())
-      .map(([key, action]) => ({ key, action }));
-    const seen = new Set<string>();
-    const deduped: { key: string; action: string }[] = [];
-    for (const entry of entries) {
-      if (!seen.has(entry.action)) {
-        seen.add(entry.action);
-        deduped.push(entry);
-      }
-      if (deduped.length >= 8) break;
-    }
-    return deduped;
-  }, []);
 
   // Fetch match data
   const fetchMatch = useCallback(async () => {
@@ -1401,7 +1365,7 @@ export default function LoggerCockpit() {
                     // disabled={resetBlocked} // ALLOW FORCE RESET
                     data-testid="btn-reset-clock"
                     className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
-                      false // resetBlocked - Force enabled
+                      resetBlocked
                         ? "text-red-300 border-red-100 cursor-not-allowed"
                         : "text-red-700 border-red-300 hover:bg-red-50"
                     }`}

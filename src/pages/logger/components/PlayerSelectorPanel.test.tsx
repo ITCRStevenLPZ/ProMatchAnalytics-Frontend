@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import PlayerSelectorPanel from "./PlayerSelectorPanel";
+import { TFunction } from "i18next";
 import { Match, Player } from "../types";
 import { describe, it, expect, vi } from "vitest";
 
@@ -48,7 +49,7 @@ describe("PlayerSelectorPanel", () => {
       away: new Set<string>(),
     },
     onPlayerClick: vi.fn(),
-    t: (key: string) => key,
+    t: ((key: string) => key) as unknown as TFunction<"logger">,
   };
 
   it("should enable on-field players and disable bench players", () => {
