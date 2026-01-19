@@ -18,6 +18,31 @@ import { auth } from "../lib/firebase";
 import { trackTelemetry } from "../lib/telemetry";
 
 const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === "true";
+const resolveWsBaseUrl = () => {
+  const explicit = import.meta.env.VITE_WS_URL;
+  if (explicit) {
+    return explicit.replace(/\/+$/, "");
+  }
+
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    const sanitized = apiUrl.replace(/\/+$/, "");
+    const withoutApi = sanitized.replace(/\/api\/v1$/, "");
+    if (withoutApi.startsWith("https://")) {
+      return withoutApi.replace("https://", "wss://");
+    }
+    if (withoutApi.startsWith("http://")) {
+      return withoutApi.replace("http://", "ws://");
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}`;
+  }
+
+  return "ws://localhost:8000";
+};
 
 const generateClientId = (): string => {
   const globalCrypto = globalThis.crypto as Crypto | undefined;
@@ -462,9 +487,8 @@ export const useMatchSocket = ({
       }
 
       // WebSocket URL: ws://localhost:8000/ws/{match_id}?token={token}
-      const wsUrl = `${
-        import.meta.env.VITE_WS_URL || "ws://localhost:8000"
-      }/ws/${matchId}?token=${token}`;
+      const wsBase = resolveWsBaseUrl();
+      const wsUrl = `${wsBase}/ws/${matchId}?token=${token}`;
 
       console.log("Connecting to WebSocket:", wsUrl);
       const ws = new WebSocket(wsUrl);
