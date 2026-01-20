@@ -11,6 +11,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import {
   MatchEvent,
@@ -29,6 +30,7 @@ interface LiveEventFeedProps {
 const EVENT_TYPE_ICONS: Record<string, React.ReactNode> = {
   Pass: <ArrowRight size={14} className="text-blue-500" />,
   Shot: <AlertCircle size={14} className="text-red-500" />,
+  Goal: <Trophy size={14} className="text-amber-400" />,
   FoulCommitted: <XCircle size={14} className="text-yellow-600" />,
   Card: <AlertCircle size={14} className="text-red-600" />,
   GoalkeeperAction: <User size={14} className="text-purple-500" />,
@@ -90,6 +92,13 @@ const formatEventDetails = (event: MatchEvent): string => {
   }
 
   return details.join(" • ");
+};
+
+const getDisplayType = (event: MatchEvent): string => {
+  if (event.type === "Shot" && event.data?.outcome === "Goal") {
+    return "Goal";
+  }
+  return event.type;
 };
 
 export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
@@ -191,6 +200,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
             const eventDetails = formatEventDetails(event);
             const playerName = getPlayerName(event.player_id, match);
             const teamName = getTeamName(event.team_id, match);
+            const displayType = getDisplayType(event);
 
             return (
               <div
@@ -205,12 +215,17 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                 {/* Header Row */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {EVENT_TYPE_ICONS[event.type] || (
+                    {EVENT_TYPE_ICONS[displayType] || (
                       <AlertCircle size={14} className="text-slate-500" />
                     )}
                     <span className="font-semibold text-sm text-slate-200 truncate">
-                      {event.type}
+                      {displayType}
                     </span>
+                    {displayType === "Goal" && (
+                      <span className="text-[10px] uppercase tracking-wider bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40">
+                        {t("goalIndicator", "Goal")}
+                      </span>
+                    )}
                     {teamName && (
                       <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-medium border border-slate-700">
                         {teamName}

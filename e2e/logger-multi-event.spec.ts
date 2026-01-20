@@ -89,7 +89,7 @@ test.describe("Logger multi-event timeline", () => {
     await expect(liveEvents.nth(1)).toContainText("Pass");
 
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible();
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
     await expectLiveEventCount(page, 2);
     await expect(getLiveEvents(page).filter({ hasText: "Shot" })).toHaveCount(
       1,

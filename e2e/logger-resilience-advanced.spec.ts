@@ -141,7 +141,7 @@ test.describe("Logger resilience advanced", () => {
       .toBeGreaterThanOrEqual(3);
 
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible();
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
     await expect
       .poll(async () => await page.getByTestId("live-event-item").count(), {
         timeout: 15000,

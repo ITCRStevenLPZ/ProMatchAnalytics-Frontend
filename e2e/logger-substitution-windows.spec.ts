@@ -58,7 +58,8 @@ const openSubstitutionFlow = async (page: Page) => {
   await promoteToAdmin(page);
   await resetHarnessFlow(page);
 
-  await page.getByTestId("player-card-HOME-1").click();
+  await page.getByTestId("field-player-HOME-1").click();
+  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Substitution").click();
 
   const subModal = page.getByTestId("substitution-modal");

@@ -19,7 +19,7 @@ test.describe("Logger Keyboard Shortcuts", () => {
     await page.keyboard.press("Enter");
 
     // Verify player selected (Player 10 is usually a Forward or Midfielder in our seed)
-    // We can check if the "Select Action" step is active by looking for action buttons
+    // Check that action selection is active by looking for action buttons
     await expect(page.getByTestId("action-btn-Pass")).toBeVisible();
 
     // 2. Select Action via Hotkey (Pass = 'P')
@@ -73,12 +73,12 @@ test.describe("Logger Keyboard Shortcuts", () => {
     await gotoLoggerPage(page, MATCH_ID);
 
     // Select a player via click to ensure flow progression
-    const playerCard = page.getByTestId("player-card-HOME-1");
-    await expect(playerCard).toBeVisible({ timeout: 5000 });
-    await playerCard.click();
+    const fieldPlayer = page.getByTestId("field-player-HOME-1");
+    await expect(fieldPlayer).toBeVisible({ timeout: 5000 });
+    await fieldPlayer.click();
 
-    // Wait for action buttons to appear to confirm flow advanced
-    await expect(page.getByTestId("action-btn-Pass")).toBeVisible({
+    // Wait for quick action menu to appear
+    await expect(page.getByTestId("quick-action-menu")).toBeVisible({
       timeout: 5000,
     });
 
@@ -87,6 +87,6 @@ test.describe("Logger Keyboard Shortcuts", () => {
 
     // Verify reset
     await expect(page.getByTestId("player-grid")).toBeVisible();
-    await expect(page.getByTestId("action-btn-Pass")).not.toBeVisible();
+    await expect(page.getByTestId("quick-action-menu")).not.toBeVisible();
   });
 });

@@ -82,9 +82,10 @@ test.describe("Comprehensive Match Logger", () => {
     // Log a Set Piece (Corner) at 00:03.000
     console.log("Logging Corner...");
     await page.getByPlaceholder("00:00.000").fill("00:03.000");
-    await page
-      .getByTestId(`player-card-${firstPlayerId}`)
-      .click({ force: true });
+    await page.getByTestId(`field-player-${firstPlayerId}`).click({
+      force: true,
+    });
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Corner").click({ force: true });
     console.log("Clicked Corner, waiting for Complete...");
     await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
@@ -111,7 +112,8 @@ test.describe("Comprehensive Match Logger", () => {
 
     // 2. Test New Event Types
     // Select a player
-    await page.getByTestId(`player-card-${firstPlayerId}`).click();
+    await page.getByTestId(`field-player-${firstPlayerId}`).click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
 
     // Check if new actions are available
     await expect(page.getByTestId("action-btn-Interception")).toBeVisible();
@@ -126,7 +128,8 @@ test.describe("Comprehensive Match Logger", () => {
 
     // Log a Clearance at 00:02.000
     await page.getByPlaceholder("00:00.000").fill("00:02.000");
-    await page.getByTestId(`player-card-${firstPlayerId}`).click();
+    await page.getByTestId(`field-player-${firstPlayerId}`).click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Clearance").click();
     await page.getByTestId("outcome-btn-Success").click();
     await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
@@ -140,9 +143,10 @@ test.describe("Comprehensive Match Logger", () => {
 
     // Log a Set Piece (Corner) at 00:03.000
     await page.getByPlaceholder("00:00.000").fill("00:03.000");
-    await page
-      .getByTestId(`player-card-${firstPlayerId}`)
-      .click({ force: true });
+    await page.getByTestId(`field-player-${firstPlayerId}`).click({
+      force: true,
+    });
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Corner").click({ force: true });
     await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
     await page.getByTestId("outcome-btn-Complete").click({ force: true });

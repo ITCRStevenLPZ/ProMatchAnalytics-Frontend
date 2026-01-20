@@ -20,6 +20,14 @@ const InstructionBanner = ({
       <AlertCircle className="text-blue-400 mt-0.5" size={20} />
       <div className="text-sm text-blue-200">
         {currentStep === "selectPlayer" && t("instructionSelectPlayer")}
+        {currentStep === "selectQuickAction" &&
+          t("instructionSelectQuickAction", {
+            player: selectedPlayer?.full_name,
+          })}
+        {currentStep === "selectDestination" &&
+          t("instructionSelectDestination", {
+            action: selectedAction,
+          })}
         {currentStep === "selectAction" &&
           t("instructionSelectAction", { player: selectedPlayer?.full_name })}
         {currentStep === "selectOutcome" &&

@@ -70,9 +70,23 @@ export type EventType =
 
 export type ActionStep =
   | "selectPlayer"
+  | "selectQuickAction"
+  | "selectDestination"
   | "selectAction"
   | "selectOutcome"
   | "selectRecipient";
+
+export interface FieldCoordinate {
+  xPercent: number;
+  yPercent: number;
+  statsbomb: [number, number];
+  isOutOfBounds: boolean;
+}
+
+export interface FieldAnchor {
+  xPercent: number;
+  yPercent: number;
+}
 
 export interface ActionConfig {
   actions: string[];

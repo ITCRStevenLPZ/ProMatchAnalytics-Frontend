@@ -44,14 +44,14 @@ export const gotoLoggerPage = async (
 ): Promise<void> => {
   await page.goto(`/matches/${matchId}/logger`);
   try {
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 15000,
     });
     return;
   } catch (err) {
     await page.reload();
     await page.waitForTimeout(1000);
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 15000,
     });
   }
@@ -92,9 +92,11 @@ export const submitStandardPass = async (
   page: Page,
   team: "home" | "away" = "home",
 ): Promise<void> => {
-  const playerCard = page.getByTestId(`player-card-${playerIdForTeam(team)}`);
-  await expect(playerCard).toBeVisible({ timeout: 30000 });
-  if (await playerCard.isDisabled()) {
+  const playerMarker = page.getByTestId(
+    `field-player-${playerIdForTeam(team)}`,
+  );
+  await expect(playerMarker).toBeVisible({ timeout: 30000 });
+  if (await playerMarker.isDisabled()) {
     const startBtn = page.getByTestId("btn-start-clock");
     if (await startBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       const disabled = await startBtn.isDisabled().catch(() => false);
@@ -104,7 +106,8 @@ export const submitStandardPass = async (
       }
     }
   }
-  await playerCard.click({ force: true });
+  await playerMarker.click({ force: true });
+  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Pass").click();
   const outcomeBtn = page.getByTestId("outcome-btn-Complete");
   await expect(outcomeBtn).toBeVisible({ timeout: 10000 });
@@ -127,7 +130,8 @@ export const submitStandardShot = async (
   team: "home" | "away" = "home",
   outcome: "Goal" | "OnTarget" | "OffTarget" | "Blocked" = "OnTarget",
 ): Promise<void> => {
-  await page.getByTestId(`player-card-${playerIdForTeam(team)}`).click();
+  await page.getByTestId(`field-player-${playerIdForTeam(team)}`).click();
+  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Shot").click();
   await page.getByTestId(`outcome-btn-${outcome}`).click();
 };

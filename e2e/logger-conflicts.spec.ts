@@ -89,7 +89,7 @@ test.describe("Logger conflicts and deduplication", () => {
     });
     await waitForPendingAckToClear(page);
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 15000,
     });
     await expectLiveEventCount(page, 1);
@@ -127,7 +127,7 @@ test.describe("Logger conflicts and deduplication", () => {
 
     // Reload to ensure state stays deduped and banner does not reappear
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible();
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
     await expectLiveEventCount(page, 1);
     await expect(page.getByTestId("duplicate-banner")).toBeHidden({
       timeout: 5000,

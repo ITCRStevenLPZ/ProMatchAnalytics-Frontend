@@ -217,14 +217,11 @@ test.describe("Logger mega simulation", () => {
     await ensureAdminRole(page);
     await resetHarnessFlow(page);
 
-    // Unlock logging: start clock and force list view to ensure cards are interactable.
+    // Unlock logging: start clock and ensure field is interactive.
     await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
     await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
       timeout: 15000,
     });
-    await page
-      .getByRole("button", { name: /List View/i })
-      .click({ timeout: 10000 });
 
     const selectTeamSide = async (side: "home" | "away" | "both") => {
       if (side === "both") {
@@ -248,21 +245,31 @@ test.describe("Logger mega simulation", () => {
     const firstAway = awayRoster[0]?.player_id;
     expect(firstHome && firstAway).toBeTruthy();
 
-    const clickPlayerCard = async (playerId: string) => {
-      const card = page.getByTestId(`player-card-${playerId}`);
-      await expect(card).toBeVisible({ timeout: 20000 });
-      await card.scrollIntoViewIfNeeded();
-      await card.click({ timeout: 20000, force: true });
+    const clickFieldPlayer = async (playerId: string) => {
+      const marker = page.getByTestId(`field-player-${playerId}`);
+      await expect(marker).toBeVisible({ timeout: 20000 });
+      await marker.click({ timeout: 20000, force: true });
+      await expect(page.getByTestId("quick-action-menu")).toBeVisible({
+        timeout: 10000,
+      });
     };
 
-    await expect(page.getByTestId(`player-card-${firstHome}`)).toBeVisible({
+    const openMoreActions = async () => {
+      await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+      await expect(page.getByTestId("action-selection")).toBeVisible({
+        timeout: 10000,
+      });
+    };
+
+    await expect(page.getByTestId(`field-player-${firstHome}`)).toBeVisible({
       timeout: 20000,
     });
 
     // UI coverage for critical flows (pass, shot, corner, foul/card, substitution).
     const logUiPass = async (playerId: string) => {
       await selectTeamSide("home");
-      await clickPlayerCard(playerId);
+      await clickFieldPlayer(playerId);
+      await openMoreActions();
       await page.getByTestId("action-btn-Pass").click();
       const outcome = page.getByTestId("outcome-btn-Complete");
       await expect(outcome).toBeVisible({ timeout: 5000 });
@@ -272,7 +279,8 @@ test.describe("Logger mega simulation", () => {
 
     const logUiShotGoal = async (playerId: string) => {
       await selectTeamSide("away");
-      await clickPlayerCard(playerId);
+      await clickFieldPlayer(playerId);
+      await openMoreActions();
       await page.getByTestId("action-btn-Shot").click();
       await page.getByTestId("outcome-btn-Goal").click();
       await waitForPendingAckToClear(page);
@@ -281,7 +289,8 @@ test.describe("Logger mega simulation", () => {
     const logUiCorner = async (playerId: string) => {
       await selectTeamSide("home");
       await page.getByPlaceholder("00:00.000").fill("00:10.000");
-      await clickPlayerCard(playerId);
+      await clickFieldPlayer(playerId);
+      await openMoreActions();
       await page.getByTestId("action-btn-Corner").click({ force: true });
       await page.getByTestId("outcome-btn-Complete").click({ force: true });
       await waitForPendingAckToClear(page);
@@ -289,7 +298,8 @@ test.describe("Logger mega simulation", () => {
 
     const logUiFoulYellow = async (playerId: string) => {
       await selectTeamSide("away");
-      await clickPlayerCard(playerId);
+      await clickFieldPlayer(playerId);
+      await openMoreActions();
       await page.getByTestId("action-btn-Foul").click({ force: true });
       await page.getByTestId("outcome-btn-Standard").click({ force: true });
       await waitForPendingAckToClear(page);
@@ -307,7 +317,8 @@ test.describe("Logger mega simulation", () => {
     // Substitution via UI modal (single coverage).
     const logUiSubstitution = async () => {
       await selectTeamSide("home");
-      await clickPlayerCard(firstHome);
+      await clickFieldPlayer(firstHome);
+      await openMoreActions();
       await page.getByTestId("action-btn-Substitution").click();
       const subModal = page.getByTestId("substitution-modal");
       await expect(subModal).toBeVisible({ timeout: 15000 });

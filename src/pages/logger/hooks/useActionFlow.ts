@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MatchEvent } from "../../../store/useMatchLogStore";
 import { ACTION_FLOWS } from "../constants";
-import { ActionStep, EventType, Match, Player, Team } from "../types";
+import {
+  ActionStep,
+  EventType,
+  FieldAnchor,
+  FieldCoordinate,
+  Match,
+  Player,
+  Team,
+} from "../types";
 
 interface UseActionFlowParams {
   match: Match | null;
@@ -14,7 +22,7 @@ interface UseActionFlowParams {
 
 const resolveEventType = (action: string): EventType => {
   if (action === "Pass") return "Pass";
-  if (action === "Shot") return "Shot";
+  if (action === "Shot" || action === "Goal") return "Shot";
   if (action === "Duel") return "Duel";
   if (action === "Foul") return "FoulCommitted";
   if (action === "Card") return "Card";
@@ -56,6 +64,9 @@ const buildEventPayload = (
   selectedPlayer: Player,
   globalClock: string,
   operatorPeriod: number,
+  location?: [number, number],
+  endLocation?: [number, number],
+  extraData?: Record<string, any>,
 ): Omit<MatchEvent, "match_id" | "timestamp"> => {
   const eventType = resolveEventType(action);
   // Always use the live global clock for event timestamps to avoid stale operator-clock values.
@@ -70,6 +81,10 @@ const buildEventPayload = (
     data: {},
   };
 
+  if (location) {
+    eventData.location = location;
+  }
+
   switch (eventType) {
     case "Pass":
       eventData.data = {
@@ -77,72 +92,88 @@ const buildEventPayload = (
         outcome: outcome || "Complete",
         receiver_id: recipient?.id,
         receiver_name: recipient?.full_name,
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Shot":
       eventData.data = {
         shot_type: "Standard",
         outcome: outcome || "OnTarget",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Duel":
       eventData.data = {
         duel_type: "Ground",
         outcome: outcome || "Won",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "FoulCommitted":
       eventData.data = {
         foul_type: "Standard",
         outcome: outcome || "Standard",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Card":
       eventData.data = {
         card_type: outcome || "Yellow",
         reason: "Foul",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Interception":
       eventData.data = {
         outcome: outcome || "Success",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Clearance":
       eventData.data = {
         outcome: outcome || "Success",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Block":
       eventData.data = {
         block_type: "Shot",
         outcome: outcome || "Success",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Recovery":
       eventData.data = {
         recovery_type: outcome || "Loose Ball",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "Offside":
       eventData.data = {
         pass_player_id: null,
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "SetPiece":
       eventData.data = {
         set_piece_type: action,
         outcome: outcome || "Complete",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     case "GoalkeeperAction":
       eventData.data = {
         action_type: action,
         outcome: outcome || "Success",
+        ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
     default:
       break;
+  }
+
+  if (extraData) {
+    eventData.data = { ...eventData.data, ...extraData };
   }
 
   return eventData;
@@ -160,6 +191,10 @@ export const useActionFlow = ({
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [pendingOutcome, setPendingOutcome] = useState<string | null>(null);
+  const [fieldAnchor, setFieldAnchor] = useState<FieldAnchor | null>(null);
+  const [selectedPlayerLocation, setSelectedPlayerLocation] = useState<
+    [number, number] | null
+  >(null);
   const currentStepRef = useRef<ActionStep>("selectPlayer");
 
   const currentTeam = useMemo<Team | undefined>(() => {
@@ -180,6 +215,18 @@ export const useActionFlow = ({
     return undefined;
   }, [match, selectedPlayer, selectedTeam]);
 
+  const resolvePlayerSide = useCallback(
+    (player?: Player | null): "home" | "away" | null => {
+      if (!match || !player) return null;
+      if (match.home_team.players.some((p) => p.id === player.id))
+        return "home";
+      if (match.away_team.players.some((p) => p.id === player.id))
+        return "away";
+      return null;
+    },
+    [match],
+  );
+
   const availableActions = useMemo(() => {
     if (!selectedPlayer) return [];
     return Object.values(ACTION_FLOWS).flatMap((config) => config.actions);
@@ -195,10 +242,21 @@ export const useActionFlow = ({
     setSelectedPlayer(null);
     setSelectedAction(null);
     setPendingOutcome(null);
+    setFieldAnchor(null);
+    setSelectedPlayerLocation(null);
   }, []);
 
   const dispatchEvent = useCallback(
-    (action: string, outcome: string | null, recipient: Player | null) => {
+    (
+      action: string,
+      outcome: string | null,
+      recipient: Player | null,
+      opts?: {
+        location?: [number, number];
+        endLocation?: [number, number];
+        extraData?: Record<string, any>;
+      },
+    ) => {
       if (!match || !currentTeam || !selectedPlayer) return false;
       if (isSubmitting) return false;
       const payload = buildEventPayload(
@@ -209,6 +267,9 @@ export const useActionFlow = ({
         selectedPlayer,
         globalClock,
         operatorPeriod,
+        opts?.location,
+        opts?.endLocation,
+        opts?.extraData,
       );
       sendEvent(payload);
       return true;
@@ -224,8 +285,23 @@ export const useActionFlow = ({
     ],
   );
 
-  const handlePlayerClick = useCallback((player: Player) => {
-    setSelectedPlayer(player);
+  const handlePlayerClick = useCallback(
+    (player: Player, anchor?: FieldAnchor, location?: [number, number]) => {
+      setSelectedPlayer(player);
+      setSelectedPlayerLocation(location ?? null);
+      setFieldAnchor(anchor ?? null);
+      setCurrentStep(anchor ? "selectQuickAction" : "selectAction");
+    },
+    [],
+  );
+
+  const handleQuickActionSelect = useCallback((action: string) => {
+    setSelectedAction(action);
+    setPendingOutcome(null);
+    setCurrentStep("selectDestination");
+  }, []);
+
+  const handleOpenMoreActions = useCallback(() => {
     setCurrentStep("selectAction");
   }, []);
 
@@ -234,6 +310,101 @@ export const useActionFlow = ({
     setPendingOutcome(null);
     setCurrentStep("selectOutcome");
   }, []);
+
+  const handleDestinationClick = useCallback(
+    (payload: {
+      destination: FieldCoordinate;
+      targetPlayer?: Player | null;
+    }) => {
+      if (!selectedAction || !selectedPlayer || !currentTeam) {
+        return { sent: false, outOfBounds: false, isGoal: false };
+      }
+
+      const destination = payload.destination;
+      const targetPlayer = payload.targetPlayer ?? null;
+      const selectedPlayerSide = resolvePlayerSide(selectedPlayer);
+      const targetPlayerSide = resolvePlayerSide(targetPlayer);
+      const isSameTeam =
+        selectedPlayerSide && targetPlayerSide
+          ? selectedPlayerSide === targetPlayerSide
+          : false;
+      const isOpponent =
+        selectedPlayerSide && targetPlayerSide
+          ? selectedPlayerSide !== targetPlayerSide
+          : false;
+
+      let outcome: string | null = null;
+      const extraData: Record<string, any> = {
+        destination_type: destination.isOutOfBounds
+          ? "out_of_bounds"
+          : targetPlayer
+            ? isSameTeam
+              ? "teammate"
+              : "opponent"
+            : "empty",
+        out_of_bounds: destination.isOutOfBounds,
+      };
+
+      if (targetPlayer) {
+        extraData.target_player_id = targetPlayer.id;
+        extraData.target_player_name = targetPlayer.full_name;
+      }
+
+      if (selectedAction === "Pass") {
+        if (destination.isOutOfBounds) {
+          outcome = "Out";
+        } else if (isSameTeam) {
+          outcome = "Complete";
+        } else {
+          outcome = "Incomplete";
+          if (isOpponent && targetPlayer) {
+            extraData.intercepted_by_id = targetPlayer.id;
+            extraData.intercepted_by_name = targetPlayer.full_name;
+          }
+        }
+      } else if (selectedAction === "Shot" || selectedAction === "Goal") {
+        if (destination.isOutOfBounds) {
+          outcome = "OffTarget";
+        } else if (isOpponent && targetPlayer?.position === "GK") {
+          outcome = "Saved";
+        } else if (isOpponent) {
+          outcome = "Blocked";
+        } else {
+          outcome = selectedAction === "Goal" ? "Goal" : "OffTarget";
+        }
+      } else if (selectedAction === "Foul") {
+        outcome = "Standard";
+      } else if (selectedAction === "Duel") {
+        outcome = isOpponent ? "Lost" : "Won";
+      } else if (selectedAction === "Card") {
+        outcome = "Yellow";
+      }
+
+      const recipient = isSameTeam ? targetPlayer : null;
+      const sent = dispatchEvent(selectedAction, outcome, recipient, {
+        location: selectedPlayerLocation ?? undefined,
+        endLocation: destination.statsbomb,
+        extraData,
+      });
+
+      const isGoal = outcome === "Goal";
+
+      if (sent) {
+        resetFlow();
+      }
+
+      return { sent, outOfBounds: destination.isOutOfBounds, isGoal };
+    },
+    [
+      currentTeam,
+      dispatchEvent,
+      resetFlow,
+      resolvePlayerSide,
+      selectedAction,
+      selectedPlayer,
+      selectedPlayerLocation,
+    ],
+  );
 
   const handleOutcomeClick = useCallback(
     (outcome: string) => {
@@ -284,9 +455,13 @@ export const useActionFlow = ({
     currentTeam,
     selectedPlayer,
     selectedAction,
+    fieldAnchor,
     availableActions,
     availableOutcomes,
     handlePlayerClick,
+    handleQuickActionSelect,
+    handleOpenMoreActions,
+    handleDestinationClick,
     handleActionClick,
     handleOutcomeClick,
     handleRecipientClick,

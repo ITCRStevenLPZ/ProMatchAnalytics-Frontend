@@ -269,9 +269,6 @@ test.describe("Logger action matrix", () => {
       .getByRole("button", { name: /Cabina|Cabin|Logger/i })
       .click({ timeout: 8000 });
     await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
-    await page
-      .getByRole("button", { name: /List View/i })
-      .click({ timeout: 10000 });
     await selectTeamSide(page, "both");
     await expect(getHarnessMatchContext(page)).resolves.not.toBeNull();
     await expect(
@@ -290,11 +287,20 @@ test.describe("Logger action matrix", () => {
       expectedCounts[type] = (expectedCounts[type] ?? 0) + 1;
     };
 
-    const clickPlayerCard = async (playerId: string) => {
-      const card = page.getByTestId(`player-card-${playerId}`);
-      await expect(card).toBeVisible({ timeout: 15000 });
-      await card.scrollIntoViewIfNeeded();
-      await card.click({ timeout: 15000, force: true });
+    const clickFieldPlayer = async (playerId: string) => {
+      const marker = page.getByTestId(`field-player-${playerId}`);
+      await expect(marker).toBeVisible({ timeout: 15000 });
+      await marker.click({ timeout: 15000, force: true });
+      await expect(page.getByTestId("quick-action-menu")).toBeVisible({
+        timeout: 10000,
+      });
+    };
+
+    const openMoreActions = async () => {
+      await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+      await expect(page.getByTestId("action-selection")).toBeVisible({
+        timeout: 10000,
+      });
     };
 
     const pickRecipientIfNeeded = async () => {
@@ -314,10 +320,8 @@ test.describe("Logger action matrix", () => {
       recipientId?: string;
     }) => {
       await selectTeamSide(page, opts.team);
-      await clickPlayerCard(opts.playerId);
-      await expect(page.getByTestId("action-selection")).toBeVisible({
-        timeout: 10000,
-      });
+      await clickFieldPlayer(opts.playerId);
+      await openMoreActions();
       await page
         .getByTestId(`action-btn-${opts.action}`)
         .click({ timeout: 8000 });
@@ -434,10 +438,8 @@ test.describe("Logger action matrix", () => {
 
         if (action === "Substitution") {
           await selectTeamSide(page, "home");
-          await clickPlayerCard(homeRoster[0].player_id);
-          await expect(page.getByTestId("action-selection")).toBeVisible({
-            timeout: 10000,
-          });
+          await clickFieldPlayer(homeRoster[0].player_id);
+          await openMoreActions();
           await page
             .getByTestId("action-btn-Substitution")
             .click({ timeout: 8000 });
@@ -460,10 +462,8 @@ test.describe("Logger action matrix", () => {
           increment("Substitution");
 
           // Negative guard: the subbed-off player should not be available to sub off again immediately.
-          await clickPlayerCard(homeRoster[1].player_id);
-          await expect(page.getByTestId("action-selection")).toBeVisible({
-            timeout: 10000,
-          });
+          await clickFieldPlayer(homeRoster[1].player_id);
+          await openMoreActions();
           await page.getByTestId("action-btn-Substitution").click();
           const subModal2 = page.getByTestId("substitution-modal");
           await expect(subModal2).toBeVisible({ timeout: 10000 });
@@ -578,7 +578,8 @@ test.describe("Logger action matrix", () => {
           }),
         Substitution: async () => {
           await selectTeamSide(page, "home");
-          await clickPlayerCard(homeRoster[0].player_id);
+          await clickFieldPlayer(homeRoster[0].player_id);
+          await openMoreActions();
           await page
             .getByTestId("action-btn-Substitution")
             .click({ timeout: 8000 });

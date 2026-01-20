@@ -78,10 +78,12 @@ const unlockClockControls = async (page: Page) => {
   });
 };
 
-const selectHomePlayer = (page: Page) => page.getByTestId("player-card-HOME-1");
+const selectHomePlayer = (page: Page) =>
+  page.getByTestId("field-player-HOME-1");
 
 const logShotGoal = async (page: Page) => {
   await selectHomePlayer(page).click();
+  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Shot").click();
   await page.getByTestId("outcome-btn-Goal").click();
   await waitForPendingAckToClear(page);
@@ -259,7 +261,7 @@ test.describe("Logger event taxonomy", () => {
     await page.reload();
     await promoteToAdmin(page);
     await unlockClockControls(page);
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 30000,
     });
   });
@@ -365,7 +367,7 @@ test.describe("Logger event taxonomy", () => {
     );
 
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 15000,
     });
   });
@@ -485,7 +487,7 @@ test.describe("Logger event taxonomy", () => {
     await page.reload();
     await promoteToAdmin(page);
     await unlockClockControls(page);
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 15000,
     });
     const expectedMinimum = 1;
@@ -612,7 +614,7 @@ test.describe("Logger event taxonomy", () => {
     await page.reload();
     await promoteToAdmin(page);
     await unlockClockControls(page);
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible({
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
       timeout: 20000,
     });
     await expectLiveEventCount(page, 5);
@@ -846,6 +848,6 @@ test.describe("Logger event taxonomy", () => {
     );
 
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible();
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
   });
 });
