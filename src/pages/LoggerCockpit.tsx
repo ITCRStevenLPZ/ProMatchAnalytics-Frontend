@@ -27,7 +27,11 @@ import {
   LoggerHarness,
   QueuedEventSummary,
 } from "./logger/types";
-import { DEFAULT_PERIOD_MAP, KEY_ACTION_MAP } from "./logger/constants";
+import {
+  DEFAULT_PERIOD_MAP,
+  KEY_ACTION_MAP,
+  QUICK_ACTIONS,
+} from "./logger/constants";
 import {
   normalizeMatchPayload,
   formatMatchClock,
@@ -40,6 +44,7 @@ import PlayerSelectorPanel from "./logger/components/PlayerSelectorPanel";
 import ActionSelectionPanel from "./logger/components/ActionSelectionPanel";
 import OutcomeSelectionPanel from "./logger/components/OutcomeSelectionPanel";
 import RecipientSelectionPanel from "./logger/components/RecipientSelectionPanel";
+import QuickActionMenu from "./logger/components/QuickActionMenu";
 import { useMatchTimer } from "./logger/hooks/useMatchTimer";
 import MatchTimerDisplay from "./logger/components/MatchTimerDisplay";
 import LiveEventFeed from "./logger/components/LiveEventFeed";
@@ -165,6 +170,7 @@ export default function LoggerCockpit() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const lastDriftAutoSyncRef = useRef<number>(0);
   const driftExceededAtRef = useRef<number | null>(null);
+  const lastGoalClientIdRef = useRef<string | null>(null);
 
   const getInitialOnField = useCallback((players: Player[]) => {
     const starters = players.filter((p) => p.is_starter !== false);
@@ -454,9 +460,13 @@ export default function LoggerCockpit() {
     currentTeam,
     selectedPlayer,
     selectedAction,
+    fieldAnchor,
     availableActions,
     availableOutcomes,
     handlePlayerClick,
+    handleQuickActionSelect,
+    handleOpenMoreActions,
+    handleDestinationClick,
     handleActionClick,
     handleOutcomeClick,
     handleRecipientClick,
@@ -671,6 +681,72 @@ export default function LoggerCockpit() {
     ],
   );
 
+  const handleFieldPlayerSelection = useCallback(
+    (
+      player: Player,
+      anchor: { xPercent: number; yPercent: number },
+      location: [number, number],
+      side: "home" | "away",
+    ) => {
+      if (cockpitLocked) return;
+
+      if (currentStep === "selectDestination") {
+        const result = handleDestinationClick({
+          destination: {
+            xPercent: anchor.xPercent,
+            yPercent: anchor.yPercent,
+            statsbomb: location,
+            isOutOfBounds: false,
+          },
+          targetPlayer: player,
+        });
+        if (result?.outOfBounds || result?.isGoal) {
+          handleModeSwitch("INEFFECTIVE");
+          setIsBallInPlay(false);
+        }
+        return;
+      }
+
+      if (side !== selectedTeam) {
+        setSelectedTeam(side);
+      }
+      handlePlayerClick(player, anchor, location);
+    },
+    [
+      cockpitLocked,
+      currentStep,
+      handleDestinationClick,
+      handleModeSwitch,
+      handlePlayerClick,
+      selectedTeam,
+      setIsBallInPlay,
+      setSelectedTeam,
+    ],
+  );
+
+  const handleFieldDestination = useCallback(
+    (destination: {
+      xPercent: number;
+      yPercent: number;
+      statsbomb: [number, number];
+      isOutOfBounds: boolean;
+    }) => {
+      if (cockpitLocked || currentStep !== "selectDestination") return;
+      const result = handleDestinationClick({ destination });
+      if (result?.outOfBounds || result?.isGoal) {
+        handleModeSwitch("INEFFECTIVE");
+        setIsBallInPlay(false);
+      }
+    },
+    [
+      cockpitLocked,
+      currentStep,
+      handleDestinationClick,
+      handleModeSwitch,
+      setIsBallInPlay,
+    ],
+  );
+
   const handleTeamChange = useCallback(
     (team: "home" | "away" | "both") => {
       if (cockpitLocked) return;
@@ -795,6 +871,14 @@ export default function LoggerCockpit() {
         return;
       }
 
+      if (mappedAction && currentStep === "selectQuickAction") {
+        if (QUICK_ACTIONS.includes(mappedAction as any)) {
+          handleQuickActionSelect(mappedAction);
+        } else {
+          handleActionClick(mappedAction);
+        }
+      }
+
       if (mappedAction && currentStep === "selectAction") {
         handleActionClick(mappedAction);
       }
@@ -895,6 +979,41 @@ export default function LoggerCockpit() {
     match.away_team.players = ensurePlayers(match.away_team, "AWAY");
   }, [match]);
 
+  const goalEvents = useMemo(() => {
+    if (!match) return { home: [] as MatchEvent[], away: [] as MatchEvent[] };
+    const homeIds = new Set(match.home_team.players.map((p) => p.id));
+    const awayIds = new Set(match.away_team.players.map((p) => p.id));
+    const goals = liveEvents.filter(
+      (event) => event.type === "Shot" && event.data?.outcome === "Goal",
+    );
+    return {
+      home: goals.filter((event) => homeIds.has(event.player_id ?? "")),
+      away: goals.filter((event) => awayIds.has(event.player_id ?? "")),
+    };
+  }, [liveEvents, match]);
+
+  const liveScore = useMemo(() => {
+    if (!match) return { home: 0, away: 0 };
+    return {
+      home: goalEvents.home.length,
+      away: goalEvents.away.length,
+    };
+  }, [goalEvents, match]);
+
+  const formatGoalLabel = useCallback(
+    (event: MatchEvent) => {
+      if (!match) return `${event.match_clock}`;
+      const player =
+        match.home_team.players.find((p) => p.id === event.player_id) ||
+        match.away_team.players.find((p) => p.id === event.player_id);
+      const playerLabel = player
+        ? `#${player.jersey_number} ${player.full_name}`
+        : event.player_id ?? "";
+      return `${event.match_clock} · ${playerLabel}`;
+    },
+    [match],
+  );
+
   useEffect(() => {
     if (!duplicateHighlight) return;
     const timer = setTimeout(() => {
@@ -902,6 +1021,19 @@ export default function LoggerCockpit() {
     }, 5000);
     return () => clearTimeout(timer);
   }, [duplicateHighlight, clearDuplicateHighlight]);
+
+  useEffect(() => {
+    if (!liveEvents.length) return;
+    const latest = liveEvents[liveEvents.length - 1];
+    if (!latest) return;
+    if (latest.type !== "Shot" || latest.data?.outcome !== "Goal") return;
+    if (!latest.client_id) return;
+    if (lastGoalClientIdRef.current === latest.client_id) return;
+
+    lastGoalClientIdRef.current = latest.client_id;
+    handleModeSwitch("INEFFECTIVE");
+    setIsBallInPlay(false);
+  }, [liveEvents, handleModeSwitch, setIsBallInPlay]);
 
   const parseTurboInput = useCallback(() => {
     if (!match) return { error: t("turbo.invalidCode", "Enter a turbo code") };
@@ -1537,7 +1669,7 @@ export default function LoggerCockpit() {
                       className="text-4xl font-black text-emerald-300 drop-shadow"
                       data-testid="home-score"
                     >
-                      {match.home_team.score ?? 0}
+                      {liveScore.home || match.home_team.score || 0}
                     </span>
                   </div>
                   <div className="z-10 flex flex-col items-center px-4">
@@ -1556,11 +1688,49 @@ export default function LoggerCockpit() {
                       className="text-4xl font-black text-amber-300 drop-shadow"
                       data-testid="away-score"
                     >
-                      {match.away_team.score ?? 0}
+                      {liveScore.away || match.away_team.score || 0}
                     </span>
                   </div>
                 </div>
               </div>
+              {(goalEvents.home.length > 0 || goalEvents.away.length > 0) && (
+                <div
+                  className="mt-3 w-full flex flex-col items-center gap-2"
+                  data-testid="goal-log-board"
+                >
+                  <span className="text-xs uppercase tracking-widest text-slate-400">
+                    {t("goalIndicator", "Goal")}
+                  </span>
+                  <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="flex flex-col items-center gap-1">
+                      {goalEvents.home.map((event) => (
+                        <span
+                          key={
+                            event.client_id || event._id || event.match_clock
+                          }
+                          data-testid="goal-log-home"
+                          className="text-xs text-emerald-200 bg-emerald-900/30 border border-emerald-700/40 px-2 py-1 rounded-full"
+                        >
+                          {formatGoalLabel(event)}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      {goalEvents.away.map((event) => (
+                        <span
+                          key={
+                            event.client_id || event._id || event.match_clock
+                          }
+                          data-testid="goal-log-away"
+                          className="text-xs text-amber-200 bg-amber-900/30 border border-amber-700/40 px-2 py-1 rounded-full"
+                        >
+                          {formatGoalLabel(event)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 text-xs">
               {queuedCount > 0 && (
@@ -2089,15 +2259,32 @@ export default function LoggerCockpit() {
               )}
             </div>
 
-            {/* 3. ACTION STAGE (Player Selector / Panels) */}
+            {/* 3. ACTION STAGE (Field Interaction / Panels) */}
             <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
-              {currentStep === "selectPlayer" && match && (
+              {match && (
                 <PlayerSelectorPanel
                   match={match}
                   selectedPlayer={selectedPlayer}
                   selectedTeam={selectedTeam}
                   onFieldIds={onFieldIds}
                   onPlayerClick={handlePlayerSelection}
+                  onFieldPlayerClick={handleFieldPlayerSelection}
+                  onFieldDestinationClick={handleFieldDestination}
+                  fieldOverlay={
+                    currentStep === "selectQuickAction" &&
+                    selectedPlayer &&
+                    fieldAnchor ? (
+                      <QuickActionMenu
+                        anchor={fieldAnchor}
+                        actions={[...QUICK_ACTIONS]}
+                        onActionSelect={handleQuickActionSelect}
+                        onMoreActions={handleOpenMoreActions}
+                        onCancel={resetFlow}
+                        t={t}
+                      />
+                    ) : null
+                  }
+                  forceFieldMode
                   priorityPlayerId={priorityPlayerId}
                   isReadOnly={
                     !IS_E2E_TEST_MODE &&

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TFunction } from "i18next";
 import { Users, LayoutGrid, Map } from "lucide-react";
 import SoccerField from "../../../components/SoccerField";
-import { Match, Player } from "../types";
+import { FieldCoordinate, Match, Player } from "../types";
 
 interface PlayerSelectorPanelProps {
   match: Match;
@@ -10,6 +10,15 @@ interface PlayerSelectorPanelProps {
   selectedTeam: "home" | "away" | "both";
   onFieldIds: { home: Set<string>; away: Set<string> };
   onPlayerClick: (player: Player) => void;
+  onFieldPlayerClick?: (
+    player: Player,
+    anchor: { xPercent: number; yPercent: number },
+    location: [number, number],
+    side: "home" | "away",
+  ) => void;
+  onFieldDestinationClick?: (coordinate: FieldCoordinate) => void;
+  fieldOverlay?: React.ReactNode;
+  forceFieldMode?: boolean;
   priorityPlayerId?: string | null;
   isReadOnly?: boolean;
   t: TFunction<"logger">;
@@ -21,11 +30,17 @@ const PlayerSelectorPanel = ({
   selectedTeam,
   onFieldIds,
   onPlayerClick,
+  onFieldPlayerClick,
+  onFieldDestinationClick,
+  fieldOverlay,
+  forceFieldMode = false,
   priorityPlayerId = null,
   isReadOnly = false,
   t,
 }: PlayerSelectorPanelProps) => {
-  const [viewMode, setViewMode] = useState<"list" | "field">("list");
+  const [viewMode, setViewMode] = useState<"list" | "field">(
+    forceFieldMode ? "field" : "list",
+  );
   const prioritizePlayers = (players: Player[]) => {
     if (!priorityPlayerId) return players;
     const index = players.findIndex((p) => p.id === priorityPlayerId);
@@ -143,30 +158,32 @@ const PlayerSelectorPanel = ({
           <Users size={20} />
           {t("selectPlayer", "Select Player")}
         </h2>
-        <div className="flex bg-slate-900 rounded-lg p-1">
-          <button
-            onClick={() => setViewMode("list")}
-            className={`p-1.5 rounded-md ${
-              viewMode === "list"
-                ? "bg-slate-700 shadow text-blue-400"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-            title="List View"
-          >
-            <LayoutGrid size={18} />
-          </button>
-          <button
-            onClick={() => setViewMode("field")}
-            className={`p-1.5 rounded-md ${
-              viewMode === "field"
-                ? "bg-slate-700 shadow text-blue-400"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-            title="Field View"
-          >
-            <Map size={18} />
-          </button>
-        </div>
+        {!forceFieldMode && (
+          <div className="flex bg-slate-900 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-md ${
+                viewMode === "list"
+                  ? "bg-slate-700 shadow text-blue-400"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+              title="List View"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode("field")}
+              className={`p-1.5 rounded-md ${
+                viewMode === "field"
+                  ? "bg-slate-700 shadow text-blue-400"
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
+              title="Field View"
+            >
+              <Map size={18} />
+            </button>
+          </div>
+        )}
       </div>
 
       {viewMode === "field" ? (
@@ -184,7 +201,18 @@ const PlayerSelectorPanel = ({
             awayPlayers={match.away_team.players.filter((p) =>
               onFieldIds.away.has(p.id),
             )}
-            onPlayerClick={isReadOnly ? () => {} : onPlayerClick}
+            onPlayerClick={(player, anchor, location, side) => {
+              if (isReadOnly) return;
+              if (onFieldPlayerClick) {
+                onFieldPlayerClick(player, anchor, location, side);
+                return;
+              }
+              onPlayerClick(player);
+            }}
+            onDestinationClick={
+              isReadOnly ? undefined : onFieldDestinationClick
+            }
+            overlay={fieldOverlay}
           />
         </div>
       ) : (

@@ -173,7 +173,8 @@ test.describe("Logger error handling", () => {
     await expectLiveEventCount(page, 1);
 
     // Substitution validation first fails (500), then succeeds after retry
-    await page.getByTestId("player-card-HOME-1").click();
+    await page.getByTestId("field-player-HOME-1").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 
     const subModal = page.getByTestId("substitution-modal");

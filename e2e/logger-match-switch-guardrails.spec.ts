@@ -107,7 +107,7 @@ test.describe("Match switch guardrails", () => {
     await waitForPendingAckToClear(page);
     await expect(queuedBadge).toBeHidden({ timeout: 10000 });
     await page.reload();
-    await expect(page.getByTestId("player-card-HOME-1")).toBeVisible();
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
     await expectLiveEventCount(page, 1);
   });
 });
