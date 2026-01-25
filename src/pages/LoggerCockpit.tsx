@@ -862,10 +862,12 @@ export default function LoggerCockpit() {
         KEY_ACTION_MAP[normalizedKey] || KEY_ACTION_MAP[key.toUpperCase()];
 
       if (mappedAction === "ToggleClock" || key === " ") {
-        // Toggle global clock via backend
-        if (match?.current_period_start_timestamp) {
+        // Toggle ball in play state via backend
+        if (isBallInPlay) {
+          setIsBallInPlay(false);
           handleGlobalClockStop();
         } else {
+          setIsBallInPlay(true);
           handleGlobalClockStart();
         }
         return;

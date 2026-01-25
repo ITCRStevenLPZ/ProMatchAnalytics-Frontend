@@ -45,6 +45,8 @@
 - [x] Kept poll logging for action-matrix runs to avoid flake.
 - [x] Teams Manager now pages through all players (100/page) when populating the
       roster selector so existing players beyond the first page are available.
+- [x] Keyboard Space toggle now updates ball-in-play state; logger keyboard e2e
+      assertions stabilized on test IDs.
 
 ## Decisions Needed From User
 
@@ -88,6 +90,7 @@ Event submitted with auto-resolved outcome
 
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (includes Goal action + matchboard log)
+- Frontend: `npm run test:e2e` -> PASS (85/85)
 
 ## Next Steps
 

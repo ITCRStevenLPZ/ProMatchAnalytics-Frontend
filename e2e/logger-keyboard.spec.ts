@@ -13,7 +13,7 @@ test.describe("Logger Keyboard Shortcuts", () => {
 
     // Check buffer display
     await expect(page.getByText("Input")).toBeVisible();
-    await expect(page.getByText("10", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("keyboard-buffer-value")).toHaveText("10");
 
     // Commit
     await page.keyboard.press("Enter");
@@ -62,11 +62,15 @@ test.describe("Logger Keyboard Shortcuts", () => {
     // Initial state: Ball Out (Effective Time Paused)
     // Toggle to Ball In
     await page.keyboard.press("Space");
-    await expect(page.getByText(/Balón en Juego|Ball In Play/i)).toBeVisible();
+    await expect(page.getByTestId("effective-time-toggle")).toHaveText(
+      /Detener reloj|Stop/i,
+    );
 
     // Toggle back
     await page.keyboard.press("Space");
-    await expect(page.getByText(/Balón Fuera|Ball Out/i)).toBeVisible();
+    await expect(page.getByTestId("effective-time-toggle")).toHaveText(
+      /Iniciar reloj|Start/i,
+    );
   });
 
   test("should cancel flow with Escape", async ({ page }) => {
