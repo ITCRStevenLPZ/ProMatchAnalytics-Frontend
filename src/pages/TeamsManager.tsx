@@ -260,12 +260,23 @@ export default function TeamsManager() {
 
   const fetchAllPlayers = async () => {
     try {
-      const response = await apiClient.get<
-        PaginatedResponse<PlayerApiResponse>
-      >("/players/", {
-        params: { page: 1, page_size: 100 },
-      });
-      setPlayers(normalizePlayers(response.items));
+      const pageSize = 100;
+      let page = 1;
+      const all: PlayerData[] = [];
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await apiClient.get<
+          PaginatedResponse<PlayerApiResponse>
+        >("/players/", {
+          params: { page, page_size: pageSize },
+        });
+        all.push(...normalizePlayers(response.items));
+        hasMore = response.items.length === pageSize;
+        page += 1;
+      }
+
+      setPlayers(all);
     } catch (err: any) {
       console.error("Error fetching players:", err);
     }
