@@ -43,6 +43,8 @@
 - [x] Re-ran logger lifecycle and match-switch guardrail specs; all passing
       (3/3).
 - [x] Kept poll logging for action-matrix runs to avoid flake.
+- [x] Teams Manager now pages through all players (100/page) when populating the
+      roster selector so existing players beyond the first page are available.
 
 ## Decisions Needed From User
 
@@ -90,3 +92,4 @@ Event submitted with auto-resolved outcome
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
+- [ ] Run Teams roster add flow smoke after paging fix for available players list.
