@@ -47,6 +47,8 @@
       roster selector so existing players beyond the first page are available.
 - [x] Keyboard Space toggle now updates ball-in-play state; logger keyboard e2e
       assertions stabilized on test IDs.
+- [x] Added roster UI test IDs and e2e coverage for roster search, bulk edits,
+      removal, and available-player filters in TeamsManager.
 
 ## Decisions Needed From User
 
@@ -91,8 +93,9 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (includes Goal action + matchboard log)
 - Frontend: `npm run test:e2e` -> PASS (85/85)
+- Frontend: `npm run test:e2e -- e2e/admin-team-roster-ui.spec.ts` -> PASS
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
-- [ ] Run Teams roster add flow smoke after paging fix for available players list.
+- [x] Run Teams roster add flow smoke after paging fix for available players list.
