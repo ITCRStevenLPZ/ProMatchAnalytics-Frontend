@@ -229,6 +229,13 @@ export default function TeamsManager() {
     fetchAllPlayers();
   }, [currentPage, pageSize, genderFilter, searchTerm]);
 
+  useEffect(() => {
+    if (!showRosterModal || !selectedTeam) return;
+    const rosterIds = new Set(teamRoster.map((tp) => tp.player_id));
+    const filtered = players.filter((p) => !rosterIds.has(p.player_id));
+    setAvailablePlayers(filtered);
+  }, [players, teamRoster, selectedTeam, showRosterModal]);
+
   const fetchTeams = async () => {
     await withLoading(async () => {
       try {
@@ -1448,6 +1455,7 @@ export default function TeamsManager() {
                   <div className="flex items-center mt-2 space-x-2">
                     <input
                       type="text"
+                      data-testid="roster-search-input"
                       value={rosterSearch}
                       onChange={(e) => setRosterSearch(e.target.value)}
                       placeholder={t("common:common.search")}
@@ -1498,12 +1506,14 @@ export default function TeamsManager() {
                         {filteredRoster.map((tp) => (
                           <div
                             key={tp.player_id}
+                            data-testid={`roster-row-${tp.player_id}`}
                             className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl shadow-sm"
                           >
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center space-x-3">
                                 <input
                                   type="number"
+                                  data-testid={`roster-jersey-${tp.player_id}`}
                                   className="w-20 input"
                                   min={1}
                                   max={99}
@@ -1531,6 +1541,7 @@ export default function TeamsManager() {
                                     <label className="inline-flex items-center space-x-2 text-xs font-medium text-gray-700">
                                       <input
                                         type="checkbox"
+                                        data-testid={`roster-starter-${tp.player_id}`}
                                         checked={tp.is_starter ?? false}
                                         onChange={(e) =>
                                           handleRosterFieldChange(
@@ -1556,6 +1567,7 @@ export default function TeamsManager() {
                                 }
                                 className="text-red-500 hover:text-red-700"
                                 title={t("removeFromRoster")}
+                                data-testid={`roster-remove-${tp.player_id}`}
                               >
                                 <Trash2 className="h-5 w-5" />
                               </button>
@@ -1598,6 +1610,7 @@ export default function TeamsManager() {
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
                         type="text"
+                        data-testid="roster-available-search-input"
                         value={availableSearch}
                         onChange={(e) => setAvailableSearch(e.target.value)}
                         placeholder={t("common:common.search")}
@@ -1605,6 +1618,7 @@ export default function TeamsManager() {
                       />
                     </div>
                     <select
+                      data-testid="roster-available-position-filter"
                       value={availablePositionFilter}
                       onChange={(e) =>
                         setAvailablePositionFilter(
@@ -1652,6 +1666,7 @@ export default function TeamsManager() {
                       </label>
                       <select
                         required
+                        data-testid="roster-available-player-select"
                         value={rosterFormData.player_id}
                         onChange={(e) => {
                           clearRosterFieldError("player_id");

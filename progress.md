@@ -47,6 +47,16 @@
       roster selector so existing players beyond the first page are available.
 - [x] Keyboard Space toggle now updates ball-in-play state; logger keyboard e2e
       assertions stabilized on test IDs.
+- [x] Added roster UI test IDs and e2e coverage for roster search, bulk edits,
+      removal, and available-player filters in TeamsManager.
+- [x] Added logger period transition e2e coverage (regulation, extra time,
+      penalties, and invalid transition guardrails) plus stable test IDs for
+      option buttons.
+- [x] Debugged dev Atlas roster add error: fixed player with null player_id
+      (Rene Miranda) causing roster POST 404s.
+- [x] Added players_with_team ingestion e2e coverage and documented ingestion
+      coverage matrix.
+- [x] Stabilized logger extra-time transition e2e by waiting for backend status.
 
 ## Decisions Needed From User
 
@@ -91,8 +101,14 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (includes Goal action + matchboard log)
 - Frontend: `npm run test:e2e` -> PASS (85/85)
+- Frontend: `npm run test:e2e -- e2e/admin-team-roster-ui.spec.ts` -> PASS
+- Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
+- Frontend: `npm run test:e2e -- e2e/ingestion-management.spec.ts` -> PASS
+- Frontend: `npm run test:e2e` -> PASS (90/90)
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
-- [ ] Run Teams roster add flow smoke after paging fix for available players list.
+- [ ] Run logger period transitions e2e spec.
+- [x] Run Teams roster add flow smoke after paging fix for available players list.
+- [x] Run ingestion management e2e spec with players_with_team coverage.
