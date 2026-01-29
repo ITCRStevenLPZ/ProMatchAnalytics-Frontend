@@ -266,6 +266,7 @@ export function MatchPeriodSelector({
             onClick={onFinishMatch || (() => {})} // Fallback if not provided, usually strictly required
             className="py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 text-white shadow-sm"
             disabled={transitionDisabled}
+            data-testid="btn-end-match-final"
           >
             <CheckCircle2 size={20} />
             <span>{t("logger.period.endMatch", "End Match")}</span>
@@ -274,6 +275,7 @@ export function MatchPeriodSelector({
             onClick={onTransitionToExtraFirst}
             className="py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
             disabled={transitionDisabled}
+            data-testid="btn-start-extra-time"
           >
             <Play size={20} />
             <span>{t("logger.period.startExtraTime", "Start Extra Time")}</span>
@@ -285,6 +287,7 @@ export function MatchPeriodSelector({
             onClick={onFinishMatch}
             className="py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 text-white shadow-sm"
             disabled={transitionDisabled}
+            data-testid="btn-end-match-extra"
           >
             <CheckCircle2 size={20} />
             <span>{t("logger.period.endMatch", "End Match")}</span>
@@ -293,6 +296,7 @@ export function MatchPeriodSelector({
             onClick={onTransitionToPenalties}
             className="py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
             disabled={transitionDisabled}
+            data-testid="btn-start-penalties"
           >
             <Trophy size={20} />
             <span>{t("logger.period.startPenalties", "Penalties")}</span>

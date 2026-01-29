@@ -44,6 +44,19 @@ type RefereeIngestionRow = {
   years_of_experience: number;
 };
 
+type PlayerWithTeamIngestionRow = {
+  player_id?: string;
+  team_id?: string;
+  name: string;
+  position: string;
+  country_name: string;
+  birth_date: string;
+  player_height: number;
+  player_weight: number;
+  team_name: string;
+  jersey_number: number;
+};
+
 const buildPlayerIngestionRow = (
   overrides: Partial<PlayerIngestionRow> = {},
 ): PlayerIngestionRow => ({
@@ -108,6 +121,23 @@ const buildRefereeIngestionRow = (
     `Ingestion Referee ${Math.random().toString(16).slice(2, 6)}`,
   country_name: overrides.country_name ?? "USA",
   years_of_experience: overrides.years_of_experience ?? 6,
+});
+
+const buildPlayerWithTeamRow = (
+  overrides: Partial<PlayerWithTeamIngestionRow> = {},
+): PlayerWithTeamIngestionRow => ({
+  player_id: overrides.player_id ?? uniqueId("PWTPLY"),
+  team_id: overrides.team_id,
+  name:
+    overrides.name ?? `Roster Player ${Math.random().toString(16).slice(2, 6)}`,
+  position: overrides.position ?? "CB",
+  country_name: overrides.country_name ?? "USA",
+  birth_date:
+    overrides.birth_date ?? new Date("1998-05-01T00:00:00Z").toISOString(),
+  player_height: overrides.player_height ?? 182,
+  player_weight: overrides.player_weight ?? 77,
+  team_name: overrides.team_name ?? "Roster Team",
+  jersey_number: overrides.jersey_number ?? 12,
 });
 
 async function createIngestionBatch(
@@ -829,6 +859,67 @@ test.describe("Ingestion management flows", () => {
       expect(metricsResponse.status()).toBe(200);
       const metricsBody = await metricsResponse.text();
       expect(metricsBody).toContain("match_event_duplicates_total");
+    } finally {
+      await cleanupPaths(api, cleanupTargets);
+    }
+  });
+
+  test("ingests players_with_team and links roster", async () => {
+    const cleanupTargets: string[] = [];
+
+    try {
+      const teamId = uniqueId("PWTTEAM");
+      const teamName = `Roster Team ${teamId}`;
+      const teamPayload = {
+        team_id: teamId,
+        name: teamName,
+        short_name: "RWT",
+        gender: "male",
+        country_name: "USA",
+        managers: [],
+        technical_staff: [],
+        i18n_names: {},
+      };
+
+      const teamResp = await api.post("teams/", { data: teamPayload });
+      await apiJson(teamResp);
+
+      const row = buildPlayerWithTeamRow({
+        player_id: uniqueId("PWTPLY"),
+        team_id: teamId,
+        team_name: teamName,
+        position: "CB",
+      });
+
+      const batchId = await createIngestionBatch(
+        api,
+        "players_with_team",
+        [row],
+        "Playwright Players With Team",
+      );
+
+      const status = await waitForIngestionStatus(api, batchId, /^(success)$/);
+      expect(status).toBe("success");
+
+      const rosterResp = await api.get(
+        `teams/${teamId}/players?page=1&page_size=20`,
+      );
+      const roster = await apiJson<{
+        items: Array<{ player_id: string }>;
+        total: number;
+      }>(rosterResp);
+
+      expect(roster.total).toBeGreaterThan(0);
+      expect(
+        roster.items.some((item) => item.player_id === row.player_id),
+      ).toBeTruthy();
+
+      const playerResp = await api.get(`players/${row.player_id}`);
+      expect(playerResp.status()).toBe(200);
+
+      cleanupTargets.push(`teams/${teamId}/players/${row.player_id}`);
+      cleanupTargets.push(`players/${row.player_id}`);
+      cleanupTargets.push(`teams/${teamId}`);
     } finally {
       await cleanupPaths(api, cleanupTargets);
     }
