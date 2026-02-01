@@ -57,6 +57,9 @@
 - [x] Added players_with_team ingestion e2e coverage and documented ingestion
       coverage matrix.
 - [x] Stabilized logger extra-time transition e2e by waiting for backend status.
+- [x] Instrumented logger analytics panel with test IDs and added e2e coverage
+      to verify logged actions surface in analytics graphs and persist after
+      reload.
 
 ## Decisions Needed From User
 
@@ -100,15 +103,16 @@ Event submitted with auto-resolved outcome
 
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (includes Goal action + matchboard log)
-- Frontend: `npm run test:e2e` -> PASS (85/85)
+- Frontend: `npm run test:e2e` -> PASS (90/90) on 2026-01-28 (includes new
+  analytics assertions in logger-advanced)
 - Frontend: `npm run test:e2e -- e2e/admin-team-roster-ui.spec.ts` -> PASS
+- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/ingestion-management.spec.ts` -> PASS
-- Frontend: `npm run test:e2e` -> PASS (90/90)
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
-- [ ] Run logger period transitions e2e spec.
+- [x] Run logger period transitions e2e spec.
 - [x] Run Teams roster add flow smoke after paging fix for available players list.
 - [x] Run ingestion management e2e spec with players_with_team coverage.

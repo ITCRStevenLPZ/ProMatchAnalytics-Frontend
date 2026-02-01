@@ -237,8 +237,38 @@ test.describe("Logger analytics view", () => {
     const analyticsPanel = page.getByTestId("analytics-panel");
     await expect(analyticsPanel).toBeVisible();
     await expect(analyticsPanel.getByTestId("analytics-title")).toBeVisible();
-    await expect(analyticsPanel.getByRole("heading").first()).toBeVisible();
+    await expect(
+      analyticsPanel.getByTestId("analytics-total-events"),
+    ).toHaveText("2");
+    await expect(
+      analyticsPanel.getByTestId("analytics-home-total"),
+    ).toContainText("1");
+    await expect(
+      analyticsPanel.getByTestId("analytics-away-total"),
+    ).toContainText("1");
+    await expect(
+      analyticsPanel.getByTestId("analytics-event-type-pass"),
+    ).toContainText("1");
+    await expect(
+      analyticsPanel.getByTestId("analytics-event-type-shot"),
+    ).toContainText("1");
     await expect(analyticsPanel.locator("svg").first()).toBeVisible();
+
+    await page.reload();
+    await promoteToAdmin(page);
+    await expectLiveEventCount(page, 2);
+
+    await page.getByTestId("toggle-analytics").click();
+    const analyticsPanelReload = page.getByTestId("analytics-panel");
+    await expect(
+      analyticsPanelReload.getByTestId("analytics-total-events"),
+    ).toHaveText("2");
+    await expect(
+      analyticsPanelReload.getByTestId("analytics-event-type-pass"),
+    ).toContainText("1");
+    await expect(
+      analyticsPanelReload.getByTestId("analytics-event-type-shot"),
+    ).toContainText("1");
   });
 });
 
