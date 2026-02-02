@@ -140,7 +140,11 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
   const handleGlobalClockStart = async () => {
     if (!match) return;
     try {
-      await updateMatchStatus(match.id, undefined, "start");
+      const startStatus =
+        match.status === "Pending" || match.status === "Scheduled"
+          ? "Live_First_Half"
+          : undefined;
+      await updateMatchStatus(match.id, startStatus, "start");
       fetchMatch();
     } catch (error) {
       console.error("Failed to start global clock:", error);

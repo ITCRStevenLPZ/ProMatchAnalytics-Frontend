@@ -514,14 +514,20 @@ export default function LoggerCockpit() {
     [statusOverride, normalizeStatus],
   );
 
+  const bypassMinimums =
+    IS_E2E_TEST_MODE &&
+    !(
+      typeof window !== "undefined" &&
+      (window as any).__PROMATCH_E2E_ENFORCE_MINIMUMS__
+    );
   const hasFirstHalfMinimum =
-    IS_E2E_TEST_MODE || effectiveTime >= REGULATION_FIRST_HALF_SECONDS;
+    bypassMinimums || effectiveTime >= REGULATION_FIRST_HALF_SECONDS;
   const hasSecondHalfMinimum =
-    IS_E2E_TEST_MODE || effectiveTime >= REGULATION_SECOND_HALF_SECONDS;
+    bypassMinimums || effectiveTime >= REGULATION_SECOND_HALF_SECONDS;
   const hasExtraFirstHalfMinimum =
-    IS_E2E_TEST_MODE || effectiveTime >= EXTRA_FIRST_HALF_END_SECONDS;
+    bypassMinimums || effectiveTime >= EXTRA_FIRST_HALF_END_SECONDS;
   const hasExtraSecondHalfMinimum =
-    IS_E2E_TEST_MODE || effectiveTime >= EXTRA_SECOND_HALF_END_SECONDS;
+    bypassMinimums || effectiveTime >= EXTRA_SECOND_HALF_END_SECONDS;
   const minimumFirstHalfReason = t(
     "transitionMinimumFirstHalf",
     "Need at least 45:00 of effective time to end 1st half (current {{clock}}).",
@@ -1436,7 +1442,7 @@ export default function LoggerCockpit() {
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Header */}
       <header className="bg-slate-900 shadow-sm border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-screen-2xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-slate-100">
@@ -2009,7 +2015,7 @@ export default function LoggerCockpit() {
 
       {duplicateHighlight && (
         <div
-          className="max-w-7xl mx-auto px-4 pt-4"
+          className="max-w-screen-2xl mx-auto px-6 pt-4"
           data-testid="duplicate-banner"
         >
           <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2093,7 +2099,7 @@ export default function LoggerCockpit() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-6">
         {buffer && (
           <div
             data-testid="keyboard-buffer"
@@ -2272,6 +2278,9 @@ export default function LoggerCockpit() {
                   onPlayerClick={handlePlayerSelection}
                   onFieldPlayerClick={handleFieldPlayerSelection}
                   onFieldDestinationClick={handleFieldDestination}
+                  showDestinationControls={
+                    currentStep === "selectDestination" && !cockpitLocked
+                  }
                   fieldOverlay={
                     currentStep === "selectQuickAction" &&
                     selectedPlayer &&

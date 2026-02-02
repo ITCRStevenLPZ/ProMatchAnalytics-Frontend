@@ -21,6 +21,7 @@ interface PlayerSelectorPanelProps {
   forceFieldMode?: boolean;
   priorityPlayerId?: string | null;
   isReadOnly?: boolean;
+  showDestinationControls?: boolean;
   t: TFunction<"logger">;
 }
 
@@ -36,6 +37,7 @@ const PlayerSelectorPanel = ({
   forceFieldMode = false,
   priorityPlayerId = null,
   isReadOnly = false,
+  showDestinationControls = false,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field">(
@@ -132,7 +134,7 @@ const PlayerSelectorPanel = ({
 
   return (
     <div
-      className="bg-slate-800 rounded-lg shadow p-6 border border-slate-700 relative overflow-hidden"
+      className="bg-slate-800 rounded-lg shadow p-6 border border-slate-700 relative overflow-visible"
       data-testid="player-grid"
     >
       {isReadOnly && (
@@ -213,6 +215,7 @@ const PlayerSelectorPanel = ({
               isReadOnly ? undefined : onFieldDestinationClick
             }
             overlay={fieldOverlay}
+            showDestinationControls={showDestinationControls}
           />
         </div>
       ) : (
