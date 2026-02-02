@@ -18,11 +18,19 @@ const QuickActionMenu = ({
   onCancel,
   t,
 }: QuickActionMenuProps) => {
+  const anchorX = anchor.xPercent ?? 0;
+  const anchorY = anchor.yPercent ?? 0;
+  const shiftLeft = anchorX > 70;
+  const shiftUp = anchorY > 70;
+  const translateX = shiftLeft ? "-100%" : "0";
+  const translateY = shiftUp ? "-100%" : "0";
+  const translate = `translate(${translateX}, ${translateY})`;
+
   return (
     <div
       className="absolute z-20 flex flex-col gap-2 bg-slate-900/95 border border-slate-700 rounded-lg p-3 shadow-xl"
       data-testid="quick-action-menu"
-      style={{ left: `${anchor.xPercent}%`, top: `${anchor.yPercent}%` }}
+      style={{ left: `${anchorX}%`, top: `${anchorY}%`, transform: translate }}
     >
       <div className="text-xs uppercase tracking-wide text-slate-400">
         {t("quickActionTitle", "Quick actions")}

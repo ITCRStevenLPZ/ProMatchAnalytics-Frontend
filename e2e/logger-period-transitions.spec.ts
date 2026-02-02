@@ -96,6 +96,12 @@ const waitForMatchStatus = async (matchId: string, status: string) => {
     .toBe(status);
 };
 
+const enableMinimumValidation = async (page: Page) => {
+  await page.addInitScript(() => {
+    (window as any).__PROMATCH_E2E_ENFORCE_MINIMUMS__ = true;
+  });
+};
+
 test.describe("Logger period transitions", () => {
   test.beforeAll(async () => {
     backendRequest = await request.newContext({
@@ -207,5 +213,64 @@ test.describe("Logger period transitions", () => {
     const error = page.getByTestId("transition-error");
     await expect(error).toBeVisible({ timeout: 15000 });
     await expect(error).toContainText("Transition not allowed");
+  });
+
+  test("enforces minimum effective time for transitions", async ({ page }) => {
+    test.setTimeout(120000);
+
+    const matchId = makeMatchId();
+    await resetMatch(matchId, {
+      status: "Live_First_Half",
+      matchTimeSeconds: 10 * 60,
+    });
+
+    await enableMinimumValidation(page);
+    await page.goto(`/matches/${matchId}/logger`);
+    await ensureAdminRole(page);
+
+    await expect(page.getByTestId("period-status-first-half")).toBeVisible({
+      timeout: 15000,
+    });
+
+    const endFirstHalfBtn = page.getByTestId("btn-end-first-half");
+    await expect(endFirstHalfBtn).toBeDisabled({ timeout: 15000 });
+    const firstHalfReason = page.getByTestId("transition-reason");
+    await expect(firstHalfReason).toBeVisible({ timeout: 15000 });
+    await expect(firstHalfReason).toContainText(/45:00/);
+
+    await resetMatch(matchId, {
+      status: "Live_First_Half",
+      matchTimeSeconds: 46 * 60,
+    });
+    await page.reload();
+    await ensureAdminRole(page);
+
+    await page.getByTestId("btn-end-first-half").click();
+    await expect(page.getByTestId("period-status-halftime")).toBeVisible({
+      timeout: 15000,
+    });
+
+    await page.getByTestId("btn-start-second-half").click();
+    await expect(page.getByTestId("period-status-second-half")).toBeVisible({
+      timeout: 15000,
+    });
+
+    const endMatchBtn = page.getByTestId("btn-end-match");
+    await expect(endMatchBtn).toBeDisabled({ timeout: 15000 });
+    const secondHalfReason = page.getByTestId("transition-reason");
+    await expect(secondHalfReason).toBeVisible({ timeout: 15000 });
+    await expect(secondHalfReason).toContainText(/90:00/);
+
+    await resetMatch(matchId, {
+      status: "Live_Second_Half",
+      matchTimeSeconds: 91 * 60,
+    });
+    await page.reload();
+    await ensureAdminRole(page);
+
+    await page.getByTestId("btn-end-match").click();
+    await expect(page.getByTestId("period-status-fulltime")).toBeVisible({
+      timeout: 15000,
+    });
   });
 });

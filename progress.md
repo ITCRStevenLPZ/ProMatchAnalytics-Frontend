@@ -60,6 +60,24 @@
 - [x] Instrumented logger analytics panel with test IDs and added e2e coverage
       to verify logged actions surface in analytics graphs and persist after
       reload.
+- [x] Added cockpit e2e coverage for time-gated period transitions (minimum
+      effective time checks in correct order).
+- [x] Starting the clock now transitions Pending/Scheduled matches to
+      Live_First_Half in the cockpit.
+- [x] Quick action menu now repositions away from right/bottom edges to avoid
+      clipping in the cockpit field view.
+- [x] Added bar-style destination buttons along field edges (top/bottom/left/right)
+      and increased field padding to keep them visible.
+- [x] Expanded field padding and cockpit panel overflow to surface edge destination
+      buttons; refreshed button styling for better visibility.
+- [x] Destination bars now render closer to the field edge and only during
+      destination selection.
+- [x] Refined destination bar styling and aligned them flush to the field
+      boundaries.
+- [x] Upgraded destination bar styling with gradients, glow, and label accents.
+- [x] Adjusted edge bar offsets and field padding to prevent overlaps with
+      cockpit headers.
+- [x] Widened cockpit containers to give the field more horizontal space.
 
 ## Decisions Needed From User
 
@@ -109,6 +127,9 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/ingestion-management.spec.ts` -> PASS
+- Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
+  (4/4 on 2026-01-29)
+- Frontend: Not rerun in this iteration (start match status fix added).
 
 ## Next Steps
 
