@@ -132,11 +132,13 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/ingestion-management.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
   (4/4 on 2026-01-29)
-- Frontend: Not rerun in this iteration (start match status fix added).
+- Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
+  (4/4 on 2026-02-02 after global time validation fix)
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
 - [x] Run logger period transitions e2e spec.
+- [x] Fix phase transition validation to use global time.
 - [x] Run Teams roster add flow smoke after paging fix for available players list.
 - [x] Run ingestion management e2e spec with players_with_team coverage.
