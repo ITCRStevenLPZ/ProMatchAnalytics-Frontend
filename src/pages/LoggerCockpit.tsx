@@ -520,30 +520,34 @@ export default function LoggerCockpit() {
       typeof window !== "undefined" &&
       (window as any).__PROMATCH_E2E_ENFORCE_MINIMUMS__
     );
+
+  // Use global time (not effective time) for phase transition validation
+  const globalTimeSeconds = parseClockToSeconds(globalClock);
+
   const hasFirstHalfMinimum =
-    bypassMinimums || effectiveTime >= REGULATION_FIRST_HALF_SECONDS;
+    bypassMinimums || globalTimeSeconds >= REGULATION_FIRST_HALF_SECONDS;
   const hasSecondHalfMinimum =
-    bypassMinimums || effectiveTime >= REGULATION_SECOND_HALF_SECONDS;
+    bypassMinimums || globalTimeSeconds >= REGULATION_SECOND_HALF_SECONDS;
   const hasExtraFirstHalfMinimum =
-    bypassMinimums || effectiveTime >= EXTRA_FIRST_HALF_END_SECONDS;
+    bypassMinimums || globalTimeSeconds >= EXTRA_FIRST_HALF_END_SECONDS;
   const hasExtraSecondHalfMinimum =
-    bypassMinimums || effectiveTime >= EXTRA_SECOND_HALF_END_SECONDS;
+    bypassMinimums || globalTimeSeconds >= EXTRA_SECOND_HALF_END_SECONDS;
   const minimumFirstHalfReason = t(
     "transitionMinimumFirstHalf",
-    "Need at least 45:00 of effective time to end 1st half (current {{clock}}).",
-    { clock: formatSecondsAsClock(effectiveTime) },
+    "Need at least 45:00 of global time to end 1st half (current {{clock}}).",
+    { clock: globalClock },
   );
   const minimumSecondHalfReason = t(
     "transitionMinimumSecondHalf",
-    "Need at least 90:00 of effective time to end 2nd half (current {{clock}}).",
-    { clock: formatSecondsAsClock(effectiveTime) },
+    "Need at least 90:00 of global time to end 2nd half (current {{clock}}).",
+    { clock: globalClock },
   );
   const minimumExtraFirstHalfReason = t(
     "transitionMinimumExtraFirstHalf",
     "Need at least 15:00 of extra time to end ET 1st half (current {{clock}}).",
     {
       clock: formatSecondsAsClock(
-        Math.max(0, effectiveTime - REGULATION_SECOND_HALF_SECONDS),
+        Math.max(0, globalTimeSeconds - REGULATION_SECOND_HALF_SECONDS),
       ),
     },
   );
@@ -552,7 +556,7 @@ export default function LoggerCockpit() {
     "Need at least 15:00 of extra time to end ET 2nd half (current {{clock}}).",
     {
       clock: formatSecondsAsClock(
-        Math.max(0, effectiveTime - EXTRA_FIRST_HALF_END_SECONDS),
+        Math.max(0, globalTimeSeconds - EXTRA_FIRST_HALF_END_SECONDS),
       ),
     },
   );

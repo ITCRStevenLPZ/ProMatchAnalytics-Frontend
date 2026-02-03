@@ -78,6 +78,9 @@
 - [x] Adjusted edge bar offsets and field padding to prevent overlaps with
       cockpit headers.
 - [x] Widened cockpit containers to give the field more horizontal space.
+- [x] Fixed phase transition validation to use global time instead of effective
+      time, preventing false "minimum time not reached" errors when effective
+      time is low but global time has elapsed.
 
 ## Decisions Needed From User
 

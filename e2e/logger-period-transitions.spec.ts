@@ -215,7 +215,7 @@ test.describe("Logger period transitions", () => {
     await expect(error).toContainText("Transition not allowed");
   });
 
-  test("enforces minimum effective time for transitions", async ({ page }) => {
+  test("enforces minimum global time for transitions", async ({ page }) => {
     test.setTimeout(120000);
 
     const matchId = makeMatchId();
