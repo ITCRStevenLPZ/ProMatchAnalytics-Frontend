@@ -62,8 +62,9 @@ const statusToPhase = (status: string | undefined): PeriodPhase | null => {
     case "Penalties":
       return "PENALTIES";
     case "Fulltime":
-    case "Completed":
       return "FULLTIME";
+    case "Completed":
+      return "COMPLETED";
     default:
       return null;
   }
@@ -277,7 +278,7 @@ export const usePeriodManager = (
     performTransition("PENALTIES", "Penalties", "TIMEOFF");
   // Treat "match finished" as the standard Fulltime state to align with backend enums.
   const finishMatch = () =>
-    performTransition("FULLTIME", "Fulltime", "TIMEOFF");
+    performTransition("COMPLETED", "Completed", "TIMEOFF");
 
   const dismissExtraTimeAlert = useCallback(() => {
     setShowExtraTimeAlert(false);

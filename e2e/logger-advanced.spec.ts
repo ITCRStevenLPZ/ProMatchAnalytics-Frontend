@@ -308,6 +308,15 @@ test.describe("Logger timers, transitions, and lock state", () => {
     await expect(endMatchBtn).toBeEnabled({ timeout: 10000 });
     await endMatchBtn.click();
     await expect(page.getByTestId("period-status-fulltime")).toBeVisible();
+    await expect(page.getByTestId("clock-locked-banner")).toHaveCount(0);
+    await expect(page.getByTestId("btn-start-extra-time")).toBeEnabled({
+      timeout: 10000,
+    });
+
+    const endMatchFinalBtn = page.getByTestId("btn-end-match-final");
+    await endMatchFinalBtn.scrollIntoViewIfNeeded();
+    await expect(endMatchFinalBtn).toBeEnabled({ timeout: 10000 });
+    await endMatchFinalBtn.click();
     await expect(page.getByTestId("clock-locked-banner")).toBeVisible();
     await expect(page.getByTestId("btn-start-clock")).toBeDisabled();
     await expect(page.getByTestId("btn-stop-clock")).toBeDisabled();

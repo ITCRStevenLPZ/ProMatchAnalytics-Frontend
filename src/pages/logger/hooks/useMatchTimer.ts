@@ -234,8 +234,7 @@ export const useMatchTimer = (match: Match | null, fetchMatch: () => void) => {
       fetchMatch();
     } catch (error) {
       console.error("Failed to switch clock mode:", error);
-      // Revert optimistic update
-      setClockMode((match.clock_mode as any) || "EFFECTIVE");
+      // Keep local mode to allow timers to continue while offline.
     }
   };
 

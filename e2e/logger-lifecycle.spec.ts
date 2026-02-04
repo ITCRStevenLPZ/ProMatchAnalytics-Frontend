@@ -187,10 +187,16 @@ test.describe("Logger lifecycle and clocks", () => {
     ).toBeVisible({
       timeout: 15000,
     });
-    const lockBanner = page.getByTestId("clock-locked-banner");
-    if (await lockBanner.count()) {
-      await expect(lockBanner).toBeVisible();
+    const endMatchFinalBtn = page.getByTestId("btn-end-match-final");
+    if (await endMatchFinalBtn.count()) {
+      await endMatchFinalBtn.scrollIntoViewIfNeeded();
+      await expect(endMatchFinalBtn).toBeEnabled({ timeout: 15000 });
+      await endMatchFinalBtn.click();
+      await waitForPendingAckToClear(page);
     }
+    await expect(page.getByTestId("clock-locked-banner")).toBeVisible({
+      timeout: 15000,
+    });
 
     await expect
       .poll(
@@ -204,7 +210,7 @@ test.describe("Logger lifecycle and clocks", () => {
         },
         { timeout: 45000, interval: 500 },
       )
-      .toBe("Fulltime");
+      .toBe("Completed");
 
     await page.reload();
 

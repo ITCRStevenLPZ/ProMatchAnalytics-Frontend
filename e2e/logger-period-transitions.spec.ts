@@ -149,11 +149,45 @@ test.describe("Logger period transitions", () => {
     await expect(page.getByTestId("period-status-fulltime")).toBeVisible({
       timeout: 15000,
     });
-    await expect(page.getByTestId("btn-end-match-final")).toBeDisabled();
+    await expect(page.getByTestId("cockpit-lock-banner")).toHaveCount(0);
+    await expect(page.getByTestId("btn-start-extra-time")).toBeEnabled({
+      timeout: 15000,
+    });
+
+    await page.getByTestId("btn-end-match-final").click();
     await expect(page.getByTestId("cockpit-lock-banner")).toBeVisible({
       timeout: 15000,
     });
     await expect(page.getByTestId("transition-error")).toHaveCount(0);
+  });
+
+  test("allows extra time from regulation fulltime", async ({ page }) => {
+    test.setTimeout(120000);
+
+    const matchId = makeMatchId();
+    await resetMatch(matchId, {
+      status: "Live_Second_Half",
+      matchTimeSeconds: 90 * 60 + 30,
+    });
+
+    await page.goto(`/matches/${matchId}/logger`);
+    await ensureAdminRole(page);
+
+    await page.getByTestId("btn-end-match").click();
+    await expect(page.getByTestId("period-status-fulltime")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("btn-start-extra-time")).toBeEnabled({
+      timeout: 15000,
+    });
+
+    await page.getByTestId("btn-start-extra-time").click();
+    await expect(page.getByTestId("period-status-extra-first")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("btn-start-clock")).toBeEnabled({
+      timeout: 15000,
+    });
   });
 
   test("walks extra time and penalties transitions", async ({ page }) => {

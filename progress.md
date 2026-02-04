@@ -112,6 +112,56 @@
       consistent spacing.
 - [x] Fixed logger TypeScript errors (event notes typing + ineffective
       breakdown active tracking).
+- [x] Quick action Goal now logs immediately without destination selection.
+- [x] Fixed LiveEventFeed list keys to avoid duplicate key warnings.
+- [x] Defaulted ineffective stoppage context to team-based (non-neutral)
+      unless explicitly neutral.
+- [x] Fixed ineffective note confirmation to keep team attribution non-neutral
+      by default.
+- [x] Added e2e coverage to ensure team stoppages do not count as neutral.
+- [x] Ineffective note flow now uses selected team as fallback (neutral only
+      when "both").
+- [x] Neutral ineffective timer now ticks when a neutral stoppage is active.
+- [x] Neutral timer now ticks based on active context even if clockMode lags.
+- [x] Ineffective note neutral fallback now depends on resolved team id
+      (prevents neutral when team is known).
+- [x] Forced neutral context when selected team is "both" and no explicit
+      neutral override exists.
+- [x] Fixed `beginIneffective` dependencies so selected team is respected in
+      neutral/team attribution.
+- [x] Added neutral ineffective start tracking for reliable neutral clock
+      ticking.
+- [x] Neutral ineffective clock now follows global ineffective clock when
+      neutral stoppage is active.
+- [x] Injury/VAR stoppages default to neutral when no explicit override is
+      provided.
+- [x] Neutral clock now follows ineffective clock when selected team is
+      "both" during ineffective mode.
+- [x] Added local mode-change timestamp fallback so ineffective/timeoff clocks
+      tick without backend timestamp.
+- [x] Clock mode no longer reverts on update failure (keeps local timers
+      active).
+- [x] Relaxed neutral clock e2e assertion to avoid false negatives in local
+      timing.
+- [x] Treat neutral flag strictly in client-side breakdown to avoid string
+      "false" being counted as neutral.
+- [x] Normalize team ids to lowercase when resolving team keys in analytics
+      breakdown.
+- [x] Added e2e coverage to assert analytics breakdown splits time by team and
+      action (OutOfBounds/Goal/Injury).
+- [x] Fixed Spanish logger locale JSON and added missing period/progress keys
+      to clear i18n missingKey warnings.
+- [x] Made team roster starter rows more compact in TeamsManager roster modal
+      and increased default roster page size.
+- [x] Open roster modal immediately and show loading spinner while roster fetch
+      completes.
+- [x] Allow extra time transitions from regulation Fulltime and lock cockpit
+      only after final completion; added e2e coverage.
+- [x] Added missing Spanish labels for extra time first half and live extra
+      status in logger locale.
+- [x] Added final Completed status flow so fulltime can branch to extra time or
+      finish; lock persists after reload.
+- [x] Stabilized match switch guardrail e2e to wait for queued event snapshot.
 
 ## Decisions Needed From User
 
@@ -159,8 +209,8 @@ Event submitted with auto-resolved outcome
 
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (includes Goal action + matchboard log)
-- Frontend: `npm run test:e2e` -> PASS (90/90) on 2026-01-28 (includes new
-  analytics assertions in logger-advanced)
+- Frontend: `npm run test:e2e` -> PASS (90/90) on 2026-01-28
+  (includes new analytics assertions in logger-advanced)
 - Frontend: `npm run test:e2e -- e2e/admin-team-roster-ui.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
@@ -170,13 +220,21 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
   (4/4 on 2026-02-02 after global time validation fix)
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> FAIL
-  (port 8000 already in use; stop existing server or enable reuseExistingServer)
+  (port 8000 already in use; stop existing server or enable
+  reuseExistingServer)
 - Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
   (2/2 on 2026-02-03 after ineffective note/CRUD coverage)
+- Frontend: `npm run test:e2e` -> PASS (99/99) on 2026-02-04
 - Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
   PASS (3/3)
 - Frontend: `npm run test:e2e` -> PASS (95/95)
 - Frontend: `npm run test:e2e` -> PASS (96/96)
+- Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
+  FAIL (port 8000 already in use; reuseExistingServer or stop server)
+- Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
+  FAIL (port 8000 already in use)
+- Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
+  PASS (6/6)
 - Frontend: Not run (layout-only change).
 
 ## Next Steps

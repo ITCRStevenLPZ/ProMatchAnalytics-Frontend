@@ -134,6 +134,7 @@
     "pending": "Pendiente",
     "live_first_half": "En vivo - 1.er tiempo",
     "live_second_half": "En vivo - 2.º tiempo",
+    "live_extra_first": "En vivo - Prórroga 1",
     "fulltime": "Finalizado",
     "abandoned": "Suspendido"
   },
@@ -416,11 +417,14 @@
     "period": {
       "firstHalfInProgress": "1.er tiempo",
       "inProgress": "En progreso",
+      "endRegularTime": "Fin del tiempo reglamentario",
       "endFirstHalf": "Terminar 1.er tiempo",
       "halftime": "Medio tiempo",
       "break": "Descanso",
       "startSecondHalf": "Iniciar 2.º tiempo",
       "secondHalfInProgress": "2.º tiempo",
+      "extraFirst": "Prórroga 1.er tiempo",
+      "endExtraFirst": "Terminar prórroga 1.er tiempo",
       "endSecondHalf": "Finalizar partido",
       "fulltime": "Finalizado",
       "matchEnded": "Partido finalizado",
