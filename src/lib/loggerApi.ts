@@ -11,6 +11,7 @@ const E2E_BYPASS_TOKEN =
 
 const API_URL = buildApiBase(import.meta.env.VITE_API_URL);
 export const LOGGER_API_URL = `${API_URL}/logger`;
+export const EVENTS_API_URL = `${API_URL}/events`;
 
 const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
   if (!headers) return {};
@@ -197,5 +198,23 @@ export const getMatch = async (matchId: string) => {
     );
     throw new Error(`Failed to fetch match: ${errorPayload}`);
   }
+  return response.json();
+};
+
+export const updateMatchEvent = async (
+  eventId: string,
+  updates: Partial<MatchEvent> & { notes?: string | null },
+): Promise<MatchEvent> => {
+  const response = await fetchLoggerWithAuth(`${EVENTS_API_URL}/${eventId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => "");
+    throw new Error(`Failed to update event: ${errorPayload}`);
+  }
+
   return response.json();
 };

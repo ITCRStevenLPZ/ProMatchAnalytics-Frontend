@@ -24,6 +24,7 @@ interface LiveEventFeedProps {
   match: Match | null;
   duplicateHighlight?: DuplicateHighlight | null;
   onDeletePending?: (clientId: string) => void;
+  onUpdateEventNotes?: (event: MatchEvent, notes: string | null) => void;
   t: any;
 }
 
@@ -35,6 +36,24 @@ const EVENT_TYPE_ICONS: Record<string, React.ReactNode> = {
   Card: <AlertCircle size={14} className="text-red-600" />,
   GoalkeeperAction: <User size={14} className="text-purple-500" />,
   SetPiece: <Users size={14} className="text-green-600" />,
+};
+
+const getEventIcon = (event: MatchEvent, displayType: string) => {
+  if (displayType === "Card") {
+    const cardType = String(event.data?.card_type || "").toLowerCase();
+    if (cardType.includes("white")) {
+      return <CheckCircle size={14} className="text-slate-100" />;
+    }
+    if (cardType.includes("yellow")) {
+      return <AlertCircle size={14} className="text-yellow-400" />;
+    }
+    return <AlertCircle size={14} className="text-red-500" />;
+  }
+  return (
+    EVENT_TYPE_ICONS[displayType] || (
+      <AlertCircle size={14} className="text-slate-500" />
+    )
+  );
 };
 
 const getOutcomeColor = (outcome?: string): string => {
@@ -106,10 +125,13 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   match,
   duplicateHighlight,
   onDeletePending,
+  onUpdateEventNotes,
   t,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const pendingCount = useMemo(
     () => events.filter((event) => event.client_id && !event._id).length,
@@ -132,6 +154,37 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setCurrentPage(1); // Reset to first page
+  };
+
+  const getEventKey = (event: MatchEvent) =>
+    event._id || event.client_id || event.timestamp;
+
+  const beginEditNotes = (event: MatchEvent) => {
+    const key = getEventKey(event);
+    setEditingKey(key);
+    setNoteDrafts((prev) => ({
+      ...prev,
+      [key]: event.notes || "",
+    }));
+  };
+
+  const cancelEditNotes = () => {
+    setEditingKey(null);
+  };
+
+  const saveNotes = (event: MatchEvent) => {
+    if (!onUpdateEventNotes) return;
+    const key = getEventKey(event);
+    const raw = noteDrafts[key] ?? "";
+    const next = raw.trim();
+    onUpdateEventNotes(event, next ? next : null);
+    setEditingKey(null);
+  };
+
+  const clearNotes = (event: MatchEvent) => {
+    if (!onUpdateEventNotes) return;
+    onUpdateEventNotes(event, null);
+    setEditingKey(null);
   };
 
   return (
@@ -201,6 +254,9 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
             const playerName = getPlayerName(event.player_id, match);
             const teamName = getTeamName(event.team_id, match);
             const displayType = getDisplayType(event);
+            const eventKey = getEventKey(event);
+            const isEditing = editingKey === eventKey;
+            const noteDraft = noteDrafts[eventKey] ?? event.notes ?? "";
 
             return (
               <div
@@ -215,9 +271,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                 {/* Header Row */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {EVENT_TYPE_ICONS[displayType] || (
-                      <AlertCircle size={14} className="text-slate-500" />
-                    )}
+                    {getEventIcon(event, displayType)}
                     <span className="font-semibold text-sm text-slate-200 truncate">
                       {displayType}
                     </span>
@@ -269,6 +323,79 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                     </span>
                   </div>
                 )}
+
+                {/* Notes */}
+                <div className="mt-2">
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <textarea
+                        className="w-full text-xs text-slate-100 bg-slate-900/60 border border-slate-700 rounded p-2 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        data-testid="event-note-textarea"
+                        rows={2}
+                        value={noteDraft}
+                        onChange={(e) =>
+                          setNoteDrafts((prev) => ({
+                            ...prev,
+                            [eventKey]: e.target.value,
+                          }))
+                        }
+                        placeholder={t("notesPlaceholder", "Add a note...")}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          data-testid="event-note-save"
+                          className="text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-200 border border-amber-500/40"
+                          onClick={() => saveNotes(event)}
+                        >
+                          {t("save", "Save")}
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="event-note-cancel"
+                          className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700"
+                          onClick={cancelEditNotes}
+                        >
+                          {t("cancel", "Cancel")}
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="event-note-remove"
+                          className="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-200 border border-rose-500/40"
+                          onClick={() => clearNotes(event)}
+                        >
+                          {t("remove", "Remove")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs text-slate-300">
+                        {event.notes ? (
+                          <span className="bg-slate-800/60 border border-slate-700 rounded px-2 py-1 inline-block">
+                            {event.notes}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">
+                            {t("notesEmpty", "No notes")}
+                          </span>
+                        )}
+                      </div>
+                      {onUpdateEventNotes && (
+                        <button
+                          type="button"
+                          data-testid="event-note-edit"
+                          className="text-[10px] uppercase tracking-wide text-amber-300 hover:text-amber-200"
+                          onClick={() => beginEditNotes(event)}
+                        >
+                          {event.notes
+                            ? t("edit", "Edit")
+                            : t("addNote", "Add note")}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Status Indicators */}
                 <div className="flex items-center gap-2 mt-2">

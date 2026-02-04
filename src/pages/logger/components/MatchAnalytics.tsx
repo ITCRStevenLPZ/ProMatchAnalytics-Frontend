@@ -22,6 +22,11 @@ import {
 import { MatchEvent } from "../../../store/useMatchLogStore";
 import { Match } from "../types";
 import {
+  computeIneffectiveBreakdown,
+  IneffectiveBreakdown,
+  IneffectiveAction,
+} from "../utils";
+import {
   TrendingUp,
   Activity,
   Target,
@@ -36,6 +41,9 @@ interface MatchAnalyticsProps {
   match: Match | null;
   events: MatchEvent[];
   effectiveTime: number;
+  timeOffSeconds?: number;
+  ineffectiveSeconds?: number;
+  ineffectiveBreakdown?: IneffectiveBreakdown | null;
   t: any;
 }
 
@@ -63,6 +71,13 @@ interface PlayerActivity {
   events: number;
   passes: number;
   shots: number;
+}
+
+interface ComparativeRow {
+  label: string;
+  home: string | number;
+  away: string | number;
+  testId: string;
 }
 
 const COLORS = {
@@ -93,10 +108,19 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 
+const formatSecondsAsClock = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
 export function MatchAnalytics({
   match,
   events,
   effectiveTime,
+  timeOffSeconds = 0,
+  ineffectiveSeconds = 0,
+  ineffectiveBreakdown,
   t,
 }: MatchAnalyticsProps) {
   // Calculate analytics data
@@ -107,6 +131,9 @@ export function MatchAnalytics({
 
     const homeTeamId = match.home_team.id;
     const awayTeamId = match.away_team.id;
+    const breakdown =
+      ineffectiveBreakdown ||
+      computeIneffectiveBreakdown(events, homeTeamId, awayTeamId, Date.now());
 
     // Event timeline (events per 5-minute interval)
     const timelineMap = new Map<number, { home: number; away: number }>();
@@ -161,6 +188,88 @@ export function MatchAnalytics({
 
     const getEventCount = (teamEvents: MatchEvent[], type: string) =>
       teamEvents.filter((e) => e.type === type).length;
+
+    const getShotOutcomeCount = (
+      teamEvents: MatchEvent[],
+      outcomes: string[],
+    ) =>
+      teamEvents.filter(
+        (e) =>
+          e.type === "Shot" && outcomes.includes(String(e.data?.outcome || "")),
+      ).length;
+
+    const getCardCount = (teamEvents: MatchEvent[], types: string[]) =>
+      teamEvents.filter(
+        (e) => e.type === "Card" && types.includes(String(e.data?.card_type)),
+      ).length;
+
+    const getPassCounts = (teamEvents: MatchEvent[]) => {
+      const total = teamEvents.filter((e) => e.type === "Pass").length;
+      const accurate = teamEvents.filter(
+        (e) => e.type === "Pass" && e.data?.outcome === "Complete",
+      ).length;
+      return { total, accurate };
+    };
+
+    const homePasses = getPassCounts(homeEvents);
+    const awayPasses = getPassCounts(awayEvents);
+    const homeShots = getEventCount(homeEvents, "Shot");
+    const awayShots = getEventCount(awayEvents, "Shot");
+    const homeShotsOnTarget = getShotOutcomeCount(homeEvents, [
+      "OnTarget",
+      "Saved",
+      "Goal",
+    ]);
+    const awayShotsOnTarget = getShotOutcomeCount(awayEvents, [
+      "OnTarget",
+      "Saved",
+      "Goal",
+    ]);
+    const homeShotsOffTarget = getShotOutcomeCount(homeEvents, [
+      "OffTarget",
+      "Post",
+    ]);
+    const awayShotsOffTarget = getShotOutcomeCount(awayEvents, [
+      "OffTarget",
+      "Post",
+    ]);
+    const homeCorners = homeEvents.filter(
+      (e) => e.type === "SetPiece" && e.data?.set_piece_type === "Corner",
+    ).length;
+    const awayCorners = awayEvents.filter(
+      (e) => e.type === "SetPiece" && e.data?.set_piece_type === "Corner",
+    ).length;
+    const homeOffsides =
+      getEventCount(homeEvents, "Offside") +
+      homeEvents.filter(
+        (e) => e.type === "Pass" && e.data?.outcome === "Pass Offside",
+      ).length;
+    const awayOffsides =
+      getEventCount(awayEvents, "Offside") +
+      awayEvents.filter(
+        (e) => e.type === "Pass" && e.data?.outcome === "Pass Offside",
+      ).length;
+    const homeFouls = getEventCount(homeEvents, "FoulCommitted");
+    const awayFouls = getEventCount(awayEvents, "FoulCommitted");
+    const homeYellows = getCardCount(homeEvents, ["Yellow", "Yellow (Second)"]);
+    const awayYellows = getCardCount(awayEvents, ["Yellow", "Yellow (Second)"]);
+    const homeReds = getCardCount(homeEvents, ["Red", "Yellow (Second)"]);
+    const awayReds = getCardCount(awayEvents, ["Red", "Yellow (Second)"]);
+
+    const ineffectiveTotals = breakdown?.totals ?? {
+      home: 0,
+      away: 0,
+      neutral: 0,
+      byAction: {} as Record<
+        IneffectiveAction,
+        { home: number; away: number; neutral: number }
+      >,
+    };
+
+    const getIneffectiveAction = (
+      action: IneffectiveAction,
+      team: "home" | "away" | "neutral",
+    ) => ineffectiveTotals.byAction?.[action]?.[team] ?? 0;
 
     const teamComparison: TeamComparison[] = [
       {
@@ -220,12 +329,9 @@ export function MatchAnalytics({
       .slice(0, 6);
 
     // Possession approximation (based on passes)
-    const totalPasses =
-      getEventCount(homeEvents, "Pass") + getEventCount(awayEvents, "Pass");
+    const totalPasses = homePasses.total + awayPasses.total;
     const homePossession =
-      totalPasses > 0
-        ? Math.round((getEventCount(homeEvents, "Pass") / totalPasses) * 100)
-        : 50;
+      totalPasses > 0 ? Math.round((homePasses.total / totalPasses) * 100) : 50;
 
     // Key stats
     const totalEvents = events.length;
@@ -246,13 +352,161 @@ export function MatchAnalytics({
       topPlayers,
       homePossession,
       awayPossession: 100 - homePossession,
+      ineffectiveTotals,
+      ineffectiveActionRows: [
+        {
+          action: "Goal",
+          label: t("analytics.ineffectiveGoal", "Goal"),
+          home: getIneffectiveAction("Goal", "home"),
+          away: getIneffectiveAction("Goal", "away"),
+          neutral: getIneffectiveAction("Goal", "neutral"),
+        },
+        {
+          action: "OutOfBounds",
+          label: t("analytics.ineffectiveOut", "Out of bounds"),
+          home: getIneffectiveAction("OutOfBounds", "home"),
+          away: getIneffectiveAction("OutOfBounds", "away"),
+          neutral: getIneffectiveAction("OutOfBounds", "neutral"),
+        },
+        {
+          action: "Card",
+          label: t("analytics.ineffectiveCard", "Card"),
+          home: getIneffectiveAction("Card", "home"),
+          away: getIneffectiveAction("Card", "away"),
+          neutral: getIneffectiveAction("Card", "neutral"),
+        },
+        {
+          action: "Foul",
+          label: t("analytics.ineffectiveFoul", "Foul"),
+          home: getIneffectiveAction("Foul", "home"),
+          away: getIneffectiveAction("Foul", "away"),
+          neutral: getIneffectiveAction("Foul", "neutral"),
+        },
+        {
+          action: "Substitution",
+          label: t("analytics.ineffectiveSubstitution", "Substitution"),
+          home: getIneffectiveAction("Substitution", "home"),
+          away: getIneffectiveAction("Substitution", "away"),
+          neutral: getIneffectiveAction("Substitution", "neutral"),
+        },
+        {
+          action: "Injury",
+          label: t("analytics.ineffectiveInjury", "Injury"),
+          home: getIneffectiveAction("Injury", "home"),
+          away: getIneffectiveAction("Injury", "away"),
+          neutral: getIneffectiveAction("Injury", "neutral"),
+        },
+        {
+          action: "VAR",
+          label: t("analytics.ineffectiveVar", "VAR"),
+          home: getIneffectiveAction("VAR", "home"),
+          away: getIneffectiveAction("VAR", "away"),
+          neutral: getIneffectiveAction("VAR", "neutral"),
+        },
+        {
+          action: "Other",
+          label: t("analytics.ineffectiveOther", "Other"),
+          home: getIneffectiveAction("Other", "home"),
+          away: getIneffectiveAction("Other", "away"),
+          neutral: getIneffectiveAction("Other", "neutral"),
+        },
+      ],
+      comparativeRows: [
+        {
+          label: t("analytics.possession", "Possession"),
+          home: `${homePossession}%`,
+          away: `${100 - homePossession}%`,
+          testId: "stat-possession",
+        },
+        {
+          label: t("analytics.accuratePasses", "Accurate Passes"),
+          home: `${homePasses.total} (${homePasses.accurate})`,
+          away: `${awayPasses.total} (${awayPasses.accurate})`,
+          testId: "stat-accurate-passes",
+        },
+        {
+          label: t("analytics.corners", "Corners"),
+          home: homeCorners,
+          away: awayCorners,
+          testId: "stat-corners",
+        },
+        {
+          label: t("analytics.shots", "Shots"),
+          home: homeShots,
+          away: awayShots,
+          testId: "stat-shots",
+        },
+        {
+          label: t("analytics.shotsOnTarget", "Shots on Target"),
+          home: homeShotsOnTarget,
+          away: awayShotsOnTarget,
+          testId: "stat-shots-on-target",
+        },
+        {
+          label: t("analytics.shotsOffTarget", "Shots off Target"),
+          home: homeShotsOffTarget,
+          away: awayShotsOffTarget,
+          testId: "stat-shots-off-target",
+        },
+        {
+          label: t("analytics.offsides", "Offsides"),
+          home: homeOffsides,
+          away: awayOffsides,
+          testId: "stat-offsides",
+        },
+        {
+          label: t("analytics.fouls", "Fouls"),
+          home: homeFouls,
+          away: awayFouls,
+          testId: "stat-fouls",
+        },
+        {
+          label: t("analytics.yellowCards", "Yellow Cards"),
+          home: homeYellows,
+          away: awayYellows,
+          testId: "stat-yellow",
+        },
+        {
+          label: t("analytics.redCards", "Red Cards"),
+          home: homeReds,
+          away: awayReds,
+          testId: "stat-red",
+        },
+        {
+          label: t("analytics.ineffectiveTime", "Ineffective Time"),
+          home: formatSecondsAsClock(ineffectiveTotals.home),
+          away: formatSecondsAsClock(ineffectiveTotals.away),
+          testId: "stat-ineffective-time",
+        },
+        {
+          label: t("analytics.effectiveTime", "Effective Time"),
+          home: formatSecondsAsClock(effectiveTime),
+          away: formatSecondsAsClock(effectiveTime),
+          testId: "stat-effective-time",
+        },
+        {
+          label: t("analytics.varTime", "VAR Time"),
+          home: formatSecondsAsClock(timeOffSeconds),
+          away: formatSecondsAsClock(timeOffSeconds),
+          testId: "stat-var-time",
+        },
+      ] as ComparativeRow[],
+      totalMatchSeconds: effectiveTime + ineffectiveSeconds + timeOffSeconds,
       totalEvents,
       avgEventsPerMinute,
       mostActiveMinute: mostActiveMinute.minute,
       homeTotal: homeEvents.length,
       awayTotal: awayEvents.length,
     };
-  }, [match, events, effectiveTime, t]);
+  }, [
+    match,
+    events,
+    effectiveTime,
+    ineffectiveSeconds,
+    timeOffSeconds,
+    ineffectiveBreakdown,
+    t,
+  ]);
 
   if (!match || !analytics) {
     return (
@@ -310,6 +564,131 @@ export function MatchAnalytics({
         </h2>
         <div className="text-sm text-gray-500">
           {t("analytics.realtime", "Real-time data visualization")}
+        </div>
+      </div>
+
+      {/* Comparative Table */}
+      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm uppercase tracking-wider text-emerald-200">
+            {t("analytics.totalTime", "Total Time")}:
+          </div>
+          <div className="text-lg font-mono font-semibold text-emerald-100">
+            {formatSecondsAsClock(analytics.totalMatchSeconds)}
+          </div>
+        </div>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-4">
+          <div className="flex flex-col gap-2">
+            <div className="text-lg font-semibold">{match.home_team.name}</div>
+            <div
+              className="relative h-16 w-16"
+              data-testid="analytics-possession-home"
+            >
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(${COLORS.home} ${analytics.homePossession}%, rgba(255,255,255,0.12) 0)`,
+                }}
+              />
+              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-sm font-bold">
+                {analytics.homePossession}%
+              </div>
+            </div>
+          </div>
+          <div className="text-sm text-emerald-200 font-semibold uppercase tracking-wide">
+            VS
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-lg font-semibold">{match.away_team.name}</div>
+            <div
+              className="relative h-16 w-16"
+              data-testid="analytics-possession-away"
+            >
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(${COLORS.away} ${analytics.awayPossession}%, rgba(255,255,255,0.12) 0)`,
+                }}
+              />
+              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-sm font-bold">
+                {analytics.awayPossession}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr] text-xs uppercase tracking-wide text-emerald-200 mb-2">
+          <div>{match.home_team.short_name}</div>
+          <div className="text-center">{t("analytics.metric", "Metric")}</div>
+          <div className="text-right">{match.away_team.short_name}</div>
+        </div>
+
+        <div className="space-y-2" data-testid="analytics-comparison-table">
+          {analytics.comparativeRows.map((row) => (
+            <div
+              key={row.testId}
+              className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+              data-testid={row.testId}
+            >
+              <div className="text-sm font-semibold text-emerald-50">
+                {row.home}
+              </div>
+              <div className="text-xs text-emerald-200 text-center">
+                {row.label}
+              </div>
+              <div className="text-sm font-semibold text-emerald-50 text-right">
+                {row.away}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6" data-testid="analytics-ineffective-breakdown">
+          <div className="text-xs uppercase tracking-wide text-emerald-200 mb-2">
+            {t("analytics.ineffectiveBreakdown", "Ineffective Breakdown")}
+          </div>
+          <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-2 text-[10px] uppercase tracking-wider text-emerald-200 mb-2">
+            <div className="text-left">{t("analytics.metric", "Metric")}</div>
+            <div className="text-center">{match.home_team.short_name}</div>
+            <div className="text-center">
+              {t("analytics.neutral", "Neutral")}
+            </div>
+            <div className="text-center">{match.away_team.short_name}</div>
+          </div>
+          <div className="space-y-2">
+            {analytics.ineffectiveActionRows.map((row: any) => (
+              <div
+                key={row.action}
+                className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+                data-testid={`stat-ineffective-${row.action.toLowerCase()}`}
+              >
+                <div className="text-xs text-emerald-100">{row.label}</div>
+                <div className="text-xs font-semibold text-emerald-50 text-center">
+                  {formatSecondsAsClock(row.home)}
+                </div>
+                <div className="text-xs font-semibold text-amber-100 text-center">
+                  {formatSecondsAsClock(row.neutral)}
+                </div>
+                <div className="text-xs font-semibold text-emerald-50 text-center">
+                  {formatSecondsAsClock(row.away)}
+                </div>
+              </div>
+            ))}
+            <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-emerald-500/20 rounded-lg px-3 py-2">
+              <div className="text-xs text-emerald-50 font-semibold">
+                {t("analytics.ineffectiveTotals", "Totals")}
+              </div>
+              <div className="text-xs font-semibold text-emerald-50 text-center">
+                {formatSecondsAsClock(analytics.ineffectiveTotals.home)}
+              </div>
+              <div className="text-xs font-semibold text-amber-100 text-center">
+                {formatSecondsAsClock(analytics.ineffectiveTotals.neutral)}
+              </div>
+              <div className="text-xs font-semibold text-emerald-50 text-center">
+                {formatSecondsAsClock(analytics.ineffectiveTotals.away)}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

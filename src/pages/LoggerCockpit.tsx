@@ -10,6 +10,7 @@ import {
   IS_E2E_TEST_MODE,
   fetchAllMatchEvents,
   resetMatch,
+  updateMatchEvent,
 } from "../lib/loggerApi";
 import {
   Clock,
@@ -24,6 +25,7 @@ import {
 import {
   Match,
   Player,
+  IneffectiveAction,
   LoggerHarness,
   QueuedEventSummary,
 } from "./logger/types";
@@ -36,6 +38,8 @@ import {
   normalizeMatchPayload,
   formatMatchClock,
   normalizeMatchClock,
+  buildIneffectiveBreakdownFromAggregates,
+  computeIneffectiveBreakdown,
 } from "./logger/utils";
 import { useActionFlow } from "./logger/hooks/useActionFlow";
 import TeamSelector from "./logger/components/TeamSelector";
@@ -88,6 +92,17 @@ const formatSecondsAsClock = (seconds: number): string => {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 };
 
+const formatSecondsAsClockWithMs = (seconds: number): string => {
+  const safeSeconds = Math.max(0, seconds);
+  const mins = Math.floor(safeSeconds / 60);
+  const wholeSeconds = Math.floor(safeSeconds % 60);
+  const ms = Math.floor((safeSeconds - Math.floor(safeSeconds)) * 1000);
+  return `${String(mins).padStart(2, "0")}:${String(wholeSeconds).padStart(
+    2,
+    "0",
+  )}.${String(ms).padStart(3, "0")}`;
+};
+
 declare global {
   interface Window {
     __PROMATCH_LOGGER_HARNESS__?: LoggerHarness;
@@ -108,11 +123,14 @@ export default function LoggerCockpit() {
     duplicateStats,
     operatorClock,
     setOperatorClock,
+    operatorPeriod,
     isBallInPlay,
     setIsBallInPlay,
     resetOperatorControls,
     setCurrentMatch,
     setLiveEvents,
+    upsertLiveEvent,
+    updateEventNotes,
     removeQueuedEvent,
     removeUndoCandidate,
     clearDuplicateHighlight,
@@ -161,6 +179,24 @@ export default function LoggerCockpit() {
   const [turboError, setTurboError] = useState<string | null>(null);
 
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [ineffectiveNoteOpen, setIneffectiveNoteOpen] = useState(false);
+  const [ineffectiveNoteText, setIneffectiveNoteText] = useState("");
+  const [ineffectiveActionType, setIneffectiveActionType] =
+    useState<IneffectiveAction>("Other");
+  const [hasActiveIneffective, setHasActiveIneffective] = useState(false);
+  const [pendingIneffectiveContext, setPendingIneffectiveContext] = useState<{
+    teamId?: string | null;
+    playerId?: string | null;
+    actionType?: IneffectiveAction | null;
+    neutral?: boolean;
+  } | null>(null);
+  const activeIneffectiveContextRef = useRef<{
+    teamId?: string | null;
+    playerId?: string | null;
+    actionType?: IneffectiveAction | null;
+    neutral?: boolean;
+    startedAtMs?: number;
+  } | null>(null);
   const [toast, setToast] = useState<{
     message: string;
     actionLabel?: string;
@@ -171,6 +207,7 @@ export default function LoggerCockpit() {
   const lastDriftAutoSyncRef = useRef<number>(0);
   const driftExceededAtRef = useRef<number | null>(null);
   const lastGoalClientIdRef = useRef<string | null>(null);
+  const lastStoppageClockRef = useRef<string | null>(null);
 
   const getInitialOnField = useCallback((players: Player[]) => {
     const starters = players.filter((p) => p.is_starter !== false);
@@ -275,6 +312,264 @@ export default function LoggerCockpit() {
     handleModeSwitch,
   } = useMatchTimer(match, fetchMatch);
 
+  const [ineffectiveTick, setIneffectiveTick] = useState(0);
+
+  useEffect(() => {
+    if (!match || (!hasActiveIneffective && clockMode !== "INEFFECTIVE")) {
+      return undefined;
+    }
+    const interval = setInterval(() => {
+      setIneffectiveTick(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockMode, hasActiveIneffective, match]);
+
+  const ineffectiveBreakdown = useMemo(() => {
+    if (!match) return null;
+    if (match.ineffective_aggregates) {
+      return buildIneffectiveBreakdownFromAggregates(
+        match.ineffective_aggregates,
+        Date.now(),
+      );
+    }
+    return computeIneffectiveBreakdown(
+      [...liveEvents, ...queuedEvents],
+      match.home_team.id,
+      match.away_team.id,
+      Date.now(),
+    );
+  }, [match, liveEvents, queuedEvents, ineffectiveTick]);
+
+  const neutralIneffectiveSeconds = useMemo(() => {
+    const baseNeutral = ineffectiveBreakdown?.totals.neutral ?? 0;
+    if (ineffectiveBreakdown?.active?.teamKey === "neutral") {
+      return baseNeutral;
+    }
+    if (clockMode !== "INEFFECTIVE") {
+      return baseNeutral;
+    }
+    const activeContext = activeIneffectiveContextRef.current;
+    if (!activeContext?.neutral || !activeContext.startedAtMs) {
+      return baseNeutral;
+    }
+    const deltaSeconds = Math.max(
+      0,
+      (Date.now() - activeContext.startedAtMs) / 1000,
+    );
+    return baseNeutral + deltaSeconds;
+  }, [clockMode, ineffectiveBreakdown, ineffectiveTick]);
+
+  const getStoppageTeamId = useCallback(() => {
+    if (!match) return null;
+    if (selectedTeam === "away") return match.away_team.id;
+    return match.home_team.id;
+  }, [match, selectedTeam]);
+
+  const logClockStoppage = useCallback(
+    (
+      stoppageType: "ClockStop" | "ClockStart",
+      notes?: string | null,
+      context?: {
+        teamId?: string | null;
+        playerId?: string | null;
+        actionType?: IneffectiveAction | null;
+        neutral?: boolean;
+      } | null,
+    ) => {
+      if (!match) return;
+      const resolvedTeamId = context?.neutral
+        ? "NEUTRAL"
+        : context?.teamId || getStoppageTeamId();
+      if (!resolvedTeamId) return;
+      const baseClock = globalClock || "00:00.000";
+      const adjustedClock =
+        stoppageType === "ClockStart" &&
+        lastStoppageClockRef.current === baseClock
+          ? formatSecondsAsClockWithMs(parseClockToSeconds(baseClock) + 0.001)
+          : baseClock;
+      lastStoppageClockRef.current = adjustedClock;
+      sendEvent({
+        match_clock: adjustedClock,
+        period: operatorPeriod,
+        team_id: resolvedTeamId,
+        type: "GameStoppage",
+        data: {
+          stoppage_type: stoppageType,
+          reason: context?.actionType || "Other",
+          trigger_action: context?.actionType || null,
+          trigger_team_id: context?.neutral ? null : context?.teamId || null,
+          trigger_player_id: context?.playerId || null,
+          neutral: Boolean(context?.neutral),
+        },
+        ...(notes ? { notes } : {}),
+      });
+    },
+    [getStoppageTeamId, globalClock, match, operatorPeriod, sendEvent],
+  );
+
+  const beginIneffective = useCallback(
+    (
+      note?: string | null,
+      context?: {
+        teamId?: string | null;
+        playerId?: string | null;
+        actionType?: IneffectiveAction | null;
+        neutral?: boolean;
+      } | null,
+    ) => {
+      if (clockMode === "INEFFECTIVE") return;
+      if (activeIneffectiveContextRef.current) return;
+      const trimmed = (note || "").trim();
+      const resolvedContext = {
+        teamId: context?.teamId ?? null,
+        playerId: context?.playerId ?? null,
+        actionType: context?.actionType ?? ineffectiveActionType,
+        neutral: context?.neutral ?? true,
+      };
+      if (!trimmed) {
+        setIneffectiveNoteText("");
+        setPendingIneffectiveContext(resolvedContext);
+        setIneffectiveNoteOpen(true);
+        return;
+      }
+      logClockStoppage("ClockStop", trimmed, resolvedContext);
+      activeIneffectiveContextRef.current = {
+        ...resolvedContext,
+        startedAtMs: Date.now(),
+      };
+      setHasActiveIneffective(true);
+      handleModeSwitch("INEFFECTIVE");
+      setIsBallInPlay(false);
+    },
+    [
+      clockMode,
+      handleModeSwitch,
+      ineffectiveActionType,
+      logClockStoppage,
+      setIsBallInPlay,
+    ],
+  );
+
+  const endIneffectiveIfNeeded = useCallback(
+    (nextMode: "EFFECTIVE" | "TIMEOFF") => {
+      if (clockMode === "INEFFECTIVE" || activeIneffectiveContextRef.current) {
+        logClockStoppage(
+          "ClockStart",
+          null,
+          activeIneffectiveContextRef.current,
+        );
+        activeIneffectiveContextRef.current = null;
+        setHasActiveIneffective(false);
+      }
+      handleModeSwitch(nextMode);
+    },
+    [clockMode, handleModeSwitch, logClockStoppage],
+  );
+
+  const confirmIneffectiveNote = useCallback(() => {
+    const trimmed = ineffectiveNoteText.trim();
+    if (!trimmed) {
+      setToast({
+        message: t(
+          "ineffectiveNoteRequired",
+          "Add a note to start ineffective time.",
+        ),
+      });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const resolvedContext = {
+      teamId: pendingIneffectiveContext?.teamId ?? null,
+      playerId: pendingIneffectiveContext?.playerId ?? null,
+      actionType:
+        pendingIneffectiveContext?.actionType ?? ineffectiveActionType,
+      neutral: pendingIneffectiveContext?.neutral ?? true,
+    };
+    logClockStoppage("ClockStop", trimmed, resolvedContext);
+    activeIneffectiveContextRef.current = {
+      ...resolvedContext,
+      startedAtMs: Date.now(),
+    };
+    setHasActiveIneffective(true);
+    handleModeSwitch("INEFFECTIVE");
+    setIsBallInPlay(false);
+    setIneffectiveNoteOpen(false);
+    setIneffectiveNoteText("");
+    setPendingIneffectiveContext(null);
+  }, [
+    handleModeSwitch,
+    ineffectiveActionType,
+    ineffectiveNoteText,
+    logClockStoppage,
+    pendingIneffectiveContext,
+    setIsBallInPlay,
+    t,
+  ]);
+
+  const cancelIneffectiveNote = useCallback(() => {
+    setIneffectiveNoteOpen(false);
+    setIneffectiveNoteText("");
+    setPendingIneffectiveContext(null);
+  }, []);
+
+  const handleUpdateEventNotes = useCallback(
+    async (event: MatchEvent, notes: string | null) => {
+      updateEventNotes(event, notes);
+      if (!event._id) return;
+      try {
+        const updated = await updateMatchEvent(event._id, { notes });
+        upsertLiveEvent(updated);
+      } catch (error) {
+        console.error("Failed to update event notes", error);
+        setToast({
+          message: t("notesUpdateFailed", "Unable to update notes right now."),
+        });
+        setTimeout(() => setToast(null), 3000);
+      }
+    },
+    [t, updateEventNotes, upsertLiveEvent],
+  );
+
+  const cardYellowCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const combinedEvents = [...liveEvents, ...queuedEvents];
+    combinedEvents.forEach((event) => {
+      if (event.type !== "Card") return;
+      if (!event.player_id) return;
+      const cardType = String(event.data?.card_type || "").toLowerCase();
+      if (!cardType.startsWith("yellow")) return;
+      counts[event.player_id] = (counts[event.player_id] || 0) + 1;
+    });
+    return counts;
+  }, [liveEvents, queuedEvents]);
+
+  const expelledPlayerIds = useMemo(() => {
+    const expelled = new Set<string>();
+    const yellowCounts: Record<string, number> = {};
+    const combinedEvents = [...liveEvents, ...queuedEvents];
+    combinedEvents.forEach((event) => {
+      if (event.type !== "Card") return;
+      if (!event.player_id) return;
+      const cardType = String(event.data?.card_type || "").toLowerCase();
+      if (cardType.includes("red")) {
+        expelled.add(event.player_id);
+        return;
+      }
+      if (cardType.includes("yellow (second)")) {
+        expelled.add(event.player_id);
+        return;
+      }
+      if (cardType.includes("yellow")) {
+        yellowCounts[event.player_id] =
+          (yellowCounts[event.player_id] || 0) + 1;
+        if (yellowCounts[event.player_id] >= 2) {
+          expelled.add(event.player_id);
+        }
+      }
+    });
+    return expelled;
+  }, [liveEvents, queuedEvents]);
+
   useEffect(() => {
     setIsBallInPlay(isGlobalClockRunning);
   }, [isGlobalClockRunning, setIsBallInPlay]);
@@ -349,7 +644,6 @@ export default function LoggerCockpit() {
   }, [driftSeconds, fetchMatch]);
 
   const {
-    operatorPeriod,
     currentPhase,
     periodInfo,
     showExtraTimeAlert,
@@ -478,8 +772,37 @@ export default function LoggerCockpit() {
     operatorPeriod,
     selectedTeam,
     isSubmitting,
+    cardYellowCounts,
+    expelledPlayerIds,
+    recentEvents: [...liveEvents, ...queuedEvents],
+    onIneffectiveTrigger: (payload) => {
+      const note = payload.note
+        ? payload.note
+        : payload.actionType === "Foul"
+          ? t("ineffectiveNoteFoul", "Foul")
+          : t("ineffectiveNoteCard", "Card issued");
+      beginIneffective(note, {
+        teamId: payload.teamId,
+        playerId: payload.playerId,
+        actionType: payload.actionType,
+        neutral: false,
+      });
+    },
     sendEvent,
   });
+
+  useEffect(() => {
+    if (!selectedPlayer) return;
+    if (!expelledPlayerIds.has(selectedPlayer.id)) return;
+    resetFlow();
+    setToast({
+      message: t(
+        "playerExpelled",
+        "Player is expelled and cannot log actions.",
+      ),
+    });
+    setTimeout(() => setToast(null), 3000);
+  }, [expelledPlayerIds, resetFlow, selectedPlayer, t]);
 
   const normalizeStatus = useCallback(
     (status?: Match["status"]): Match["status"] => {
@@ -520,30 +843,34 @@ export default function LoggerCockpit() {
       typeof window !== "undefined" &&
       (window as any).__PROMATCH_E2E_ENFORCE_MINIMUMS__
     );
+
+  // Use global time (not effective time) for phase transition validation
+  const globalTimeSeconds = parseClockToSeconds(globalClock);
+
   const hasFirstHalfMinimum =
-    bypassMinimums || effectiveTime >= REGULATION_FIRST_HALF_SECONDS;
+    bypassMinimums || globalTimeSeconds >= REGULATION_FIRST_HALF_SECONDS;
   const hasSecondHalfMinimum =
-    bypassMinimums || effectiveTime >= REGULATION_SECOND_HALF_SECONDS;
+    bypassMinimums || globalTimeSeconds >= REGULATION_SECOND_HALF_SECONDS;
   const hasExtraFirstHalfMinimum =
-    bypassMinimums || effectiveTime >= EXTRA_FIRST_HALF_END_SECONDS;
+    bypassMinimums || globalTimeSeconds >= EXTRA_FIRST_HALF_END_SECONDS;
   const hasExtraSecondHalfMinimum =
-    bypassMinimums || effectiveTime >= EXTRA_SECOND_HALF_END_SECONDS;
+    bypassMinimums || globalTimeSeconds >= EXTRA_SECOND_HALF_END_SECONDS;
   const minimumFirstHalfReason = t(
     "transitionMinimumFirstHalf",
-    "Need at least 45:00 of effective time to end 1st half (current {{clock}}).",
-    { clock: formatSecondsAsClock(effectiveTime) },
+    "Need at least 45:00 of global time to end 1st half (current {{clock}}).",
+    { clock: globalClock },
   );
   const minimumSecondHalfReason = t(
     "transitionMinimumSecondHalf",
-    "Need at least 90:00 of effective time to end 2nd half (current {{clock}}).",
-    { clock: formatSecondsAsClock(effectiveTime) },
+    "Need at least 90:00 of global time to end 2nd half (current {{clock}}).",
+    { clock: globalClock },
   );
   const minimumExtraFirstHalfReason = t(
     "transitionMinimumExtraFirstHalf",
     "Need at least 15:00 of extra time to end ET 1st half (current {{clock}}).",
     {
       clock: formatSecondsAsClock(
-        Math.max(0, effectiveTime - REGULATION_SECOND_HALF_SECONDS),
+        Math.max(0, globalTimeSeconds - REGULATION_SECOND_HALF_SECONDS),
       ),
     },
   );
@@ -552,7 +879,7 @@ export default function LoggerCockpit() {
     "Need at least 15:00 of extra time to end ET 2nd half (current {{clock}}).",
     {
       clock: formatSecondsAsClock(
-        Math.max(0, effectiveTime - EXTRA_FIRST_HALF_END_SECONDS),
+        Math.max(0, globalTimeSeconds - EXTRA_FIRST_HALF_END_SECONDS),
       ),
     },
   );
@@ -671,6 +998,16 @@ export default function LoggerCockpit() {
   const handlePlayerSelection = useCallback(
     (player: Player) => {
       if (cockpitLocked) return;
+      if (expelledPlayerIds.has(player.id)) {
+        setToast({
+          message: t(
+            "playerExpelled",
+            "Player is expelled and cannot log actions.",
+          ),
+        });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
       const playerTeam = determinePlayerTeam(player);
       if (!playerTeam) return;
       if (playerTeam !== selectedTeam) {
@@ -681,9 +1018,11 @@ export default function LoggerCockpit() {
     [
       cockpitLocked,
       determinePlayerTeam,
+      expelledPlayerIds,
       handlePlayerClick,
       selectedTeam,
       setSelectedTeam,
+      t,
     ],
   );
 
@@ -696,6 +1035,17 @@ export default function LoggerCockpit() {
     ) => {
       if (cockpitLocked) return;
 
+      if (expelledPlayerIds.has(player.id)) {
+        setToast({
+          message: t(
+            "playerExpelled",
+            "Player is expelled and cannot log actions.",
+          ),
+        });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+
       if (currentStep === "selectDestination") {
         const result = handleDestinationClick({
           destination: {
@@ -707,8 +1057,19 @@ export default function LoggerCockpit() {
           targetPlayer: player,
         });
         if (result?.outOfBounds || result?.isGoal) {
-          handleModeSwitch("INEFFECTIVE");
-          setIsBallInPlay(false);
+          beginIneffective(
+            result?.isGoal
+              ? t("ineffectiveNoteGoal", "Goal")
+              : t("ineffectiveNoteOut", "Out of bounds"),
+            result?.triggerContext
+              ? {
+                  teamId: result.triggerContext.teamId,
+                  playerId: result.triggerContext.playerId,
+                  actionType: result.triggerContext.actionType,
+                  neutral: false,
+                }
+              : null,
+          );
         }
         return;
       }
@@ -721,12 +1082,15 @@ export default function LoggerCockpit() {
     [
       cockpitLocked,
       currentStep,
+      expelledPlayerIds,
       handleDestinationClick,
+      beginIneffective,
       handleModeSwitch,
       handlePlayerClick,
       selectedTeam,
       setIsBallInPlay,
       setSelectedTeam,
+      t,
     ],
   );
 
@@ -740,17 +1104,22 @@ export default function LoggerCockpit() {
       if (cockpitLocked || currentStep !== "selectDestination") return;
       const result = handleDestinationClick({ destination });
       if (result?.outOfBounds || result?.isGoal) {
-        handleModeSwitch("INEFFECTIVE");
-        setIsBallInPlay(false);
+        beginIneffective(
+          result?.isGoal
+            ? t("ineffectiveNoteGoal", "Goal")
+            : t("ineffectiveNoteOut", "Out of bounds"),
+          result?.triggerContext
+            ? {
+                teamId: result.triggerContext.teamId,
+                playerId: result.triggerContext.playerId,
+                actionType: result.triggerContext.actionType,
+                neutral: false,
+              }
+            : null,
+        );
       }
     },
-    [
-      cockpitLocked,
-      currentStep,
-      handleDestinationClick,
-      handleModeSwitch,
-      setIsBallInPlay,
-    ],
+    [cockpitLocked, currentStep, handleDestinationClick, beginIneffective],
   );
 
   const handleTeamChange = useCallback(
@@ -934,9 +1303,13 @@ export default function LoggerCockpit() {
   const handleModeSwitchGuarded = useCallback(
     (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => {
       if (cockpitLocked) return;
-      handleModeSwitch(mode);
+      if (mode === "INEFFECTIVE") {
+        beginIneffective();
+        return;
+      }
+      endIneffectiveIfNeeded(mode);
     },
-    [cockpitLocked, handleModeSwitch],
+    [beginIneffective, cockpitLocked, endIneffectiveIfNeeded],
   );
 
   const handleClockBlur = useCallback(() => {
@@ -1039,9 +1412,13 @@ export default function LoggerCockpit() {
     if (lastGoalClientIdRef.current === latest.client_id) return;
 
     lastGoalClientIdRef.current = latest.client_id;
-    handleModeSwitch("INEFFECTIVE");
-    setIsBallInPlay(false);
-  }, [liveEvents, handleModeSwitch, setIsBallInPlay]);
+    beginIneffective(t("ineffectiveNoteGoal", "Goal"), {
+      teamId: latest.team_id,
+      playerId: latest.player_id,
+      actionType: "Goal",
+      neutral: false,
+    });
+  }, [beginIneffective, liveEvents, t]);
 
   const parseTurboInput = useCallback(() => {
     if (!match) return { error: t("turbo.invalidCode", "Enter a turbo code") };
@@ -1586,9 +1963,76 @@ export default function LoggerCockpit() {
                       <button
                         onClick={confirmGlobalReset}
                         disabled={resetConfirmText !== "RESET"}
+                        data-testid="reset-confirm-button"
                         className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {t("yesReset", "Yes, Reset")}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {ineffectiveNoteOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div
+                    className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
+                    data-testid="ineffective-note-modal"
+                  >
+                    <h3 className="text-lg font-bold mb-3 text-slate-800">
+                      {t("ineffectiveNoteTitle", "Ineffective time note")}
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      {t(
+                        "ineffectiveNoteHelp",
+                        "Add a note for why effective time stopped.",
+                      )}
+                    </p>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      {t("ineffectiveReasonLabel", "Ineffective reason")}
+                    </label>
+                    <select
+                      value={ineffectiveActionType}
+                      onChange={(e) =>
+                        setIneffectiveActionType(
+                          e.target.value as IneffectiveAction,
+                        )
+                      }
+                      className="w-full mb-3 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      data-testid="ineffective-note-action"
+                    >
+                      <option value="Injury">
+                        {t("ineffectiveReasonInjury", "Injury")}
+                      </option>
+                      <option value="VAR">
+                        {t("ineffectiveReasonVar", "VAR")}
+                      </option>
+                      <option value="Other">
+                        {t("ineffectiveReasonOther", "Other")}
+                      </option>
+                    </select>
+                    <textarea
+                      value={ineffectiveNoteText}
+                      onChange={(e) => setIneffectiveNoteText(e.target.value)}
+                      data-testid="ineffective-note-input"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      placeholder={t("notesPlaceholder", "Add a note...")}
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-3 mt-4">
+                      <button
+                        onClick={cancelIneffectiveNote}
+                        data-testid="ineffective-note-cancel"
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded"
+                      >
+                        {t("cancel", "Cancel")}
+                      </button>
+                      <button
+                        onClick={confirmIneffectiveNote}
+                        data-testid="ineffective-note-save"
+                        className="px-4 py-2 bg-amber-600 text-white hover:bg-amber-700 rounded"
+                      >
+                        {t("save", "Save")}
                       </button>
                     </div>
                   </div>
@@ -2152,8 +2596,11 @@ export default function LoggerCockpit() {
             </div>
             <MatchAnalytics
               match={match}
-              events={liveEvents}
+              events={[...liveEvents, ...queuedEvents]}
               effectiveTime={effectiveTime}
+              timeOffSeconds={match?.time_off_seconds || 0}
+              ineffectiveSeconds={match?.ineffective_time_seconds || 0}
+              ineffectiveBreakdown={ineffectiveBreakdown}
               t={t}
             />
           </div>
@@ -2182,6 +2629,9 @@ export default function LoggerCockpit() {
                 globalClock={globalClock}
                 effectiveClock={effectiveClock}
                 ineffectiveClock={ineffectiveClock}
+                neutralIneffectiveClock={formatSecondsAsClock(
+                  neutralIneffectiveSeconds,
+                )}
                 timeOffClock={timeOffClock}
                 clockMode={clockMode}
                 isClockRunning={isGlobalClockRunning}
@@ -2354,6 +2804,7 @@ export default function LoggerCockpit() {
                   match={match}
                   duplicateHighlight={duplicateHighlight}
                   onDeletePending={handleDeletePendingEvent}
+                  onUpdateEventNotes={handleUpdateEventNotes}
                   t={t}
                 />
               </div>
@@ -2396,6 +2847,12 @@ export default function LoggerCockpit() {
             };
             applyOnFieldChange(substitutionTeam, playerOffId, playerOnId);
             sendEvent(eventData);
+            beginIneffective(t("ineffectiveNoteSubstitution", "Substitution"), {
+              teamId: team.id,
+              playerId: playerOffId || playerOnId || null,
+              actionType: "Substitution",
+              neutral: false,
+            });
             setShowSubstitutionFlow(false);
           }}
           onCancel={() => setShowSubstitutionFlow(false)}

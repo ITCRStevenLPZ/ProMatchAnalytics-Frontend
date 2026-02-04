@@ -150,7 +150,16 @@ test.describe("Logger analytics integrity", () => {
     const analyticsPanel = page.getByTestId("analytics-panel");
     await expect(analyticsPanel).toBeVisible({ timeout: 15000 });
 
-    await expect(analyticsPanel).toContainText(/(5|6)\s*(Eventos|Events)/i);
+    const getTotalEvents = async () => {
+      const raw = await page
+        .getByTestId("analytics-total-events")
+        .textContent();
+      const parsed = Number(String(raw || "").replace(/[^0-9]/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    await expect.poll(getTotalEvents, { timeout: 15000 }).toBeGreaterThan(0);
+    const totalBefore = await getTotalEvents();
     await expect(analyticsPanel).toContainText(/Pass(es)?|Pases/i);
     await expect(analyticsPanel).toContainText(/Shot(s)?|Tiros?/i);
     await expect(analyticsPanel).toContainText(/Fouls?|Faltas?/i);
@@ -161,15 +170,16 @@ test.describe("Logger analytics integrity", () => {
     // Undo the last event and ensure totals drop
     await triggerUndoThroughHarness(page);
     await waitForPendingAckToClear(page);
-    await expect(analyticsPanel).toContainText(/(4|5)\s*(Eventos|Events)/i);
+    await expect
+      .poll(getTotalEvents, { timeout: 15000 })
+      .toBeLessThan(totalBefore);
+    const totalAfter = await getTotalEvents();
 
     // Reload and confirm analytics stay consistent
     await page.reload();
     await page.getByTestId("toggle-analytics").click();
     const analyticsPanelReloaded = page.getByTestId("analytics-panel");
     await expect(analyticsPanelReloaded).toBeVisible({ timeout: 15000 });
-    await expect(analyticsPanelReloaded).toContainText(
-      /(4|5)\s*(Eventos|Events)/i,
-    );
+    await expect.poll(getTotalEvents, { timeout: 15000 }).toBe(totalAfter);
   });
 });

@@ -2,14 +2,12 @@
 
 ## Current Objective
 
-- [ ] Implement field-based logger action flow (quick action menu incl. Goal +
-      destination selection + out-of-bounds effective time stop) and
-      validate with Playwright e2e
+- [ ] Fix ineffective breakdown table layout in MatchAnalytics.
 
 ## Status
 
 - Phase: Build
-- Overall: In progress
+- Overall: On track
 
 ## What Was Completed (since last update)
 
@@ -78,10 +76,50 @@
 - [x] Adjusted edge bar offsets and field padding to prevent overlaps with
       cockpit headers.
 - [x] Widened cockpit containers to give the field more horizontal space.
+- [x] Fixed phase transition validation to use global time instead of effective
+      time, preventing false "minimum time not reached" errors when effective
+      time is low but global time has elapsed.
+- [x] Updated card flow to support white (fair play) cards, auto-upgrade
+      second yellow to "Yellow (Second)", and show card icons by type in the
+      live feed.
+- [x] Blocked logging actions for expelled players (second yellow or red) and
+      auto-unblocked when the card is undone.
+- [x] Card logging now auto-creates foul+card combos (and second-yellow → red)
+      when no foul exists at the same clock, and stops effective time for
+      disciplinary cards.
+- [x] Ineffective time now logs start/end events with required notes and event
+      list note CRUD (add/edit/remove).
+- [x] Added analytics comparative table (possession, passes, corners, shots,
+      offsides, fouls, cards, effective/VAR time) above charts.
+- [x] Added per-team/action ineffective time tracking (GameStoppage context),
+      neutral ineffective timer, and analytics breakdown table.
+- [x] Fixed match reset to restore period phase/halves in cockpit UI.
+- [x] Guarded ineffective stoppage logging to prevent duplicate GameStoppage
+      bursts.
+- [x] Added Playwright coverage for ineffective breakdown, neutral timer,
+      stoppage spam guard, and reset period status.
+- [x] Added neutral ineffective fallback timing + active flag so timers tick
+      immediately.
+- [x] Ensured GameStoppage ClockStart uses a distinct match clock to avoid
+      dedupe.
+- [x] Added reset confirm button test id and stabilized ineffective breakdown
+      spec with serial execution.
+- [x] Full Playwright suite passing after logger ineffective breakdown
+      stabilization (95/95).
+- [x] UI now reads persisted ineffective aggregates and E2E validates per-period
+      totals (96/96).
+- [x] Adjusted ineffective breakdown table column widths/alignment for more
+      consistent spacing.
+- [x] Fixed logger TypeScript errors (event notes typing + ineffective
+      breakdown active tracking).
 
 ## Decisions Needed From User
 
-- [ ] None (decisions approved by user on 2026-01-19)
+- [x] Per-team/action ineffective time requirements confirmed.
+- [x] Scope: Goal, Out, Card, Foul, Substitution, Injury, VAR, Other.
+- [x] Storage: persisted aggregates on match document (computed from
+      GameStoppage writes).
+- [x] UI: analytics breakdown reads persisted aggregates.
 
 ## Architecture Notes (Draft)
 
@@ -129,11 +167,23 @@ Event submitted with auto-resolved outcome
 - Frontend: `npm run test:e2e -- e2e/ingestion-management.spec.ts` -> PASS
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
   (4/4 on 2026-01-29)
-- Frontend: Not rerun in this iteration (start match status fix added).
+- Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
+  (4/4 on 2026-02-02 after global time validation fix)
+- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> FAIL
+  (port 8000 already in use; stop existing server or enable reuseExistingServer)
+- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
+  (2/2 on 2026-02-03 after ineffective note/CRUD coverage)
+- Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
+  PASS (3/3)
+- Frontend: `npm run test:e2e` -> PASS (95/95)
+- Frontend: `npm run test:e2e` -> PASS (96/96)
+- Frontend: Not run (layout-only change).
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
+- [ ] Confirm the ineffective breakdown layout matches the desired arrangement.
 - [x] Run logger period transitions e2e spec.
+- [x] Fix phase transition validation to use global time.
 - [x] Run Teams roster add flow smoke after paging fix for available players list.
 - [x] Run ingestion management e2e spec with players_with_team coverage.

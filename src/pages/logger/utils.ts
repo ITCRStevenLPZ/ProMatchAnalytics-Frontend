@@ -1,4 +1,203 @@
-import { Match, Player, Team } from "./types";
+import { IneffectiveAggregates, Match, Player, Team } from "./types";
+import { MatchEvent } from "../../store/useMatchLogStore";
+
+export type IneffectiveAction =
+  | "Goal"
+  | "OutOfBounds"
+  | "Card"
+  | "Foul"
+  | "Substitution"
+  | "Injury"
+  | "VAR"
+  | "Other";
+
+export type IneffectiveTeamKey = "home" | "away" | "neutral";
+
+export interface IneffectiveTotals {
+  home: number;
+  away: number;
+  neutral: number;
+  byAction: Record<IneffectiveAction, Record<IneffectiveTeamKey, number>>;
+}
+
+export interface IneffectiveBreakdown {
+  totals: IneffectiveTotals;
+  active?: {
+    teamKey: IneffectiveTeamKey;
+    action: IneffectiveAction;
+    startMs: number;
+  } | null;
+}
+
+const INEFFECTIVE_ACTIONS: IneffectiveAction[] = [
+  "Goal",
+  "OutOfBounds",
+  "Card",
+  "Foul",
+  "Substitution",
+  "Injury",
+  "VAR",
+  "Other",
+];
+
+const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
+  const normalized = String(raw || "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, "");
+  if (!normalized) return "Other";
+  if (normalized.includes("goal")) return "Goal";
+  if (normalized.includes("outofbounds") || normalized.includes("out"))
+    return "OutOfBounds";
+  if (normalized.includes("card")) return "Card";
+  if (normalized.includes("foul")) return "Foul";
+  if (normalized.includes("sub")) return "Substitution";
+  if (normalized.includes("injury")) return "Injury";
+  if (normalized.includes("var")) return "VAR";
+  return "Other";
+};
+
+const buildEmptyTotals = (): IneffectiveTotals => {
+  const byAction = INEFFECTIVE_ACTIONS.reduce(
+    (acc, action) => {
+      acc[action] = { home: 0, away: 0, neutral: 0 };
+      return acc;
+    },
+    {} as Record<IneffectiveAction, Record<IneffectiveTeamKey, number>>,
+  );
+  return { home: 0, away: 0, neutral: 0, byAction };
+};
+
+const resolveTeamKey = (
+  event: MatchEvent,
+  homeTeamId: string,
+  awayTeamId: string,
+): IneffectiveTeamKey => {
+  const isNeutral = Boolean(event.data?.neutral);
+  if (isNeutral) return "neutral";
+  const triggerTeam = event.data?.trigger_team_id || event.team_id || "NEUTRAL";
+  if (triggerTeam === "NEUTRAL") return "neutral";
+  if (triggerTeam === homeTeamId) return "home";
+  if (triggerTeam === awayTeamId) return "away";
+  return "neutral";
+};
+
+export const computeIneffectiveBreakdown = (
+  events: MatchEvent[],
+  homeTeamId: string,
+  awayTeamId: string,
+  nowMs: number = Date.now(),
+): IneffectiveBreakdown => {
+  const totals = buildEmptyTotals();
+  const stoppages = events
+    .filter(
+      (event) =>
+        event.type === "GameStoppage" &&
+        typeof event.data?.stoppage_type === "string",
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+  let activeTeamKey: IneffectiveTeamKey | null = null;
+  let activeAction: IneffectiveAction | null = null;
+  let activeStartMs: number | null = null;
+
+  const addDuration = (
+    teamKey: IneffectiveTeamKey,
+    action: IneffectiveAction,
+    durationSeconds: number,
+  ) => {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return;
+    totals[teamKey] += durationSeconds;
+    totals.byAction[action][teamKey] += durationSeconds;
+  };
+
+  stoppages.forEach((event) => {
+    const stoppageType = String(event.data?.stoppage_type || "");
+    const action = normalizeIneffectiveAction(
+      event.data?.trigger_action || event.data?.reason,
+    );
+    const teamKey = resolveTeamKey(event, homeTeamId, awayTeamId);
+    const timestampMs = new Date(event.timestamp).getTime();
+    if (!Number.isFinite(timestampMs)) return;
+
+    if (stoppageType === "ClockStop") {
+      activeTeamKey = teamKey;
+      activeAction = action;
+      activeStartMs = timestampMs;
+      return;
+    }
+    if (stoppageType === "ClockStart") {
+      if (activeTeamKey && activeAction && activeStartMs !== null) {
+        addDuration(
+          activeTeamKey,
+          activeAction,
+          (timestampMs - activeStartMs) / 1000,
+        );
+      }
+      activeTeamKey = null;
+      activeAction = null;
+      activeStartMs = null;
+    }
+  });
+
+  if (activeTeamKey && activeAction && activeStartMs !== null) {
+    addDuration(activeTeamKey, activeAction, (nowMs - activeStartMs) / 1000);
+  }
+
+  const active =
+    activeTeamKey && activeAction && activeStartMs !== null
+      ? {
+          teamKey: activeTeamKey,
+          action: activeAction,
+          startMs: activeStartMs,
+        }
+      : null;
+
+  return { totals, active };
+};
+
+export const buildIneffectiveBreakdownFromAggregates = (
+  aggregates: IneffectiveAggregates,
+  nowMs: number = Date.now(),
+): IneffectiveBreakdown => {
+  const totals = buildEmptyTotals();
+
+  INEFFECTIVE_ACTIONS.forEach((action) => {
+    const actionTotals = aggregates.by_action?.[action];
+    if (!actionTotals) return;
+    totals.byAction[action].home = actionTotals.home || 0;
+    totals.byAction[action].away = actionTotals.away || 0;
+    totals.byAction[action].neutral = actionTotals.neutral || 0;
+  });
+
+  totals.home = aggregates.totals?.home || 0;
+  totals.away = aggregates.totals?.away || 0;
+  totals.neutral = aggregates.totals?.neutral || 0;
+
+  let active: {
+    teamKey: IneffectiveTeamKey;
+    action: IneffectiveAction;
+    startMs: number;
+  } | null = null;
+  if (aggregates.active?.start_timestamp) {
+    const startMs = new Date(aggregates.active.start_timestamp).getTime();
+    if (Number.isFinite(startMs)) {
+      active = {
+        teamKey: aggregates.active.team_key,
+        action: aggregates.active.action,
+        startMs,
+      };
+      const deltaSeconds = Math.max(0, (nowMs - startMs) / 1000);
+      totals[active.teamKey] += deltaSeconds;
+      totals.byAction[active.action][active.teamKey] += deltaSeconds;
+    }
+  }
+
+  return { totals, active };
+};
 
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
   name?.slice(0, 3).toUpperCase() ?? fallback;
@@ -69,6 +268,7 @@ export const normalizeMatchPayload = (payload: any): Match => {
     period_timestamps: payload.period_timestamps ?? {},
     ineffective_time_seconds: payload.ineffective_time_seconds ?? 0,
     time_off_seconds: payload.time_off_seconds ?? 0,
+    ineffective_aggregates: payload.ineffective_aggregates ?? null,
     clock_mode: payload.clock_mode ?? "EFFECTIVE",
     last_mode_change_timestamp: payload.last_mode_change_timestamp,
     home_team: normalizeTeamFromApi(payload.home_team, "HOME"),

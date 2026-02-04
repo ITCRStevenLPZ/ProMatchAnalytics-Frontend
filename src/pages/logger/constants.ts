@@ -22,7 +22,7 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
   },
   Card: {
     actions: ["Card"],
-    outcomes: { Card: ["Yellow", "Red", "Yellow (Second)"] },
+    outcomes: { Card: ["Yellow", "Red", "White"] },
   },
   Carry: {
     actions: ["Carry"],

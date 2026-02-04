@@ -102,6 +102,21 @@ export const usePeriodManager = (
   useEffect(() => {
     if (!match?.status) return;
 
+    const isResetMatch =
+      match.status === "Pending" &&
+      (match.match_time_seconds || 0) === 0 &&
+      (match.ineffective_time_seconds || 0) === 0 &&
+      (match.time_off_seconds || 0) === 0 &&
+      !match.current_period_start_timestamp &&
+      (!match.period_timestamps ||
+        Object.keys(match.period_timestamps).length === 0);
+
+    if (isResetMatch) {
+      setCurrentPhase("NOT_STARTED");
+      setOperatorPeriod(1);
+      return;
+    }
+
     const phaseFromStatus = statusToPhase(match.status);
     if (!phaseFromStatus) return;
 
@@ -110,7 +125,14 @@ export const usePeriodManager = (
       if (phaseRank[phaseFromStatus] < phaseRank[prev]) return prev;
       return phaseFromStatus;
     });
-  }, [match?.status]);
+  }, [
+    match?.status,
+    match?.match_time_seconds,
+    match?.ineffective_time_seconds,
+    match?.time_off_seconds,
+    match?.current_period_start_timestamp,
+    match?.period_timestamps,
+  ]);
 
   // Update operator period based on phase
   useEffect(() => {
