@@ -6,6 +6,7 @@ import {
   EventType,
   FieldAnchor,
   FieldCoordinate,
+  IneffectiveAction,
   Match,
   Player,
   Team,
@@ -17,6 +18,15 @@ interface UseActionFlowParams {
   operatorPeriod: number;
   selectedTeam: "home" | "away" | "both";
   isSubmitting: boolean;
+  cardYellowCounts: Record<string, number>;
+  expelledPlayerIds: Set<string>;
+  recentEvents: MatchEvent[];
+  onIneffectiveTrigger?: (payload: {
+    note?: string;
+    teamId: string;
+    playerId?: string;
+    actionType: IneffectiveAction;
+  }) => void;
   sendEvent: (event: Omit<MatchEvent, "match_id" | "timestamp">) => void;
 }
 
@@ -185,6 +195,10 @@ export const useActionFlow = ({
   operatorPeriod,
   selectedTeam,
   isSubmitting,
+  cardYellowCounts,
+  expelledPlayerIds,
+  recentEvents,
+  onIneffectiveTrigger,
   sendEvent,
 }: UseActionFlowParams) => {
   const [currentStep, setCurrentStep] = useState<ActionStep>("selectPlayer");
@@ -259,9 +273,75 @@ export const useActionFlow = ({
     ) => {
       if (!match || !currentTeam || !selectedPlayer) return false;
       if (isSubmitting) return false;
+      if (expelledPlayerIds.has(selectedPlayer.id)) return false;
+      let resolvedOutcome = outcome;
+      const sendPayload = (
+        nextAction: string,
+        nextOutcome: string | null,
+        nextRecipient: Player | null,
+        extraData?: Record<string, any>,
+      ) => {
+        const payload = buildEventPayload(
+          nextAction,
+          nextOutcome,
+          nextRecipient,
+          currentTeam,
+          selectedPlayer,
+          globalClock,
+          operatorPeriod,
+          opts?.location,
+          opts?.endLocation,
+          extraData ?? opts?.extraData,
+        );
+        sendEvent(payload);
+      };
+
+      if (action === "Card") {
+        const requested = outcome || "Yellow";
+        if (requested === "Yellow") {
+          const previousYellows = cardYellowCounts[selectedPlayer.id] || 0;
+          resolvedOutcome = previousYellows >= 1 ? "Yellow (Second)" : "Yellow";
+        } else {
+          resolvedOutcome = requested;
+        }
+
+        const isDisciplinary =
+          resolvedOutcome === "Yellow" ||
+          resolvedOutcome === "Yellow (Second)" ||
+          resolvedOutcome === "Red";
+        const hasRecentFoul = recentEvents.some(
+          (event) =>
+            event.type === "FoulCommitted" &&
+            event.match_clock === globalClock &&
+            event.period === operatorPeriod,
+        );
+
+        if (isDisciplinary && !hasRecentFoul) {
+          sendPayload("Foul", "Standard", null);
+        }
+
+        sendPayload("Card", resolvedOutcome, null);
+
+        if (resolvedOutcome === "Yellow (Second)") {
+          sendPayload("Card", "Red", null);
+        }
+
+        if (isDisciplinary) {
+          const noteText = `Card: ${resolvedOutcome}`;
+          onIneffectiveTrigger?.({
+            note: noteText,
+            teamId: currentTeam.id,
+            playerId: selectedPlayer.id,
+            actionType: "Card",
+          });
+        }
+
+        return true;
+      }
+
       const payload = buildEventPayload(
         action,
-        outcome,
+        resolvedOutcome,
         recipient,
         currentTeam,
         selectedPlayer,
@@ -272,6 +352,14 @@ export const useActionFlow = ({
         opts?.extraData,
       );
       sendEvent(payload);
+
+      if (action === "Foul") {
+        onIneffectiveTrigger?.({
+          teamId: currentTeam.id,
+          playerId: selectedPlayer.id,
+          actionType: "Foul",
+        });
+      }
       return true;
     },
     [
@@ -279,6 +367,10 @@ export const useActionFlow = ({
       currentTeam,
       selectedPlayer,
       isSubmitting,
+      cardYellowCounts,
+      expelledPlayerIds,
+      recentEvents,
+      onIneffectiveTrigger,
       globalClock,
       operatorPeriod,
       sendEvent,
@@ -287,17 +379,24 @@ export const useActionFlow = ({
 
   const handlePlayerClick = useCallback(
     (player: Player, anchor?: FieldAnchor, location?: [number, number]) => {
+      if (expelledPlayerIds.has(player.id)) {
+        return;
+      }
       setSelectedPlayer(player);
       setSelectedPlayerLocation(location ?? null);
       setFieldAnchor(anchor ?? null);
       setCurrentStep(anchor ? "selectQuickAction" : "selectAction");
     },
-    [],
+    [expelledPlayerIds],
   );
 
   const handleQuickActionSelect = useCallback((action: string) => {
     setSelectedAction(action);
     setPendingOutcome(null);
+    if (action === "Card") {
+      setCurrentStep("selectOutcome");
+      return;
+    }
     setCurrentStep("selectDestination");
   }, []);
 
@@ -377,7 +476,7 @@ export const useActionFlow = ({
       } else if (selectedAction === "Duel") {
         outcome = isOpponent ? "Lost" : "Won";
       } else if (selectedAction === "Card") {
-        outcome = "Yellow";
+        outcome = null;
       }
 
       const recipient = isSameTeam ? targetPlayer : null;
@@ -389,11 +488,31 @@ export const useActionFlow = ({
 
       const isGoal = outcome === "Goal";
 
+      const triggerAction: IneffectiveAction | null = isGoal
+        ? "Goal"
+        : destination.isOutOfBounds
+          ? "OutOfBounds"
+          : null;
+
+      const triggerContext =
+        sent && triggerAction
+          ? {
+              actionType: triggerAction,
+              teamId: currentTeam.id,
+              playerId: selectedPlayer.id,
+            }
+          : null;
+
       if (sent) {
         resetFlow();
       }
 
-      return { sent, outOfBounds: destination.isOutOfBounds, isGoal };
+      return {
+        sent,
+        outOfBounds: destination.isOutOfBounds,
+        isGoal,
+        triggerContext,
+      };
     },
     [
       currentTeam,

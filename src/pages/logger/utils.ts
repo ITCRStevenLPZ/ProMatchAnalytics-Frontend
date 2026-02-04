@@ -1,4 +1,148 @@
 import { Match, Player, Team } from "./types";
+import { MatchEvent } from "../../store/useMatchLogStore";
+
+export type IneffectiveAction =
+  | "Goal"
+  | "OutOfBounds"
+  | "Card"
+  | "Foul"
+  | "Substitution"
+  | "Injury"
+  | "VAR"
+  | "Other";
+
+export type IneffectiveTeamKey = "home" | "away" | "neutral";
+
+export interface IneffectiveTotals {
+  home: number;
+  away: number;
+  neutral: number;
+  byAction: Record<IneffectiveAction, Record<IneffectiveTeamKey, number>>;
+}
+
+export interface IneffectiveBreakdown {
+  totals: IneffectiveTotals;
+  active?: {
+    teamKey: IneffectiveTeamKey;
+    action: IneffectiveAction;
+    startMs: number;
+  } | null;
+}
+
+const INEFFECTIVE_ACTIONS: IneffectiveAction[] = [
+  "Goal",
+  "OutOfBounds",
+  "Card",
+  "Foul",
+  "Substitution",
+  "Injury",
+  "VAR",
+  "Other",
+];
+
+const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
+  const normalized = String(raw || "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, "");
+  if (!normalized) return "Other";
+  if (normalized.includes("goal")) return "Goal";
+  if (normalized.includes("outofbounds") || normalized.includes("out"))
+    return "OutOfBounds";
+  if (normalized.includes("card")) return "Card";
+  if (normalized.includes("foul")) return "Foul";
+  if (normalized.includes("sub")) return "Substitution";
+  if (normalized.includes("injury")) return "Injury";
+  if (normalized.includes("var")) return "VAR";
+  return "Other";
+};
+
+const buildEmptyTotals = (): IneffectiveTotals => {
+  const byAction = INEFFECTIVE_ACTIONS.reduce(
+    (acc, action) => {
+      acc[action] = { home: 0, away: 0, neutral: 0 };
+      return acc;
+    },
+    {} as Record<IneffectiveAction, Record<IneffectiveTeamKey, number>>,
+  );
+  return { home: 0, away: 0, neutral: 0, byAction };
+};
+
+const resolveTeamKey = (
+  event: MatchEvent,
+  homeTeamId: string,
+  awayTeamId: string,
+): IneffectiveTeamKey => {
+  const isNeutral = Boolean(event.data?.neutral);
+  if (isNeutral) return "neutral";
+  const triggerTeam = event.data?.trigger_team_id || event.team_id || "NEUTRAL";
+  if (triggerTeam === "NEUTRAL") return "neutral";
+  if (triggerTeam === homeTeamId) return "home";
+  if (triggerTeam === awayTeamId) return "away";
+  return "neutral";
+};
+
+export const computeIneffectiveBreakdown = (
+  events: MatchEvent[],
+  homeTeamId: string,
+  awayTeamId: string,
+  nowMs: number = Date.now(),
+): IneffectiveBreakdown => {
+  const totals = buildEmptyTotals();
+  const stoppages = events
+    .filter(
+      (event) =>
+        event.type === "GameStoppage" &&
+        typeof event.data?.stoppage_type === "string",
+    )
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+  let active: IneffectiveBreakdown["active"] = null;
+
+  const addDuration = (
+    teamKey: IneffectiveTeamKey,
+    action: IneffectiveAction,
+    durationSeconds: number,
+  ) => {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return;
+    totals[teamKey] += durationSeconds;
+    totals.byAction[action][teamKey] += durationSeconds;
+  };
+
+  stoppages.forEach((event) => {
+    const stoppageType = String(event.data?.stoppage_type || "");
+    const action = normalizeIneffectiveAction(
+      event.data?.trigger_action || event.data?.reason,
+    );
+    const teamKey = resolveTeamKey(event, homeTeamId, awayTeamId);
+    const timestampMs = new Date(event.timestamp).getTime();
+    if (!Number.isFinite(timestampMs)) return;
+
+    if (stoppageType === "ClockStop") {
+      active = { teamKey, action, startMs: timestampMs };
+      return;
+    }
+    if (stoppageType === "ClockStart") {
+      if (active) {
+        addDuration(
+          active.teamKey,
+          active.action,
+          (timestampMs - active.startMs) / 1000,
+        );
+      }
+      active = null;
+    }
+  });
+
+  if (active) {
+    addDuration(active.teamKey, active.action, (nowMs - active.startMs) / 1000);
+  }
+
+  return { totals, active };
+};
 
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
   name?.slice(0, 3).toUpperCase() ?? fallback;

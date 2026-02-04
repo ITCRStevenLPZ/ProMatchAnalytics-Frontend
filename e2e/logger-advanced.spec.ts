@@ -120,10 +120,12 @@ test.describe("Logger substitutions", () => {
     await confirmBtn.click();
 
     await waitForPendingAckToClear(page);
-    await expectLiveEventCount(page, 1);
-    await expect(page.getByTestId("live-event-item").first()).toContainText(
-      /Substitution/i,
-    );
+    await expectLiveEventCount(page, 2);
+    const substitutionEvent = page
+      .getByTestId("live-event-item")
+      .filter({ hasText: /Substitution/i })
+      .first();
+    await expect(substitutionEvent).toBeVisible({ timeout: 10000 });
   });
 });
 

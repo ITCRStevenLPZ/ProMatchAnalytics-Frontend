@@ -94,6 +94,7 @@ interface MatchLogState {
   removeLiveEventByClientId: (clientId: string) => void;
   removeLiveEventById: (eventId: string) => void;
   updateLiveEventId: (timestamp: string, serverId: string) => void;
+  updateEventNotes: (event: MatchEvent, notes: string | null) => void;
   addQueuedEvent: (event: MatchEvent) => void;
   removeQueuedEvent: (event: MatchEvent) => void;
   removeQueuedEventByClientId: (clientId: string) => void;
@@ -238,6 +239,36 @@ export const useMatchLogStore = create<MatchLogState>()(
           );
 
           return { liveEvents: merged };
+        });
+      },
+
+      updateEventNotes: (event: MatchEvent, notes: string | null) => {
+        const nextNotes = notes || null;
+        const matcher = (existing: MatchEvent) => {
+          if (event._id && existing._id) return event._id === existing._id;
+          if (event.client_id && existing.client_id)
+            return event.client_id === existing.client_id;
+          return (
+            existing.timestamp === event.timestamp &&
+            existing.type === event.type &&
+            existing.match_clock === event.match_clock
+          );
+        };
+
+        set((state) => {
+          const updateItem = (item: MatchEvent) =>
+            matcher(item) ? { ...item, notes: nextNotes } : item;
+
+          const queuedEvents = state.queuedEvents.map(updateItem);
+          const liveEvents = state.liveEvents.map(updateItem);
+          const queuedEventsByMatch = Object.fromEntries(
+            Object.entries(state.queuedEventsByMatch).map(([matchId, list]) => [
+              matchId,
+              list.map(updateItem),
+            ]),
+          );
+
+          return { liveEvents, queuedEvents, queuedEventsByMatch };
         });
       },
 

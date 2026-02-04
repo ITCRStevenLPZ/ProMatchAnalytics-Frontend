@@ -2,14 +2,12 @@
 
 ## Current Objective
 
-- [ ] Implement field-based logger action flow (quick action menu incl. Goal +
-      destination selection + out-of-bounds effective time stop) and
-      validate with Playwright e2e
+- [ ] Stabilize logger ineffective-time UX and keep full Playwright suite green.
 
 ## Status
 
-- Phase: Build
-- Overall: In progress
+- Phase: Validate
+- Overall: On track
 
 ## What Was Completed (since last update)
 
@@ -81,10 +79,43 @@
 - [x] Fixed phase transition validation to use global time instead of effective
       time, preventing false "minimum time not reached" errors when effective
       time is low but global time has elapsed.
+- [x] Updated card flow to support white (fair play) cards, auto-upgrade
+      second yellow to "Yellow (Second)", and show card icons by type in the
+      live feed.
+- [x] Blocked logging actions for expelled players (second yellow or red) and
+      auto-unblocked when the card is undone.
+- [x] Card logging now auto-creates foul+card combos (and second-yellow → red)
+      when no foul exists at the same clock, and stops effective time for
+      disciplinary cards.
+- [x] Ineffective time now logs start/end events with required notes and event
+      list note CRUD (add/edit/remove).
+- [x] Added analytics comparative table (possession, passes, corners, shots,
+      offsides, fouls, cards, effective/VAR time) above charts.
+- [x] Added per-team/action ineffective time tracking (GameStoppage context),
+      neutral ineffective timer, and analytics breakdown table.
+- [x] Fixed match reset to restore period phase/halves in cockpit UI.
+- [x] Guarded ineffective stoppage logging to prevent duplicate GameStoppage
+      bursts.
+- [x] Added Playwright coverage for ineffective breakdown, neutral timer,
+      stoppage spam guard, and reset period status.
+- [x] Added neutral ineffective fallback timing + active flag so timers tick
+      immediately.
+- [x] Ensured GameStoppage ClockStart uses a distinct match clock to avoid
+      dedupe.
+- [x] Added reset confirm button test id and stabilized ineffective breakdown
+      spec with serial execution.
+- [x] Full Playwright suite passing after logger ineffective breakdown
+      stabilization (95/95).
 
 ## Decisions Needed From User
 
-- [ ] None (decisions approved by user on 2026-01-19)
+- [ ] Define per-team/action ineffective time requirements.
+- [ ] Decide scope: which actions trigger team-scoped ineffective time (Goal,
+      Out, Card, Foul, Substitution, Injury, VAR, other)?
+- [ ] Decide storage: derived from events on the fly vs persisted aggregates on
+      match?
+- [ ] Decide UI: where should team/action breakdown be displayed (analytics
+      table, logger clock area, or new panel)?
 
 ## Architecture Notes (Draft)
 
@@ -134,6 +165,13 @@ Event submitted with auto-resolved outcome
   (4/4 on 2026-01-29)
 - Frontend: `npm run test:e2e -- e2e/logger-period-transitions.spec.ts` -> PASS
   (4/4 on 2026-02-02 after global time validation fix)
+- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> FAIL
+  (port 8000 already in use; stop existing server or enable reuseExistingServer)
+- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
+  (2/2 on 2026-02-03 after ineffective note/CRUD coverage)
+- Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
+  PASS (3/3)
+- Frontend: `npm run test:e2e` -> PASS (95/95)
 
 ## Next Steps
 

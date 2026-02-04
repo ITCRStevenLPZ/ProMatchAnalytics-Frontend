@@ -36,6 +36,16 @@ export type MatchStatus =
 
 export type ClockMode = "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF";
 
+export type IneffectiveAction =
+  | "Goal"
+  | "OutOfBounds"
+  | "Card"
+  | "Foul"
+  | "Substitution"
+  | "Injury"
+  | "VAR"
+  | "Other";
+
 export interface Match {
   id: string;
   home_team: Team;

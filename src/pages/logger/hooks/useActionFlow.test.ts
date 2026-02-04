@@ -42,6 +42,10 @@ describe("useActionFlow", () => {
     operatorPeriod: 1,
     selectedTeam: "home" as const,
     isSubmitting: false,
+    cardYellowCounts: {},
+    expelledPlayerIds: new Set<string>(),
+    recentEvents: [],
+    onIneffectiveTrigger: undefined,
     sendEvent: vi.fn(),
   };
 

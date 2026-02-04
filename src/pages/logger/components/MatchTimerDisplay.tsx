@@ -8,6 +8,7 @@ interface MatchTimerDisplayProps {
   globalClock: string;
   effectiveClock: string;
   ineffectiveClock: string;
+  neutralIneffectiveClock?: string;
   timeOffClock: string;
   clockMode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF";
   isClockRunning: boolean;
@@ -26,6 +27,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   globalClock,
   effectiveClock,
   ineffectiveClock,
+  neutralIneffectiveClock,
   timeOffClock,
   clockMode,
   isClockRunning,
@@ -85,9 +87,8 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
             let regulationLimit = 0;
             if (operatorPeriod === 1) regulationLimit = 45 * 60;
             else if (operatorPeriod === 2) regulationLimit = 90 * 60;
-            else if (operatorPeriod === 3)
-              regulationLimit =
-                (90 + 15) * 60; // Extra Time 1st Half (105 mins)
+            else if (operatorPeriod === 3) regulationLimit = (90 + 15) * 60;
+            // Extra Time 1st Half (105 mins)
             else if (operatorPeriod === 4)
               regulationLimit = (90 + 15 + 15) * 60; // Extra Time 2nd Half (120 mins)
 
@@ -162,7 +163,11 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
       </div>
 
       {/* Sub Clocks */}
-      <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+      <div
+        className={`grid gap-3 mb-4 text-center ${
+          neutralIneffectiveClock ? "grid-cols-4" : "grid-cols-3"
+        }`}
+      >
         <div
           className={`p-3 rounded-lg border transition-colors ${
             clockMode === "EFFECTIVE"
@@ -195,6 +200,22 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
             {trimMs(ineffectiveClock)}
           </div>
         </div>
+        {neutralIneffectiveClock && (
+          <div
+            className="p-3 rounded-lg border bg-slate-700/30 border-slate-700"
+            data-testid="neutral-ineffective-card"
+          >
+            <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
+              {t("neutralIneffectiveTime", "Neutral Ineffective")}
+            </p>
+            <div
+              className="font-mono font-bold text-lg text-amber-300"
+              data-testid="neutral-ineffective-clock"
+            >
+              {trimMs(neutralIneffectiveClock)}
+            </div>
+          </div>
+        )}
         <div
           className={`p-3 rounded-lg border transition-colors ${
             clockMode === "TIMEOFF"
