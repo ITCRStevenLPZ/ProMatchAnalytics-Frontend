@@ -260,7 +260,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
 
             return (
               <div
-                key={event._id || `${startIndex + index}`}
+                key={`${getEventKey(event)}-${startIndex + index}`}
                 data-testid="live-event-item"
                 className={`border rounded-lg p-3 transition-all hover:shadow-sm ${
                   isHighlighted

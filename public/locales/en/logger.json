@@ -134,6 +134,7 @@
     "pending": "Pending",
     "live_first_half": "Live - 1st Half",
     "live_second_half": "Live - 2nd Half",
+    "live_extra_first": "Live - ET 1st Half",
     "fulltime": "Full time",
     "abandoned": "Abandoned"
   },
@@ -416,11 +417,14 @@
     "period": {
       "firstHalfInProgress": "1st Half",
       "inProgress": "In Progress",
+      "endRegularTime": "End Regulation",
       "endFirstHalf": "End 1st Half",
       "halftime": "Halftime",
       "break": "Break",
       "startSecondHalf": "Start 2nd Half",
       "secondHalfInProgress": "2nd Half",
+      "extraFirst": "Extra Time 1st Half",
+      "endExtraFirst": "End ET 1st Half",
       "endSecondHalf": "End Match",
       "fulltime": "Full Time",
       "matchEnded": "Match Ended",

@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { ClockMode, Match } from '../types';
-import { formatMatchClock } from '../utils';
+import { useEffect, useRef } from "react";
+import { ClockMode, Match } from "../types";
+import { formatMatchClock } from "../utils";
 
 interface UnifiedClockOptions {
   match: Match | null;
@@ -29,6 +29,12 @@ export const useUnifiedClockDisplay = ({
   setIneffectiveClock,
   setTimeOffClock,
 }: UnifiedClockOptions) => {
+  const localModeChangeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    localModeChangeRef.current = Date.now();
+  }, [clockMode]);
+
   useEffect(() => {
     if (!match) return;
 
@@ -37,29 +43,37 @@ export const useUnifiedClockDisplay = ({
 
       let effectiveSeconds = match.match_time_seconds || 0;
       if (!match.current_period_start_timestamp) {
-        effectiveSeconds = match.clock_seconds_at_period_start || match.match_time_seconds || 0;
+        effectiveSeconds =
+          match.clock_seconds_at_period_start || match.match_time_seconds || 0;
       }
 
       let ineffectiveSeconds = accumulatedIneffectiveTime;
       let timeOffSeconds = accumulatedTimeOff;
 
       if (match.current_period_start_timestamp) {
-        const startTimestamp = match.current_period_start_timestamp.endsWith('Z')
+        const startTimestamp = match.current_period_start_timestamp.endsWith(
+          "Z",
+        )
           ? match.current_period_start_timestamp
           : `${match.current_period_start_timestamp}Z`;
         const start = new Date(startTimestamp).getTime();
         const elapsed = (now - start) / 1000;
 
-        if (clockMode === 'EFFECTIVE') {
-          effectiveSeconds = (match.clock_seconds_at_period_start || 0) + elapsed;
-        } else if (clockMode === 'INEFFECTIVE' || clockMode === 'TIMEOFF') {
-          if (match.last_mode_change_timestamp) {
-            const modeTimestamp = match.last_mode_change_timestamp.endsWith('Z')
+        if (clockMode === "EFFECTIVE") {
+          effectiveSeconds =
+            (match.clock_seconds_at_period_start || 0) + elapsed;
+        } else if (clockMode === "INEFFECTIVE" || clockMode === "TIMEOFF") {
+          const modeTimestamp = match.last_mode_change_timestamp
+            ? match.last_mode_change_timestamp.endsWith("Z")
               ? match.last_mode_change_timestamp
-              : `${match.last_mode_change_timestamp}Z`;
-            const lastChange = new Date(modeTimestamp).getTime();
+              : `${match.last_mode_change_timestamp}Z`
+            : null;
+          const lastChange = modeTimestamp
+            ? new Date(modeTimestamp).getTime()
+            : localModeChangeRef.current;
+          if (lastChange) {
             const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
-            if (clockMode === 'INEFFECTIVE') {
+            if (clockMode === "INEFFECTIVE") {
               ineffectiveSeconds += elapsedSinceChange;
             } else {
               timeOffSeconds += elapsedSinceChange;
@@ -72,10 +86,11 @@ export const useUnifiedClockDisplay = ({
         setClockRunning(false);
       }
 
-      const globalSeconds = effectiveSeconds + ineffectiveSeconds + timeOffSeconds;
+      const globalSeconds =
+        effectiveSeconds + ineffectiveSeconds + timeOffSeconds;
 
       if (Math.random() < 0.1) {
-        console.log('[TimerDebug]', {
+        console.log("[TimerDebug]", {
           clockMode,
           operatorPeriod,
           globalSeconds,

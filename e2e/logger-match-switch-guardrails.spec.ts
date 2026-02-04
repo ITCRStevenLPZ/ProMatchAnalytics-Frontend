@@ -66,11 +66,14 @@ test.describe("Match switch guardrails", () => {
     await expect(queuedBadge).toBeVisible({ timeout: 10000 });
     await expect(queuedBadge).toContainText(/^1\D*/i);
 
-    const queueSnapshotA = await getQueueSnapshot(page);
-    expect(queueSnapshotA).not.toBeNull();
-    expect(queueSnapshotA?.queuedEventsByMatch[MATCH_A_ID] ?? []).toHaveLength(
-      1,
-    );
+    await expect
+      .poll(
+        async () =>
+          (await getQueueSnapshot(page))?.queuedEventsByMatch[MATCH_A_ID]
+            ?.length ?? 0,
+        { timeout: 10000 },
+      )
+      .toBe(1);
 
     await gotoLoggerPage(page, MATCH_B_ID);
     await expect(queuedBadge).toBeHidden();

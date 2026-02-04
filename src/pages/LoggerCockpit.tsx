@@ -184,6 +184,9 @@ export default function LoggerCockpit() {
   const [ineffectiveActionType, setIneffectiveActionType] =
     useState<IneffectiveAction>("Other");
   const [hasActiveIneffective, setHasActiveIneffective] = useState(false);
+  const [neutralIneffectiveStartMs, setNeutralIneffectiveStartMs] = useState<
+    number | null
+  >(null);
   const [pendingIneffectiveContext, setPendingIneffectiveContext] = useState<{
     teamId?: string | null;
     playerId?: string | null;
@@ -342,11 +345,20 @@ export default function LoggerCockpit() {
 
   const neutralIneffectiveSeconds = useMemo(() => {
     const baseNeutral = ineffectiveBreakdown?.totals.neutral ?? 0;
-    if (ineffectiveBreakdown?.active?.teamKey === "neutral") {
-      return baseNeutral;
+    const activeBreakdown = ineffectiveBreakdown?.active;
+    if (activeBreakdown?.teamKey === "neutral" && activeBreakdown.startMs) {
+      const deltaSeconds = Math.max(
+        0,
+        (Date.now() - activeBreakdown.startMs) / 1000,
+      );
+      return baseNeutral + deltaSeconds;
     }
-    if (clockMode !== "INEFFECTIVE") {
-      return baseNeutral;
+    if (neutralIneffectiveStartMs) {
+      const deltaSeconds = Math.max(
+        0,
+        (Date.now() - neutralIneffectiveStartMs) / 1000,
+      );
+      return baseNeutral + deltaSeconds;
     }
     const activeContext = activeIneffectiveContextRef.current;
     if (!activeContext?.neutral || !activeContext.startedAtMs) {
@@ -357,7 +369,17 @@ export default function LoggerCockpit() {
       (Date.now() - activeContext.startedAtMs) / 1000,
     );
     return baseNeutral + deltaSeconds;
-  }, [clockMode, ineffectiveBreakdown, ineffectiveTick]);
+  }, [ineffectiveBreakdown, ineffectiveTick, neutralIneffectiveStartMs]);
+
+  const neutralIneffectiveClock = useMemo(() => {
+    if (selectedTeam === "both" && clockMode === "INEFFECTIVE") {
+      return ineffectiveClock;
+    }
+    if (activeIneffectiveContextRef.current?.neutral) {
+      return ineffectiveClock;
+    }
+    return formatSecondsAsClock(neutralIneffectiveSeconds);
+  }, [clockMode, ineffectiveClock, neutralIneffectiveSeconds, selectedTeam]);
 
   const getStoppageTeamId = useCallback(() => {
     if (!match) return null;
@@ -407,6 +429,23 @@ export default function LoggerCockpit() {
     [getStoppageTeamId, globalClock, match, operatorPeriod, sendEvent],
   );
 
+  const optimisticModeChange = useCallback(
+    (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => {
+      const now = new Date().toISOString();
+      setMatch((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          clock_mode: mode,
+          last_mode_change_timestamp: now,
+          current_period_start_timestamp:
+            prev.current_period_start_timestamp ?? now,
+        };
+      });
+    },
+    [],
+  );
+
   const beginIneffective = useCallback(
     (
       note?: string | null,
@@ -420,12 +459,32 @@ export default function LoggerCockpit() {
       if (clockMode === "INEFFECTIVE") return;
       if (activeIneffectiveContextRef.current) return;
       const trimmed = (note || "").trim();
+      const fallbackTeamId =
+        selectedTeam === "away"
+          ? match?.away_team.id ?? null
+          : selectedTeam === "home"
+            ? match?.home_team.id ?? null
+            : null;
+      const fallbackNeutral = selectedTeam === "both";
       const resolvedContext = {
-        teamId: context?.teamId ?? null,
+        teamId: context?.teamId ?? fallbackTeamId,
         playerId: context?.playerId ?? null,
         actionType: context?.actionType ?? ineffectiveActionType,
-        neutral: context?.neutral ?? true,
+        neutral:
+          context?.neutral ??
+          (context?.teamId || fallbackTeamId ? false : fallbackNeutral),
       };
+      if (context?.neutral === undefined && selectedTeam === "both") {
+        resolvedContext.teamId = null;
+        resolvedContext.neutral = true;
+      }
+      if (
+        context?.neutral === undefined &&
+        ["Injury", "VAR"].includes(resolvedContext.actionType || "")
+      ) {
+        resolvedContext.teamId = null;
+        resolvedContext.neutral = true;
+      }
       if (!trimmed) {
         setIneffectiveNoteText("");
         setPendingIneffectiveContext(resolvedContext);
@@ -437,7 +496,9 @@ export default function LoggerCockpit() {
         ...resolvedContext,
         startedAtMs: Date.now(),
       };
+      setNeutralIneffectiveStartMs(resolvedContext.neutral ? Date.now() : null);
       setHasActiveIneffective(true);
+      optimisticModeChange("INEFFECTIVE");
       handleModeSwitch("INEFFECTIVE");
       setIsBallInPlay(false);
     },
@@ -446,6 +507,9 @@ export default function LoggerCockpit() {
       handleModeSwitch,
       ineffectiveActionType,
       logClockStoppage,
+      match,
+      optimisticModeChange,
+      selectedTeam,
       setIsBallInPlay,
     ],
   );
@@ -460,10 +524,12 @@ export default function LoggerCockpit() {
         );
         activeIneffectiveContextRef.current = null;
         setHasActiveIneffective(false);
+        setNeutralIneffectiveStartMs(null);
       }
+      optimisticModeChange(nextMode);
       handleModeSwitch(nextMode);
     },
-    [clockMode, handleModeSwitch, logClockStoppage],
+    [clockMode, handleModeSwitch, logClockStoppage, optimisticModeChange],
   );
 
   const confirmIneffectiveNote = useCallback(() => {
@@ -478,19 +544,46 @@ export default function LoggerCockpit() {
       setTimeout(() => setToast(null), 3000);
       return;
     }
+    const fallbackTeamId =
+      selectedTeam === "away"
+        ? match?.away_team.id ?? null
+        : selectedTeam === "home"
+          ? match?.home_team.id ?? null
+          : null;
+    const fallbackNeutral = selectedTeam === "both";
     const resolvedContext = {
-      teamId: pendingIneffectiveContext?.teamId ?? null,
+      teamId: pendingIneffectiveContext?.teamId ?? fallbackTeamId,
       playerId: pendingIneffectiveContext?.playerId ?? null,
       actionType:
         pendingIneffectiveContext?.actionType ?? ineffectiveActionType,
-      neutral: pendingIneffectiveContext?.neutral ?? true,
+      neutral:
+        pendingIneffectiveContext?.neutral ??
+        (pendingIneffectiveContext?.teamId || fallbackTeamId
+          ? false
+          : fallbackNeutral),
     };
+    if (
+      pendingIneffectiveContext?.neutral === undefined &&
+      selectedTeam === "both"
+    ) {
+      resolvedContext.teamId = null;
+      resolvedContext.neutral = true;
+    }
+    if (
+      pendingIneffectiveContext?.neutral === undefined &&
+      ["Injury", "VAR"].includes(resolvedContext.actionType || "")
+    ) {
+      resolvedContext.teamId = null;
+      resolvedContext.neutral = true;
+    }
     logClockStoppage("ClockStop", trimmed, resolvedContext);
     activeIneffectiveContextRef.current = {
       ...resolvedContext,
       startedAtMs: Date.now(),
     };
+    setNeutralIneffectiveStartMs(resolvedContext.neutral ? Date.now() : null);
     setHasActiveIneffective(true);
+    optimisticModeChange("INEFFECTIVE");
     handleModeSwitch("INEFFECTIVE");
     setIsBallInPlay(false);
     setIneffectiveNoteOpen(false);
@@ -501,8 +594,11 @@ export default function LoggerCockpit() {
     ineffectiveActionType,
     ineffectiveNoteText,
     logClockStoppage,
+    match,
+    optimisticModeChange,
     pendingIneffectiveContext,
     setIsBallInPlay,
+    selectedTeam,
     t,
   ]);
 
@@ -807,7 +903,6 @@ export default function LoggerCockpit() {
   const normalizeStatus = useCallback(
     (status?: Match["status"]): Match["status"] => {
       if (status === "Live") return "Live_First_Half";
-      if (status === "Completed") return "Fulltime";
       return status || "Pending";
     },
     [],
@@ -822,12 +917,12 @@ export default function LoggerCockpit() {
         Halftime: ["Live_Second_Half"],
         Live_Second_Half: ["Fulltime"],
         Live: ["Halftime"],
-        Fulltime: ["Live_Extra_First", "Penalties"], // Allow branching to Extra Time or Penalties
+        Fulltime: ["Live_Extra_First", "Penalties", "Completed"], // Allow branching to Extra Time or final completion
         Abandoned: [],
         Live_Extra_First: ["Extra_Halftime"],
         Extra_Halftime: ["Live_Extra_Second"],
-        Live_Extra_Second: ["Penalties", "Fulltime"], // End match or Penalties
-        Penalties: ["Fulltime"],
+        Live_Extra_Second: ["Penalties", "Completed"], // End match or Penalties
+        Penalties: ["Completed"],
         Completed: [],
         Scheduled: ["Live_First_Half"],
       };
@@ -916,7 +1011,9 @@ export default function LoggerCockpit() {
       }
 
       if (
-        (target === "Penalties" || target === "Fulltime") &&
+        (target === "Penalties" ||
+          target === "Fulltime" ||
+          target === "Completed") &&
         currentPhase === "SECOND_HALF_EXTRA_TIME" &&
         !hasExtraSecondHalfMinimum
       ) {
@@ -958,7 +1055,7 @@ export default function LoggerCockpit() {
   );
 
   const currentStatusNormalized = normalizeStatus(statusOverride);
-  const cockpitLocked = currentStatusNormalized === "Fulltime";
+  const cockpitLocked = currentPhase === "COMPLETED";
   const lockReason = cockpitLocked
     ? t("lockReasonFulltime", "Match is Fulltime. Cockpit is read-only.")
     : undefined;
@@ -2346,7 +2443,7 @@ export default function LoggerCockpit() {
               onTransitionToPenalties={() =>
                 guardTransition("Penalties", transitionToPenalties)
               }
-              onFinishMatch={() => guardTransition("Fulltime", finishMatch)}
+              onFinishMatch={() => guardTransition("Completed", finishMatch)}
               transitionDisabled={
                 cockpitLocked ||
                 !isAdmin ||
@@ -2629,9 +2726,7 @@ export default function LoggerCockpit() {
                 globalClock={globalClock}
                 effectiveClock={effectiveClock}
                 ineffectiveClock={ineffectiveClock}
-                neutralIneffectiveClock={formatSecondsAsClock(
-                  neutralIneffectiveSeconds,
-                )}
+                neutralIneffectiveClock={neutralIneffectiveClock}
                 timeOffClock={timeOffClock}
                 clockMode={clockMode}
                 isClockRunning={isGlobalClockRunning}

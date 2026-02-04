@@ -72,12 +72,18 @@ const resolveTeamKey = (
   homeTeamId: string,
   awayTeamId: string,
 ): IneffectiveTeamKey => {
-  const isNeutral = Boolean(event.data?.neutral);
+  const neutralFlag = event.data?.neutral;
+  const isNeutral =
+    neutralFlag === true || String(neutralFlag).toLowerCase() === "true";
   if (isNeutral) return "neutral";
-  const triggerTeam = event.data?.trigger_team_id || event.team_id || "NEUTRAL";
-  if (triggerTeam === "NEUTRAL") return "neutral";
-  if (triggerTeam === homeTeamId) return "home";
-  if (triggerTeam === awayTeamId) return "away";
+  const triggerTeamRaw =
+    event.data?.trigger_team_id || event.team_id || "NEUTRAL";
+  const triggerTeam = String(triggerTeamRaw || "").toLowerCase();
+  const home = String(homeTeamId || "").toLowerCase();
+  const away = String(awayTeamId || "").toLowerCase();
+  if (triggerTeam === "neutral") return "neutral";
+  if (triggerTeam === home) return "home";
+  if (triggerTeam === away) return "away";
   return "neutral";
 };
 

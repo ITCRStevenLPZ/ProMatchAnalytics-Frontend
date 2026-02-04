@@ -146,7 +146,7 @@ export default function TeamsManager() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [rosterPage, setRosterPage] = useState(1);
-  const [rosterPageSize, setRosterPageSize] = useState(10);
+  const [rosterPageSize, setRosterPageSize] = useState(20);
   const [rosterTotalItems, setRosterTotalItems] = useState(0);
   const [rosterTotalPages, setRosterTotalPages] = useState(1);
   const [rosterFormData, setRosterFormData] = useState<{
@@ -615,8 +615,8 @@ export default function TeamsManager() {
     setSelectedTeam(team);
     clearRosterFieldErrors();
     setRosterFormError(null);
-    await fetchTeamRoster(team.team_id);
     setShowRosterModal(true);
+    fetchTeamRoster(team.team_id);
   };
 
   const handleRosterFieldChange = (

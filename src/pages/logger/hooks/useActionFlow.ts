@@ -390,15 +390,35 @@ export const useActionFlow = ({
     [expelledPlayerIds],
   );
 
-  const handleQuickActionSelect = useCallback((action: string) => {
-    setSelectedAction(action);
-    setPendingOutcome(null);
-    if (action === "Card") {
-      setCurrentStep("selectOutcome");
-      return;
-    }
-    setCurrentStep("selectDestination");
-  }, []);
+  const handleQuickActionSelect = useCallback(
+    (action: string) => {
+      setSelectedAction(action);
+      setPendingOutcome(null);
+      if (action === "Card") {
+        setCurrentStep("selectOutcome");
+        return;
+      }
+      if (action === "Goal") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Goal", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            resetFlow();
+          }
+        }
+        return;
+      }
+      setCurrentStep("selectDestination");
+    },
+    [
+      currentTeam,
+      dispatchEvent,
+      resetFlow,
+      selectedPlayer,
+      selectedPlayerLocation,
+    ],
+  );
 
   const handleOpenMoreActions = useCallback(() => {
     setCurrentStep("selectAction");

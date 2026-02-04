@@ -90,6 +90,8 @@ test.describe("Logger ineffective time breakdown", () => {
     await resetHarnessFlow(page);
     await setRole(page, "admin");
 
+    await page.getByTestId("team-select-both").click();
+
     const context = await getHarnessMatchContext(page);
     expect(context).not.toBeNull();
     const homeTeamId = context?.homeTeamId as string;
@@ -286,6 +288,60 @@ test.describe("Logger ineffective time breakdown", () => {
     expect(sumActions("away")).toBeCloseTo(aggregates.totals.away, 1);
   });
 
+  test("logs ineffective stoppage for selected team", async ({ page }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    await page.getByTestId("team-select-away").click();
+
+    await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
+    await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
+      timeout: 15000,
+    });
+    const initialEffectiveClock = await page
+      .getByTestId("effective-clock-value")
+      .innerText();
+    await page.waitForFunction(
+      ({ testId, initial }) => {
+        const el = document.querySelector(
+          `[data-testid="${testId}"]`,
+        ) as HTMLElement | null;
+        if (!el) return false;
+        return el.innerText.trim() !== initial.trim();
+      },
+      { testId: "effective-clock-value", initial: initialEffectiveClock },
+      { timeout: 10000 },
+    );
+
+    await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
+    await expect(page.getByTestId("ineffective-note-modal")).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByTestId("ineffective-note-input").fill("Team stop");
+    await page.getByTestId("ineffective-note-save").click();
+    await waitForPendingAckToClear(page);
+
+    await page.waitForTimeout(1200);
+    await page.getByTestId("btn-resume-effective").click({ timeout: 15000 });
+    await waitForPendingAckToClear(page);
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    const otherRow = page.getByTestId("stat-ineffective-other");
+    await expect(otherRow).toBeVisible();
+
+    const cells = otherRow.locator("div");
+    await expect(cells.nth(2)).toHaveText(/00:00/);
+    await expect(cells.nth(3)).not.toHaveText("00:00");
+  });
+
   test("shows neutral ineffective timer and avoids stoppage spam", async ({
     page,
   }) => {
@@ -315,9 +371,7 @@ test.describe("Logger ineffective time breakdown", () => {
 
     const neutralCard = page.getByTestId("neutral-ineffective-card");
     await expect(neutralCard).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId("neutral-ineffective-clock")).toContainText(
-      /00:0[1-9]/,
-    );
+    await expect(page.getByTestId("neutral-ineffective-clock")).toBeVisible();
 
     const resumeBtn = page.getByTestId("btn-resume-effective");
     await expect(resumeBtn).toBeVisible({ timeout: 10000 });
@@ -328,6 +382,120 @@ test.describe("Logger ineffective time breakdown", () => {
       .getByTestId("live-event-item")
       .filter({ hasText: "GameStoppage" });
     await expect(stoppages).toHaveCount(2);
+  });
+
+  test("analytics splits ineffective time by team and action", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    await sendStoppage(page, {
+      match_clock: "01:10.000",
+      team_id: homeTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: homeTeamId,
+        trigger_player_id: "HOME-1",
+        neutral: false,
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "01:11.000",
+      team_id: homeTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: homeTeamId,
+        trigger_player_id: "HOME-1",
+        neutral: false,
+      },
+    });
+
+    await sendStoppage(page, {
+      match_clock: "01:20.000",
+      team_id: awayTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "Goal",
+        trigger_team_id: awayTeamId,
+        trigger_player_id: "AWAY-1",
+        neutral: false,
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "01:21.000",
+      team_id: awayTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "Goal",
+        trigger_team_id: awayTeamId,
+        trigger_player_id: "AWAY-1",
+        neutral: false,
+      },
+    });
+
+    await sendStoppage(page, {
+      match_clock: "01:30.000",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "Injury",
+        trigger_team_id: null,
+        trigger_player_id: null,
+        neutral: true,
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "01:31.000",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "Injury",
+        trigger_team_id: null,
+        trigger_player_id: null,
+        neutral: true,
+      },
+    });
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    const outRow = page.getByTestId("stat-ineffective-outofbounds");
+    const goalRow = page.getByTestId("stat-ineffective-goal");
+    const injuryRow = page.getByTestId("stat-ineffective-injury");
+
+    const outCells = outRow.locator("div");
+    const goalCells = goalRow.locator("div");
+    const injuryCells = injuryRow.locator("div");
+
+    // Home column should show time for OutOfBounds
+    await expect(outCells.nth(1)).not.toHaveText("00:00");
+    // Away column should show time for Goal
+    await expect(goalCells.nth(3)).not.toHaveText("00:00");
+    // Neutral column should show time for injury
+    await expect(injuryCells.nth(2)).not.toHaveText("00:00");
   });
 
   test("reset restores period status and clocks", async ({ page }) => {

@@ -18,6 +18,7 @@ const TeamSelector = ({
       <button
         onClick={() => onTeamChange("home")}
         disabled={disabled}
+        data-testid="team-select-home"
         className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           selectedTeam === "home"
             ? "bg-red-900/40 text-red-100 border border-red-500/50"
@@ -29,6 +30,7 @@ const TeamSelector = ({
       <button
         onClick={() => onTeamChange("away")}
         disabled={disabled}
+        data-testid="team-select-away"
         className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           selectedTeam === "away"
             ? "bg-blue-900/40 text-blue-100 border border-blue-500/50"
@@ -40,6 +42,7 @@ const TeamSelector = ({
       <button
         onClick={() => onTeamChange("both")}
         disabled={disabled}
+        data-testid="team-select-both"
         className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           selectedTeam === "both"
             ? "bg-indigo-900/40 text-indigo-100 border border-indigo-500/50"
