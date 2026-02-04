@@ -191,6 +191,101 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(injuryRow).toContainText(/00:0[1-9]/);
   });
 
+  test("persists aggregates by team, action, and period", async ({ page }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+    const awayTeamId = context?.awayTeamId as string;
+
+    await sendStoppage(page, {
+      match_clock: "00:40.000",
+      team_id: homeTeamId,
+      period: 1,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: homeTeamId,
+        trigger_player_id: "HOME-2",
+        neutral: false,
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "00:41.000",
+      team_id: homeTeamId,
+      period: 1,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: homeTeamId,
+        trigger_player_id: "HOME-2",
+        neutral: false,
+      },
+    });
+
+    await sendStoppage(page, {
+      match_clock: "45:10.000",
+      team_id: awayTeamId,
+      period: 2,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "Foul",
+        trigger_team_id: awayTeamId,
+        trigger_player_id: "AWAY-4",
+        neutral: false,
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "45:11.000",
+      team_id: awayTeamId,
+      period: 2,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "Foul",
+        trigger_team_id: awayTeamId,
+        trigger_player_id: "AWAY-4",
+        neutral: false,
+      },
+    });
+
+    const matchResponse = await backendRequest.get(
+      `/api/v1/logger/matches/${MATCH_ID}`,
+    );
+    expect(matchResponse.ok()).toBeTruthy();
+    const matchPayload = await matchResponse.json();
+    const aggregates = matchPayload.ineffective_aggregates;
+    expect(aggregates).toBeTruthy();
+
+    const periodOne = aggregates.by_period?.["1"];
+    const periodTwo = aggregates.by_period?.["2"];
+    expect(periodOne?.by_action?.OutOfBounds?.home || 0).toBeGreaterThan(0.5);
+    expect(periodTwo?.by_action?.Foul?.away || 0).toBeGreaterThan(0.5);
+
+    const sumActions = (teamKey: "home" | "away" | "neutral") =>
+      Object.values(aggregates.by_action || {}).reduce(
+        (total: number, entry: { [key: string]: number }) =>
+          total + (entry[teamKey] || 0),
+        0,
+      );
+
+    expect(aggregates.totals.home).toBeGreaterThan(0.5);
+    expect(aggregates.totals.away).toBeGreaterThan(0.5);
+    expect(sumActions("home")).toBeCloseTo(aggregates.totals.home, 1);
+    expect(sumActions("away")).toBeCloseTo(aggregates.totals.away, 1);
+  });
+
   test("shows neutral ineffective timer and avoids stoppage spam", async ({
     page,
   }) => {

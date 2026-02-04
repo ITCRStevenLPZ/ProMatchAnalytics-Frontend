@@ -1,4 +1,4 @@
-import { Match, Player, Team } from "./types";
+import { IneffectiveAggregates, Match, Player, Team } from "./types";
 import { MatchEvent } from "../../store/useMatchLogStore";
 
 export type IneffectiveAction =
@@ -144,6 +144,42 @@ export const computeIneffectiveBreakdown = (
   return { totals, active };
 };
 
+export const buildIneffectiveBreakdownFromAggregates = (
+  aggregates: IneffectiveAggregates,
+  nowMs: number = Date.now(),
+): IneffectiveBreakdown => {
+  const totals = buildEmptyTotals();
+
+  INEFFECTIVE_ACTIONS.forEach((action) => {
+    const actionTotals = aggregates.by_action?.[action];
+    if (!actionTotals) return;
+    totals.byAction[action].home = actionTotals.home || 0;
+    totals.byAction[action].away = actionTotals.away || 0;
+    totals.byAction[action].neutral = actionTotals.neutral || 0;
+  });
+
+  totals.home = aggregates.totals?.home || 0;
+  totals.away = aggregates.totals?.away || 0;
+  totals.neutral = aggregates.totals?.neutral || 0;
+
+  let active: IneffectiveBreakdown["active"] = null;
+  if (aggregates.active?.start_timestamp) {
+    const startMs = new Date(aggregates.active.start_timestamp).getTime();
+    if (Number.isFinite(startMs)) {
+      active = {
+        teamKey: aggregates.active.team_key,
+        action: aggregates.active.action,
+        startMs,
+      };
+      const deltaSeconds = Math.max(0, (nowMs - startMs) / 1000);
+      totals[active.teamKey] += deltaSeconds;
+      totals.byAction[active.action][active.teamKey] += deltaSeconds;
+    }
+  }
+
+  return { totals, active };
+};
+
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
   name?.slice(0, 3).toUpperCase() ?? fallback;
 
@@ -213,6 +249,7 @@ export const normalizeMatchPayload = (payload: any): Match => {
     period_timestamps: payload.period_timestamps ?? {},
     ineffective_time_seconds: payload.ineffective_time_seconds ?? 0,
     time_off_seconds: payload.time_off_seconds ?? 0,
+    ineffective_aggregates: payload.ineffective_aggregates ?? null,
     clock_mode: payload.clock_mode ?? "EFFECTIVE",
     last_mode_change_timestamp: payload.last_mode_change_timestamp,
     home_team: normalizeTeamFromApi(payload.home_team, "HOME"),

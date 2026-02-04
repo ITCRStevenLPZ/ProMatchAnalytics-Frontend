@@ -38,6 +38,7 @@ import {
   normalizeMatchPayload,
   formatMatchClock,
   normalizeMatchClock,
+  buildIneffectiveBreakdownFromAggregates,
   computeIneffectiveBreakdown,
 } from "./logger/utils";
 import { useActionFlow } from "./logger/hooks/useActionFlow";
@@ -325,6 +326,12 @@ export default function LoggerCockpit() {
 
   const ineffectiveBreakdown = useMemo(() => {
     if (!match) return null;
+    if (match.ineffective_aggregates) {
+      return buildIneffectiveBreakdownFromAggregates(
+        match.ineffective_aggregates,
+        Date.now(),
+      );
+    }
     return computeIneffectiveBreakdown(
       [...liveEvents, ...queuedEvents],
       match.home_team.id,

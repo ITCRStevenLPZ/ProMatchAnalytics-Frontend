@@ -2,11 +2,11 @@
 
 ## Current Objective
 
-- [ ] Stabilize logger ineffective-time UX and keep full Playwright suite green.
+- [ ] Fix ineffective breakdown table layout in MatchAnalytics.
 
 ## Status
 
-- Phase: Validate
+- Phase: Build
 - Overall: On track
 
 ## What Was Completed (since last update)
@@ -106,16 +106,18 @@
       spec with serial execution.
 - [x] Full Playwright suite passing after logger ineffective breakdown
       stabilization (95/95).
+- [x] UI now reads persisted ineffective aggregates and E2E validates per-period
+      totals (96/96).
+- [x] Adjusted ineffective breakdown table column widths/alignment for more
+      consistent spacing.
 
 ## Decisions Needed From User
 
-- [ ] Define per-team/action ineffective time requirements.
-- [ ] Decide scope: which actions trigger team-scoped ineffective time (Goal,
-      Out, Card, Foul, Substitution, Injury, VAR, other)?
-- [ ] Decide storage: derived from events on the fly vs persisted aggregates on
-      match?
-- [ ] Decide UI: where should team/action breakdown be displayed (analytics
-      table, logger clock area, or new panel)?
+- [x] Per-team/action ineffective time requirements confirmed.
+- [x] Scope: Goal, Out, Card, Foul, Substitution, Injury, VAR, Other.
+- [x] Storage: persisted aggregates on match document (computed from
+      GameStoppage writes).
+- [x] UI: analytics breakdown reads persisted aggregates.
 
 ## Architecture Notes (Draft)
 
@@ -172,10 +174,13 @@ Event submitted with auto-resolved outcome
 - Frontend: `npx playwright test e2e/logger-ineffective-breakdown.spec.ts` ->
   PASS (3/3)
 - Frontend: `npm run test:e2e` -> PASS (95/95)
+- Frontend: `npm run test:e2e` -> PASS (96/96)
+- Frontend: Not run (layout-only change).
 
 ## Next Steps
 
 - [ ] Validate any additional e2e specs if needed
+- [ ] Confirm the ineffective breakdown layout matches the desired arrangement.
 - [x] Run logger period transitions e2e spec.
 - [x] Fix phase transition validation to use global time.
 - [x] Run Teams roster add flow smoke after paging fix for available players list.

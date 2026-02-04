@@ -647,19 +647,19 @@ export function MatchAnalytics({
           <div className="text-xs uppercase tracking-wide text-emerald-200 mb-2">
             {t("analytics.ineffectiveBreakdown", "Ineffective Breakdown")}
           </div>
-          <div className="grid grid-cols-[auto_1fr_1fr_1fr] gap-2 text-[10px] uppercase tracking-wider text-emerald-200 mb-2">
-            <div>{t("analytics.metric", "Metric")}</div>
+          <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-2 text-[10px] uppercase tracking-wider text-emerald-200 mb-2">
+            <div className="text-left">{t("analytics.metric", "Metric")}</div>
             <div className="text-center">{match.home_team.short_name}</div>
             <div className="text-center">
               {t("analytics.neutral", "Neutral")}
             </div>
-            <div className="text-right">{match.away_team.short_name}</div>
+            <div className="text-center">{match.away_team.short_name}</div>
           </div>
           <div className="space-y-2">
             {analytics.ineffectiveActionRows.map((row: any) => (
               <div
                 key={row.action}
-                className="grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+                className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
                 data-testid={`stat-ineffective-${row.action.toLowerCase()}`}
               >
                 <div className="text-xs text-emerald-100">{row.label}</div>
@@ -669,12 +669,12 @@ export function MatchAnalytics({
                 <div className="text-xs font-semibold text-amber-100 text-center">
                   {formatSecondsAsClock(row.neutral)}
                 </div>
-                <div className="text-xs font-semibold text-emerald-50 text-right">
+                <div className="text-xs font-semibold text-emerald-50 text-center">
                   {formatSecondsAsClock(row.away)}
                 </div>
               </div>
             ))}
-            <div className="grid grid-cols-[auto_1fr_1fr_1fr] items-center gap-2 bg-emerald-500/20 rounded-lg px-3 py-2">
+            <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-emerald-500/20 rounded-lg px-3 py-2">
               <div className="text-xs text-emerald-50 font-semibold">
                 {t("analytics.ineffectiveTotals", "Totals")}
               </div>
@@ -684,7 +684,7 @@ export function MatchAnalytics({
               <div className="text-xs font-semibold text-amber-100 text-center">
                 {formatSecondsAsClock(analytics.ineffectiveTotals.neutral)}
               </div>
-              <div className="text-xs font-semibold text-emerald-50 text-right">
+              <div className="text-xs font-semibold text-emerald-50 text-center">
                 {formatSecondsAsClock(analytics.ineffectiveTotals.away)}
               </div>
             </div>

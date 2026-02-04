@@ -46,6 +46,29 @@ export type IneffectiveAction =
   | "VAR"
   | "Other";
 
+export interface IneffectiveAggregateTotals {
+  home: number;
+  away: number;
+  neutral: number;
+}
+
+export interface IneffectiveAggregatePeriod {
+  totals: IneffectiveAggregateTotals;
+  by_action: Record<IneffectiveAction, IneffectiveAggregateTotals>;
+}
+
+export interface IneffectiveAggregates {
+  totals: IneffectiveAggregateTotals;
+  by_action: Record<IneffectiveAction, IneffectiveAggregateTotals>;
+  by_period: Record<string, IneffectiveAggregatePeriod>;
+  active?: {
+    team_key: "home" | "away" | "neutral";
+    action: IneffectiveAction;
+    period: number;
+    start_timestamp: string;
+  } | null;
+}
+
 export interface Match {
   id: string;
   home_team: Team;
@@ -57,6 +80,7 @@ export interface Match {
   period_timestamps?: Record<string, { start?: string; end?: string }>;
   ineffective_time_seconds?: number;
   time_off_seconds?: number;
+  ineffective_aggregates?: IneffectiveAggregates | null;
   clock_mode?: ClockMode;
   last_mode_change_timestamp?: string;
 }
