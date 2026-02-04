@@ -110,6 +110,8 @@
       totals (96/96).
 - [x] Adjusted ineffective breakdown table column widths/alignment for more
       consistent spacing.
+- [x] Fixed logger TypeScript errors (event notes typing + ineffective
+      breakdown active tracking).
 
 ## Decisions Needed From User
 

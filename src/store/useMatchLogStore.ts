@@ -27,6 +27,7 @@ export interface MatchEvent {
   location?: [number, number];
   type: string;
   data: Record<string, any>;
+  notes?: string | null;
   _confirmed?: boolean;
   _saved_at?: string;
 }

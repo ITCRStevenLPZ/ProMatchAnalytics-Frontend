@@ -100,7 +100,9 @@ export const computeIneffectiveBreakdown = (
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
 
-  let active: IneffectiveBreakdown["active"] = null;
+  let activeTeamKey: IneffectiveTeamKey | null = null;
+  let activeAction: IneffectiveAction | null = null;
+  let activeStartMs: number | null = null;
 
   const addDuration = (
     teamKey: IneffectiveTeamKey,
@@ -122,24 +124,37 @@ export const computeIneffectiveBreakdown = (
     if (!Number.isFinite(timestampMs)) return;
 
     if (stoppageType === "ClockStop") {
-      active = { teamKey, action, startMs: timestampMs };
+      activeTeamKey = teamKey;
+      activeAction = action;
+      activeStartMs = timestampMs;
       return;
     }
     if (stoppageType === "ClockStart") {
-      if (active) {
+      if (activeTeamKey && activeAction && activeStartMs !== null) {
         addDuration(
-          active.teamKey,
-          active.action,
-          (timestampMs - active.startMs) / 1000,
+          activeTeamKey,
+          activeAction,
+          (timestampMs - activeStartMs) / 1000,
         );
       }
-      active = null;
+      activeTeamKey = null;
+      activeAction = null;
+      activeStartMs = null;
     }
   });
 
-  if (active) {
-    addDuration(active.teamKey, active.action, (nowMs - active.startMs) / 1000);
+  if (activeTeamKey && activeAction && activeStartMs !== null) {
+    addDuration(activeTeamKey, activeAction, (nowMs - activeStartMs) / 1000);
   }
+
+  const active =
+    activeTeamKey && activeAction && activeStartMs !== null
+      ? {
+          teamKey: activeTeamKey,
+          action: activeAction,
+          startMs: activeStartMs,
+        }
+      : null;
 
   return { totals, active };
 };
@@ -162,7 +177,11 @@ export const buildIneffectiveBreakdownFromAggregates = (
   totals.away = aggregates.totals?.away || 0;
   totals.neutral = aggregates.totals?.neutral || 0;
 
-  let active: IneffectiveBreakdown["active"] = null;
+  let active: {
+    teamKey: IneffectiveTeamKey;
+    action: IneffectiveAction;
+    startMs: number;
+  } | null = null;
   if (aggregates.active?.start_timestamp) {
     const startMs = new Date(aggregates.active.start_timestamp).getTime();
     if (Number.isFinite(startMs)) {
