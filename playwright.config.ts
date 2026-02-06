@@ -56,7 +56,7 @@ export default defineConfig({
     {
       command: `${BACKEND_PYTHON} ../ProMatchAnalytics-Backend/scripts/run_e2e_server.py --host ${HOST} --port ${BACKEND_PORT}`,
       url: `${BACKEND_URL}/health`,
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: backendEnv,
     },

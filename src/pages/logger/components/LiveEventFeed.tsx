@@ -98,6 +98,18 @@ const getTeamName = (teamId: string, match: Match | null): string => {
   return teamId;
 };
 
+const getDisplayTeamId = (event: MatchEvent): string | null => {
+  if (event.team_id && event.team_id !== "NEUTRAL") return event.team_id;
+  if (typeof event.data?.trigger_team_id === "string") {
+    return event.data.trigger_team_id;
+  }
+  return event.team_id ?? null;
+};
+
+const getDisplayPlayerId = (event: MatchEvent): string | undefined => {
+  return event.player_id ?? event.data?.trigger_player_id ?? undefined;
+};
+
 const formatEventDetails = (event: MatchEvent): string => {
   const details: string[] = [];
 
@@ -251,8 +263,12 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
 
             const outcomeColor = getOutcomeColor(event.data?.outcome);
             const eventDetails = formatEventDetails(event);
-            const playerName = getPlayerName(event.player_id, match);
-            const teamName = getTeamName(event.team_id, match);
+            const displayPlayerId = getDisplayPlayerId(event);
+            const playerName = getPlayerName(displayPlayerId, match);
+            const displayTeamId = getDisplayTeamId(event);
+            const teamName = displayTeamId
+              ? getTeamName(displayTeamId, match)
+              : "";
             const displayType = getDisplayType(event);
             const eventKey = getEventKey(event);
             const isEditing = editingKey === eventKey;
@@ -297,7 +313,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                 </div>
 
                 {/* Player Info */}
-                {event.player_id && (
+                {displayPlayerId && (
                   <div className="flex items-center gap-1.5 mb-1">
                     <User size={12} className="text-slate-500" />
                     <span className="text-xs text-slate-300 font-medium">

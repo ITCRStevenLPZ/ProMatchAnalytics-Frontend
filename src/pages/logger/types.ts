@@ -41,6 +41,7 @@ export type IneffectiveAction =
   | "OutOfBounds"
   | "Card"
   | "Foul"
+  | "Offside"
   | "Substitution"
   | "Injury"
   | "VAR"
@@ -115,6 +116,7 @@ export interface FieldCoordinate {
   yPercent: number;
   statsbomb: [number, number];
   isOutOfBounds: boolean;
+  outOfBoundsEdge?: "left" | "right" | "top" | "bottom" | null;
 }
 
 export interface FieldAnchor {

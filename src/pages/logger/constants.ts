@@ -87,11 +87,14 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
 
 export const QUICK_ACTIONS = [
   "Pass",
+  "Carry",
   "Shot",
   "Goal",
   "Foul",
+  "Offside",
   "Duel",
   "Card",
+  "Save",
 ] as const;
 
 export const DEFAULT_PERIOD_MAP: Record<MatchStatus, number> = {
