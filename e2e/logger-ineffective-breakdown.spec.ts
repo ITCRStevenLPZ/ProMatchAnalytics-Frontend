@@ -342,6 +342,38 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(cells.nth(3)).not.toHaveText("00:00");
   });
 
+  test("shows offside offender on stoppage feed", async ({ page }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+    const homeTeamId = context?.homeTeamId as string;
+
+    await sendStoppage(page, {
+      match_clock: "02:10.000",
+      team_id: homeTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "Offside",
+        trigger_team_id: homeTeamId,
+        trigger_player_id: "HOME-1",
+        neutral: false,
+      },
+    });
+
+    const stoppageEvent = page
+      .getByTestId("live-event-item")
+      .filter({ hasText: "GameStoppage" })
+      .first();
+    await expect(stoppageEvent).toContainText("#1");
+  });
+
   test("shows neutral ineffective timer and avoids stoppage spam", async ({
     page,
   }) => {

@@ -97,11 +97,21 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     xPercent: number,
     yPercent: number,
   ): FieldCoordinate => {
+    let outOfBoundsEdge: FieldCoordinate["outOfBoundsEdge"] = null;
     const isOutOfBounds =
       xPercent < fieldBounds.left ||
       xPercent > fieldBounds.right ||
       yPercent < fieldBounds.top ||
       yPercent > fieldBounds.bottom;
+    if (xPercent < fieldBounds.left) {
+      outOfBoundsEdge = "left";
+    } else if (xPercent > fieldBounds.right) {
+      outOfBoundsEdge = "right";
+    } else if (yPercent < fieldBounds.top) {
+      outOfBoundsEdge = "top";
+    } else if (yPercent > fieldBounds.bottom) {
+      outOfBoundsEdge = "bottom";
+    }
     const clampedX = Math.min(100, Math.max(0, xPercent));
     const clampedY = Math.min(100, Math.max(0, yPercent));
     return {
@@ -109,6 +119,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
       yPercent: clampedY,
       statsbomb: resolveStatsbombLocation(clampedX, clampedY),
       isOutOfBounds,
+      outOfBoundsEdge,
     };
   };
 

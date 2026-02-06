@@ -37,7 +37,9 @@ const clickOutOfBounds = async (page: any) => {
   const field = page.getByTestId("soccer-field");
   const box = await field.boundingBox();
   if (!box) throw new Error("Field bounding box not available");
-  await page.mouse.click(box.x + 2, box.y + 2);
+  const x = box.x + box.width * 0.01;
+  const y = box.y + box.height * 0.5;
+  await page.mouse.click(x, y);
 };
 
 test.describe("Logger field-based action flow", () => {
@@ -148,5 +150,13 @@ test.describe("Logger field-based action flow", () => {
     await expect(page.getByText(/Ball Out of Play|Balón Fuera/i)).toBeVisible({
       timeout: 10000,
     });
+    await expect
+      .poll(async () => await page.getByTestId("live-event-item").count(), {
+        timeout: 10000,
+      })
+      .toBeGreaterThanOrEqual(2);
+    const liveEvents = page.getByTestId("live-event-item");
+    await expect(liveEvents.filter({ hasText: "SetPiece" })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: "Corner" })).toHaveCount(1);
   });
 });

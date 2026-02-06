@@ -2,7 +2,7 @@
 
 ## Current Objective
 
-- [ ] Fix ineffective breakdown table layout in MatchAnalytics.
+- [x] Add Offside as a field quick action that stops effective time.
 
 ## Status
 
@@ -163,6 +163,13 @@
       finish; lock persists after reload.
 - [x] Stabilized match switch guardrail e2e to wait for queued event snapshot.
 - [x] Made player height/weight optional in player validation and CSV parsing.
+- [x] Added Offside to field quick actions and tied it to ineffective-time
+      stoppage.
+- [x] Live event feed now shows the offside offender for GameStoppage entries.
+- [x] Auto-award corners on own goal-line outs (Pass/Shot/Carry/keeper actions)
+      and attribute ineffective time to the opponent.
+- [x] Out-of-bounds and foul stoppages now attribute ineffective time to the
+      opponent team.
 
 ## Decisions Needed From User
 
@@ -208,8 +215,12 @@ Event submitted with auto-resolved outcome
 
 ## Tests Run
 
-- Frontend: `npm run test:e2e -- e2e/logger-field-flow.spec.ts` -> PASS
-  (includes Goal action + matchboard log)
+- Frontend: PASS
+  Command: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8001 npm run test:e2e`
+  Result: 100/100 on 2026-02-06
+- Frontend: PASS
+  Command: `npm run test:e2e -- e2e/logger-field-flow.spec.ts`
+  Result: includes Goal action + matchboard log
 - Frontend: `npm run test:e2e` -> PASS (90/90) on 2026-01-28
   (includes new analytics assertions in logger-advanced)
 - Frontend: `npm run test:e2e -- e2e/admin-team-roster-ui.spec.ts` -> PASS

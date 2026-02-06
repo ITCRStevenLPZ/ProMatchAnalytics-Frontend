@@ -876,7 +876,9 @@ export default function LoggerCockpit() {
         ? payload.note
         : payload.actionType === "Foul"
           ? t("ineffectiveNoteFoul", "Foul")
-          : t("ineffectiveNoteCard", "Card issued");
+          : payload.actionType === "Offside"
+            ? t("ineffectiveNoteOffside", "Offside")
+            : t("ineffectiveNoteCard", "Card issued");
       beginIneffective(note, {
         teamId: payload.teamId,
         playerId: payload.playerId,

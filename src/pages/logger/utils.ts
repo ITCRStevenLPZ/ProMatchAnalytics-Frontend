@@ -6,6 +6,7 @@ export type IneffectiveAction =
   | "OutOfBounds"
   | "Card"
   | "Foul"
+  | "Offside"
   | "Substitution"
   | "Injury"
   | "VAR"
@@ -34,6 +35,7 @@ const INEFFECTIVE_ACTIONS: IneffectiveAction[] = [
   "OutOfBounds",
   "Card",
   "Foul",
+  "Offside",
   "Substitution",
   "Injury",
   "VAR",
@@ -50,6 +52,7 @@ const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
     return "OutOfBounds";
   if (normalized.includes("card")) return "Card";
   if (normalized.includes("foul")) return "Foul";
+  if (normalized.includes("offside")) return "Offside";
   if (normalized.includes("sub")) return "Substitution";
   if (normalized.includes("injury")) return "Injury";
   if (normalized.includes("var")) return "VAR";
