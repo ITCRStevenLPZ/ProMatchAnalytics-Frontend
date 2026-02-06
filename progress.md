@@ -162,6 +162,7 @@
 - [x] Added final Completed status flow so fulltime can branch to extra time or
       finish; lock persists after reload.
 - [x] Stabilized match switch guardrail e2e to wait for queued event snapshot.
+- [x] Made player height/weight optional in player validation and CSV parsing.
 
 ## Decisions Needed From User
 
