@@ -22,6 +22,7 @@ interface SoccerFieldProps {
   onDestinationClick?: (coordinate: FieldCoordinate) => void;
   showDestinationControls?: boolean;
   overlay?: React.ReactNode;
+  flipSides?: boolean;
 }
 
 const SoccerField: React.FC<SoccerFieldProps> = ({
@@ -33,6 +34,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   onDestinationClick,
   overlay,
   showDestinationControls = false,
+  flipSides = false,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
 
@@ -40,12 +42,18 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     () => ({ left: 4, right: 96, top: 4, bottom: 96 }),
     [],
   );
+
+  const maybeFlipX = useCallback(
+    (xPercent: number) => (flipSides ? 100 - xPercent : xPercent),
+    [flipSides],
+  );
   // Simple formation mapping for demo purposes
   // In a real app, this would be dynamic based on formation data
   const getPositionCoordinates = (index: number, side: "home" | "away") => {
+    const displaySide = flipSides ? (side === "home" ? "away" : "home") : side;
     // GK is always first/last
     if (index === 0)
-      return side === "home" ? { x: 5, y: 50 } : { x: 95, y: 50 };
+      return displaySide === "home" ? { x: 5, y: 50 } : { x: 95, y: 50 };
 
     // Distribute rest
     const outfieldIndex = index - 1;
@@ -54,7 +62,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     let x = 0;
     let y = 0;
 
-    if (side === "home") {
+    if (displaySide === "home") {
       if (outfieldIndex < 4) {
         // Defenders
         x = 20;
@@ -97,22 +105,23 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     xPercent: number,
     yPercent: number,
   ): FieldCoordinate => {
+    const flippedX = maybeFlipX(xPercent);
     let outOfBoundsEdge: FieldCoordinate["outOfBoundsEdge"] = null;
     const isOutOfBounds =
-      xPercent < fieldBounds.left ||
-      xPercent > fieldBounds.right ||
+      flippedX < fieldBounds.left ||
+      flippedX > fieldBounds.right ||
       yPercent < fieldBounds.top ||
       yPercent > fieldBounds.bottom;
-    if (xPercent < fieldBounds.left) {
+    if (flippedX < fieldBounds.left) {
       outOfBoundsEdge = "left";
-    } else if (xPercent > fieldBounds.right) {
+    } else if (flippedX > fieldBounds.right) {
       outOfBoundsEdge = "right";
     } else if (yPercent < fieldBounds.top) {
       outOfBoundsEdge = "top";
     } else if (yPercent > fieldBounds.bottom) {
       outOfBoundsEdge = "bottom";
     }
-    const clampedX = Math.min(100, Math.max(0, xPercent));
+    const clampedX = Math.min(100, Math.max(0, flippedX));
     const clampedY = Math.min(100, Math.max(0, yPercent));
     return {
       xPercent: clampedX,
@@ -188,6 +197,14 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     ],
   };
 
+  const resolveEdgeBar = useCallback(
+    (dest: { id: string; label: string; x: number; y: number }) => ({
+      ...dest,
+      x: maybeFlipX(dest.x),
+    }),
+    [maybeFlipX],
+  );
+
   return (
     <div className="relative w-full px-6 py-6">
       <div
@@ -222,94 +239,106 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
 
       {onDestinationClick && showDestinationControls && (
         <div className="absolute inset-0 pointer-events-none overflow-visible">
-          {edgeBars.top.map((dest) => (
-            <button
-              key={dest.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${dest.x}%`,
-                top: `${dest.y}%`,
-                transform: "translate(-50%, 0)",
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDestinationClick(buildCoordinate(dest.x, dest.y));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {dest.label}
-              </span>
-            </button>
-          ))}
-          {edgeBars.bottom.map((dest) => (
-            <button
-              key={dest.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${dest.x}%`,
-                top: `${dest.y}%`,
-                transform: "translate(-50%, -100%)",
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDestinationClick(buildCoordinate(dest.x, dest.y));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {dest.label}
-              </span>
-            </button>
-          ))}
-          {edgeBars.left.map((dest) => (
-            <button
-              key={dest.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${dest.x}%`,
-                top: `${dest.y}%`,
-                transform: "translate(0, -50%)",
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDestinationClick(buildCoordinate(dest.x, dest.y));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2 -rotate-90">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {dest.label}
-              </span>
-            </button>
-          ))}
-          {edgeBars.right.map((dest) => (
-            <button
-              key={dest.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${dest.x}%`,
-                top: `${dest.y}%`,
-                transform: "translate(-100%, -50%)",
-              }}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDestinationClick(buildCoordinate(dest.x, dest.y));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2 -rotate-90">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {dest.label}
-              </span>
-            </button>
-          ))}
+          {edgeBars.top.map((dest) => {
+            const resolved = resolveEdgeBar(dest);
+            return (
+              <button
+                key={dest.id}
+                type="button"
+                className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
+                style={{
+                  left: `${resolved.x}%`,
+                  top: `${resolved.y}%`,
+                  transform: "translate(-50%, 0)",
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
+                }}
+                title="Destination"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
+                  {resolved.label}
+                </span>
+              </button>
+            );
+          })}
+          {edgeBars.bottom.map((dest) => {
+            const resolved = resolveEdgeBar(dest);
+            return (
+              <button
+                key={dest.id}
+                type="button"
+                className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
+                style={{
+                  left: `${resolved.x}%`,
+                  top: `${resolved.y}%`,
+                  transform: "translate(-50%, -100%)",
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
+                }}
+                title="Destination"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
+                  {resolved.label}
+                </span>
+              </button>
+            );
+          })}
+          {edgeBars.left.map((dest) => {
+            const resolved = resolveEdgeBar(dest);
+            return (
+              <button
+                key={dest.id}
+                type="button"
+                className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
+                style={{
+                  left: `${resolved.x}%`,
+                  top: `${resolved.y}%`,
+                  transform: "translate(0, -50%)",
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
+                }}
+                title="Destination"
+              >
+                <span className="inline-flex items-center gap-2 -rotate-90">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
+                  {resolved.label}
+                </span>
+              </button>
+            );
+          })}
+          {edgeBars.right.map((dest) => {
+            const resolved = resolveEdgeBar(dest);
+            return (
+              <button
+                key={dest.id}
+                type="button"
+                className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
+                style={{
+                  left: `${resolved.x}%`,
+                  top: `${resolved.y}%`,
+                  transform: "translate(-100%, -50%)",
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
+                }}
+                title="Destination"
+              >
+                <span className="inline-flex items-center gap-2 -rotate-90">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
+                  {resolved.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

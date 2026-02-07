@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
+import {
+  AlertCircle,
+  BarChart3,
+  Clock,
+  CornerUpLeft,
+  List,
+  RotateCcw,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { useMatchLogStore, MatchEvent } from "../store/useMatchLogStore";
 import { useMatchSocket } from "../hooks/useMatchSocket";
 import { useKeyboardInput } from "../hooks/useKeyboardInput";
@@ -13,28 +23,6 @@ import {
   updateMatchEvent,
 } from "../lib/loggerApi";
 import {
-  Clock,
-  AlertCircle,
-  Wifi,
-  WifiOff,
-  CornerUpLeft,
-  BarChart3,
-  List,
-  RotateCcw,
-} from "lucide-react";
-import {
-  Match,
-  Player,
-  IneffectiveAction,
-  LoggerHarness,
-  QueuedEventSummary,
-} from "./logger/types";
-import {
-  DEFAULT_PERIOD_MAP,
-  KEY_ACTION_MAP,
-  QUICK_ACTIONS,
-} from "./logger/constants";
-import {
   normalizeMatchPayload,
   formatMatchClock,
   normalizeMatchClock,
@@ -42,6 +30,11 @@ import {
   computeIneffectiveBreakdown,
 } from "./logger/utils";
 import { useActionFlow } from "./logger/hooks/useActionFlow";
+import {
+  DEFAULT_PERIOD_MAP,
+  KEY_ACTION_MAP,
+  QUICK_ACTIONS,
+} from "./logger/constants";
 import TeamSelector from "./logger/components/TeamSelector";
 import InstructionBanner from "./logger/components/InstructionBanner";
 import PlayerSelectorPanel from "./logger/components/PlayerSelectorPanel";
@@ -55,15 +48,23 @@ import LiveEventFeed from "./logger/components/LiveEventFeed";
 import { MatchPeriodSelector } from "./logger/components/MatchPeriodSelector";
 import {
   usePeriodManager,
+  EXTRA_FIRST_HALF_END_SECONDS,
   REGULATION_FIRST_HALF_SECONDS,
   REGULATION_SECOND_HALF_SECONDS,
-  EXTRA_FIRST_HALF_END_SECONDS,
-  EXTRA_SECOND_HALF_END_SECONDS,
+  EXTRA_HALF_MINUTES,
 } from "./logger/hooks/usePeriodManager";
 import ExtraTimeAlert from "./logger/components/ExtraTimeAlert";
 import HalftimePanel from "./logger/components/HalftimePanel";
 import SubstitutionFlow from "./logger/components/SubstitutionFlow";
+import QuickSubstitutionPanel from "./logger/components/QuickSubstitutionPanel";
 import { MatchAnalytics } from "./logger/components/MatchAnalytics";
+import type {
+  IneffectiveAction,
+  LoggerHarness,
+  Match,
+  Player,
+  QueuedEventSummary,
+} from "./logger/types";
 
 import { useAuthStore } from "../store/authStore";
 
@@ -739,6 +740,7 @@ export default function LoggerCockpit() {
     }
   }, [driftSeconds, fetchMatch]);
 
+  const globalTimeSeconds = parseClockToSeconds(globalClock);
   const {
     currentPhase,
     periodInfo,
@@ -755,6 +757,7 @@ export default function LoggerCockpit() {
   } = usePeriodManager(
     matchForPhase,
     effectiveTime,
+    globalTimeSeconds,
     clockMode,
     isGlobalClockRunning,
     handleModeSwitch,
@@ -911,8 +914,8 @@ export default function LoggerCockpit() {
   );
 
   const isTransitionAllowed = useCallback(
-    (target: Match["status"]): boolean => {
-      const current = normalizeStatus(statusOverride);
+    (target: Match["status"], currentOverride?: Match["status"]): boolean => {
+      const current = normalizeStatus(currentOverride ?? statusOverride);
       const allowed: Record<Match["status"], Match["status"][]> = {
         Pending: ["Live_First_Half"],
         Live_First_Half: ["Halftime"],
@@ -942,49 +945,89 @@ export default function LoggerCockpit() {
     );
 
   // Use global time (not effective time) for phase transition validation
-  const globalTimeSeconds = parseClockToSeconds(globalClock);
+  const getPeriodStartSeconds = (period: number) => {
+    const raw =
+      match?.period_timestamps?.[String(period)]?.global_start_seconds;
+    if (typeof raw === "number") return raw;
+    if (period === 1) return 0;
+    if (period === 2) return REGULATION_FIRST_HALF_SECONDS;
+    if (period === 3) return REGULATION_SECOND_HALF_SECONDS;
+    if (period === 4) return EXTRA_FIRST_HALF_END_SECONDS;
+    return globalTimeSeconds;
+  };
+  const firstHalfElapsed = Math.max(
+    0,
+    globalTimeSeconds - getPeriodStartSeconds(1),
+  );
+  const secondHalfElapsed = Math.max(
+    0,
+    globalTimeSeconds - getPeriodStartSeconds(2),
+  );
+  const extraFirstElapsed = Math.max(
+    0,
+    globalTimeSeconds - getPeriodStartSeconds(3),
+  );
+  const extraSecondElapsed = Math.max(
+    0,
+    globalTimeSeconds - getPeriodStartSeconds(4),
+  );
 
   const hasFirstHalfMinimum =
-    bypassMinimums || globalTimeSeconds >= REGULATION_FIRST_HALF_SECONDS;
+    bypassMinimums || firstHalfElapsed >= REGULATION_FIRST_HALF_SECONDS;
   const hasSecondHalfMinimum =
-    bypassMinimums || globalTimeSeconds >= REGULATION_SECOND_HALF_SECONDS;
+    bypassMinimums || secondHalfElapsed >= REGULATION_FIRST_HALF_SECONDS;
   const hasExtraFirstHalfMinimum =
-    bypassMinimums || globalTimeSeconds >= EXTRA_FIRST_HALF_END_SECONDS;
+    bypassMinimums || extraFirstElapsed >= EXTRA_HALF_MINUTES * 60;
   const hasExtraSecondHalfMinimum =
-    bypassMinimums || globalTimeSeconds >= EXTRA_SECOND_HALF_END_SECONDS;
+    bypassMinimums || extraSecondElapsed >= EXTRA_HALF_MINUTES * 60;
   const minimumFirstHalfReason = t(
     "transitionMinimumFirstHalf",
-    "Need at least 45:00 of global time to end 1st half (current {{clock}}).",
-    { clock: globalClock },
+    "Need at least 45:00 of global time from 1st half start (current {{clock}}).",
+    { clock: formatSecondsAsClock(firstHalfElapsed) },
   );
   const minimumSecondHalfReason = t(
     "transitionMinimumSecondHalf",
-    "Need at least 90:00 of global time to end 2nd half (current {{clock}}).",
-    { clock: globalClock },
+    "Need at least 45:00 of global time from 2nd half start (current {{clock}}).",
+    { clock: formatSecondsAsClock(secondHalfElapsed) },
   );
   const minimumExtraFirstHalfReason = t(
     "transitionMinimumExtraFirstHalf",
-    "Need at least 15:00 of extra time to end ET 1st half (current {{clock}}).",
-    {
-      clock: formatSecondsAsClock(
-        Math.max(0, globalTimeSeconds - REGULATION_SECOND_HALF_SECONDS),
-      ),
-    },
+    "Need at least 15:00 of extra time from ET 1st half start (current {{clock}}).",
+    { clock: formatSecondsAsClock(extraFirstElapsed) },
   );
   const minimumExtraSecondHalfReason = t(
     "transitionMinimumExtraSecondHalf",
-    "Need at least 15:00 of extra time to end ET 2nd half (current {{clock}}).",
-    {
-      clock: formatSecondsAsClock(
-        Math.max(0, globalTimeSeconds - EXTRA_FIRST_HALF_END_SECONDS),
-      ),
-    },
+    "Need at least 15:00 of extra time from ET 2nd half start (current {{clock}}).",
+    { clock: formatSecondsAsClock(extraSecondElapsed) },
   );
 
   const guardTransition = useCallback(
     (target: Match["status"], fn?: () => void) => {
       if (!fn) return;
       const current = normalizeStatus(statusOverride);
+      const phaseDerivedStatus =
+        currentPhase === "NOT_STARTED"
+          ? "Pending"
+          : currentPhase === "FIRST_HALF"
+            ? "Live_First_Half"
+            : currentPhase === "HALFTIME"
+              ? "Halftime"
+              : currentPhase === "SECOND_HALF"
+                ? "Live_Second_Half"
+                : currentPhase === "FULLTIME"
+                  ? "Fulltime"
+                  : currentPhase === "FIRST_HALF_EXTRA_TIME"
+                    ? "Live_Extra_First"
+                    : currentPhase === "EXTRA_HALFTIME"
+                      ? "Extra_Halftime"
+                      : currentPhase === "SECOND_HALF_EXTRA_TIME"
+                        ? "Live_Extra_Second"
+                        : currentPhase === "PENALTIES"
+                          ? "Penalties"
+                          : currentPhase === "COMPLETED"
+                            ? "Completed"
+                            : undefined;
+      const allowedStatus = phaseDerivedStatus ?? current;
       if (
         target === "Halftime" &&
         currentPhase === "FIRST_HALF" &&
@@ -1023,7 +1066,7 @@ export default function LoggerCockpit() {
         return;
       }
       // Allow Fulltime button to auto-walk Halftime -> Live_Second_Half -> Fulltime even if current status is earlier.
-      if (!isTransitionAllowed(target)) {
+      if (!isTransitionAllowed(target, allowedStatus)) {
         const canAutoAdvance =
           target === "Fulltime" &&
           ["Pending", "Live", "Live_First_Half", "Halftime"].includes(
@@ -1225,6 +1268,16 @@ export default function LoggerCockpit() {
     (team: "home" | "away" | "both") => {
       if (cockpitLocked) return;
       setSelectedTeam(team);
+      resetFlow();
+    },
+    [cockpitLocked, resetFlow],
+  );
+
+  const handleQuickSubstitution = useCallback(
+    (team: "home" | "away") => {
+      if (cockpitLocked) return;
+      setSubstitutionTeam(team);
+      setShowSubstitutionFlow(true);
       resetFlow();
     },
     [cockpitLocked, resetFlow],
@@ -2819,6 +2872,10 @@ export default function LoggerCockpit() {
               {match && (
                 <PlayerSelectorPanel
                   match={match}
+                  flipSides={
+                    currentPhase === "SECOND_HALF" ||
+                    currentPhase === "SECOND_HALF_EXTRA_TIME"
+                  }
                   selectedPlayer={selectedPlayer}
                   selectedTeam={selectedTeam}
                   onFieldIds={onFieldIds}
@@ -2849,6 +2906,16 @@ export default function LoggerCockpit() {
                     (!isGlobalClockRunning || clockMode !== "EFFECTIVE")
                   }
                   t={t}
+                />
+              )}
+
+              {match && currentStep === "selectPlayer" && (
+                <QuickSubstitutionPanel
+                  homeTeamName={match.home_team.short_name}
+                  awayTeamName={match.away_team.short_name}
+                  onHomeSubstitution={() => handleQuickSubstitution("home")}
+                  onAwaySubstitution={() => handleQuickSubstitution("away")}
+                  disabled={cockpitLocked}
                 />
               )}
 
@@ -2944,12 +3011,17 @@ export default function LoggerCockpit() {
             };
             applyOnFieldChange(substitutionTeam, playerOffId, playerOnId);
             sendEvent(eventData);
-            beginIneffective(t("ineffectiveNoteSubstitution", "Substitution"), {
-              teamId: team.id,
-              playerId: playerOffId || playerOnId || null,
-              actionType: "Substitution",
-              neutral: false,
-            });
+            if (isGlobalClockRunning) {
+              beginIneffective(
+                t("ineffectiveNoteSubstitution", "Substitution"),
+                {
+                  teamId: team.id,
+                  playerId: playerOffId || playerOnId || null,
+                  actionType: "Substitution",
+                  neutral: false,
+                },
+              );
+            }
             setShowSubstitutionFlow(false);
           }}
           onCancel={() => setShowSubstitutionFlow(false)}

@@ -196,7 +196,10 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
           <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
             {t("ineffectiveTime", "Ineffective")}
           </p>
-          <div className="font-mono font-bold text-lg text-rose-400">
+          <div
+            className="font-mono font-bold text-lg text-rose-400"
+            data-testid="ineffective-clock-value"
+          >
             {trimMs(ineffectiveClock)}
           </div>
         </div>

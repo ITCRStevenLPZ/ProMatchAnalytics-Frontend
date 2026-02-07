@@ -4,6 +4,7 @@ import {
   BACKEND_BASE_URL,
   expectLiveEventCount,
   forceSocketDisconnect,
+  forceSocketReconnect,
   getQueueSnapshot,
   getQueuedBadge,
   gotoLoggerPage,
@@ -68,9 +69,7 @@ test.describe("Match switch guardrails", () => {
 
     await expect
       .poll(
-        async () =>
-          (await getQueueSnapshot(page))?.queuedEventsByMatch[MATCH_A_ID]
-            ?.length ?? 0,
+        async () => (await getQueueSnapshot(page))?.queuedEvents?.length ?? 0,
         { timeout: 10000 },
       )
       .toBe(1);
@@ -90,23 +89,20 @@ test.describe("Match switch guardrails", () => {
 
     await expect
       .poll(
-        async () =>
-          (await getQueueSnapshot(page))?.queuedEventsByMatch[MATCH_A_ID]
-            ?.length ?? 0,
-        { timeout: 10000 },
-      )
-      .toBe(1);
-
-    await expect
-      .poll(
-        async () =>
-          (await getQueueSnapshot(page))?.queuedEventsByMatch[MATCH_B_ID]
-            ?.length ?? 0,
+        async () => (await getQueueSnapshot(page))?.queuedEvents?.length ?? 0,
         { timeout: 10000 },
       )
       .toBe(0);
 
     await gotoLoggerPage(page, MATCH_A_ID);
+    await forceSocketReconnect(page);
+    await expect(page.getByTestId("connection-status")).toHaveAttribute(
+      "data-status",
+      "connected",
+      {
+        timeout: 5000,
+      },
+    );
     await waitForPendingAckToClear(page);
     await expect(queuedBadge).toBeHidden({ timeout: 10000 });
     await page.reload();

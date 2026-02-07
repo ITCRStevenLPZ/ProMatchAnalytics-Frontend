@@ -8,6 +8,7 @@ import {
 
 import {
   BACKEND_BASE_URL,
+  ensureClockRunning,
   expectLiveEventCount,
   gotoLoggerPage,
   resetHarnessFlow,
@@ -99,6 +100,8 @@ test.describe("Logger substitutions", () => {
     await gotoLoggerPage(page, SUB_MATCH_ID);
     await promoteToAdmin(page);
     await resetHarnessFlow(page);
+
+    await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-1").click();
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });

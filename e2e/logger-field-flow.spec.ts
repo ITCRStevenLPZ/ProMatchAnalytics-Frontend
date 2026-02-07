@@ -6,6 +6,7 @@ import {
 } from "@playwright/test";
 import {
   BACKEND_BASE_URL,
+  ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
   waitForPendingAckToClear,
@@ -52,10 +53,7 @@ test.describe("Logger field-based action flow", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await resetHarnessFlow(page);
 
-    await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
-    await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
-      timeout: 15000,
-    });
+    await ensureClockRunning(page);
 
     await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
     const modal = page.getByTestId("ineffective-note-modal");
@@ -105,10 +103,7 @@ test.describe("Logger field-based action flow", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await resetHarnessFlow(page);
 
-    await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
-    await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
-      timeout: 15000,
-    });
+    await ensureClockRunning(page);
 
     // Quick pass to teammate
     await page.getByTestId("field-player-HOME-1").click({ force: true });

@@ -1,5 +1,30 @@
-import { test, expect } from "@playwright/test";
-import { gotoLoggerPage, MATCH_ID } from "./utils/logger";
+import {
+  test,
+  expect,
+  request,
+  type APIRequestContext,
+} from "@playwright/test";
+import { BACKEND_BASE_URL, gotoLoggerPage, MATCH_ID } from "./utils/logger";
+
+let backendRequest: APIRequestContext;
+
+test.beforeAll(async () => {
+  backendRequest = await request.newContext({
+    baseURL: BACKEND_BASE_URL,
+    extraHTTPHeaders: { Authorization: "Bearer e2e-playwright" },
+  });
+});
+
+test.afterAll(async () => {
+  await backendRequest?.dispose();
+});
+
+test.beforeEach(async () => {
+  const response = await backendRequest.post("/e2e/reset", {
+    data: { matchId: MATCH_ID },
+  });
+  expect(response.ok()).toBeTruthy();
+});
 
 test.describe("Logger Keyboard Shortcuts", () => {
   test("should support full keyboard flow", async ({ page }) => {

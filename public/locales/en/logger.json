@@ -431,7 +431,11 @@
       "unknown": "Unknown",
       "kickoff": "Kickoff",
       "matchCompletedInfo": "Match has ended. Review events or close session.",
-      "matchProgressInfo": "Use the button above to transition between match periods."
+      "matchProgressInfo": "Use the button above to transition between match periods.",
+      "matchCompleted": "Match Completed",
+      "finished": "Finished",
+      "penalties": "Penalties",
+      "endMatch": "End Match"
     }
   },
   "analytics": {
@@ -480,5 +484,8 @@
     "matchSummary": "Match Summary",
     "mostCommon": "Most Common Event",
     "mvp": "Most Active Player"
-  }
+  },
+  "resetAfterFulltimeTooltip": "Match is completed; reset will wipe data and restart.",
+  "resetAfterFulltimeWarning": "Match is fulltime. Resetting will clear logs and restart clocks from zero.",
+  "substitutionAction": "{{team}} Substitution"
 }

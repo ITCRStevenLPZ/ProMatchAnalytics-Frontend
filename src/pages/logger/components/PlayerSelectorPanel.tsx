@@ -6,6 +6,7 @@ import { FieldCoordinate, Match, Player } from "../types";
 
 interface PlayerSelectorPanelProps {
   match: Match;
+  flipSides?: boolean;
   selectedPlayer: Player | null;
   selectedTeam: "home" | "away" | "both";
   onFieldIds: { home: Set<string>; away: Set<string> };
@@ -27,6 +28,7 @@ interface PlayerSelectorPanelProps {
 
 const PlayerSelectorPanel = ({
   match,
+  flipSides = false,
   selectedPlayer,
   selectedTeam,
   onFieldIds,
@@ -203,6 +205,7 @@ const PlayerSelectorPanel = ({
             awayPlayers={match.away_team.players.filter((p) =>
               onFieldIds.away.has(p.id),
             )}
+            flipSides={flipSides}
             onPlayerClick={(player, anchor, location, side) => {
               if (isReadOnly) return;
               if (onFieldPlayerClick) {
