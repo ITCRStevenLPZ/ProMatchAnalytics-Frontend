@@ -431,7 +431,11 @@
       "unknown": "Desconocido",
       "kickoff": "Saque inicial",
       "matchCompletedInfo": "El partido terminó. Revisa eventos o cierra la sesión.",
-      "matchProgressInfo": "Usa el botón de arriba para cambiar entre periodos."
+      "matchProgressInfo": "Usa el botón de arriba para cambiar entre periodos.",
+      "matchCompleted": "Partido Completado",
+      "finished": "Finalizado",
+      "penalties": "Penales",
+      "endMatch": "Finalizar Partido"
     }
   },
   "analytics": {
@@ -480,5 +484,8 @@
     "matchSummary": "Resumen del partido",
     "mostCommon": "Evento más común",
     "mvp": "Jugador más activo"
-  }
+  },
+  "resetAfterFulltimeTooltip": "El partido ha terminado; reiniciar borrará los datos y comenzará de nuevo.",
+  "resetAfterFulltimeWarning": "El partido está en tiempo completo. El reinicio borrará los registros y reiniciará los relojes desde cero.",
+  "substitutionAction": "Sustitución {{team}}"
 }

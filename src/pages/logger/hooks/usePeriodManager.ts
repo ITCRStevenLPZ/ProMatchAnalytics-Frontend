@@ -73,6 +73,7 @@ const statusToPhase = (status: string | undefined): PeriodPhase | null => {
 export const usePeriodManager = (
   match: Match | null,
   effectiveTime: number,
+  globalTimeSeconds: number,
   clockMode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF",
   isClockRunning: boolean,
   handleModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => void,
@@ -157,6 +158,34 @@ export const usePeriodManager = (
       currentPhase === "SECOND_HALF_EXTRA_TIME";
     let extraTimeSeconds = 0;
     let shouldShowExtraTimeWarning = false;
+    const periodKey =
+      currentPhase === "FIRST_HALF"
+        ? "1"
+        : currentPhase === "SECOND_HALF"
+          ? "2"
+          : currentPhase === "FIRST_HALF_EXTRA_TIME"
+            ? "3"
+            : currentPhase === "SECOND_HALF_EXTRA_TIME"
+              ? "4"
+              : null;
+    const rawStartSeconds = periodKey
+      ? match?.period_timestamps?.[periodKey]?.global_start_seconds
+      : null;
+    const fallbackStartSeconds =
+      currentPhase === "FIRST_HALF"
+        ? 0
+        : currentPhase === "SECOND_HALF"
+          ? REGULATION_FIRST_HALF_SECONDS
+          : currentPhase === "FIRST_HALF_EXTRA_TIME"
+            ? REGULATION_SECOND_HALF_SECONDS
+            : currentPhase === "SECOND_HALF_EXTRA_TIME"
+              ? EXTRA_FIRST_HALF_END_SECONDS
+              : globalTimeSeconds;
+    const startSeconds =
+      typeof rawStartSeconds === "number"
+        ? rawStartSeconds
+        : fallbackStartSeconds;
+    const elapsedSinceStart = Math.max(0, globalTimeSeconds - startSeconds);
 
     const canTransitionToHalftime = currentPhase === "FIRST_HALF";
     const canTransitionToSecondHalf = currentPhase === "HALFTIME";
@@ -173,26 +202,26 @@ export const usePeriodManager = (
     // P1: 45m, P2: 90m, P3: 105m, P4: 120m
     if (currentPhase === "FIRST_HALF") {
       period = 1;
-      if (effectiveTime >= REGULATION_FIRST_HALF_SECONDS) {
-        extraTimeSeconds = effectiveTime - REGULATION_FIRST_HALF_SECONDS;
+      if (elapsedSinceStart >= REGULATION_FIRST_HALF_SECONDS) {
+        extraTimeSeconds = elapsedSinceStart - REGULATION_FIRST_HALF_SECONDS;
         shouldShowExtraTimeWarning = true;
       }
     } else if (currentPhase === "SECOND_HALF") {
       period = 2;
-      if (effectiveTime >= REGULATION_SECOND_HALF_SECONDS) {
-        extraTimeSeconds = effectiveTime - REGULATION_SECOND_HALF_SECONDS;
+      if (elapsedSinceStart >= REGULATION_FIRST_HALF_SECONDS) {
+        extraTimeSeconds = elapsedSinceStart - REGULATION_FIRST_HALF_SECONDS;
         shouldShowExtraTimeWarning = true;
       }
     } else if (currentPhase === "FIRST_HALF_EXTRA_TIME") {
       period = 3;
-      if (effectiveTime >= EXTRA_FIRST_HALF_END_SECONDS) {
-        extraTimeSeconds = effectiveTime - EXTRA_FIRST_HALF_END_SECONDS;
+      if (elapsedSinceStart >= EXTRA_HALF_MINUTES * 60) {
+        extraTimeSeconds = elapsedSinceStart - EXTRA_HALF_MINUTES * 60;
         shouldShowExtraTimeWarning = true;
       }
     } else if (currentPhase === "SECOND_HALF_EXTRA_TIME") {
       period = 4;
-      if (effectiveTime >= EXTRA_SECOND_HALF_END_SECONDS) {
-        extraTimeSeconds = effectiveTime - EXTRA_SECOND_HALF_END_SECONDS;
+      if (elapsedSinceStart >= EXTRA_HALF_MINUTES * 60) {
+        extraTimeSeconds = elapsedSinceStart - EXTRA_HALF_MINUTES * 60;
         shouldShowExtraTimeWarning = true;
       }
     }
@@ -212,7 +241,7 @@ export const usePeriodManager = (
       canTransitionToPenalties,
       canFinishMatch,
     };
-  }, [effectiveTime, currentPhase, operatorPeriod]);
+  }, [effectiveTime, currentPhase, operatorPeriod, globalTimeSeconds, match]);
 
   const periodInfo = getPeriodInfo();
 

@@ -11,10 +11,12 @@ import {
   gotoLoggerPage,
   resetHarnessFlow,
 } from "./utils/logger";
+import { uniqueId } from "./utils/admin";
 
-const SUB_MATCH_ID = "E2E-MATCH-SUB";
+const makeMatchId = () => uniqueId("E2E-MATCH-SUB");
 
 let backendRequest: APIRequestContext;
+let matchId: string;
 
 const promoteToAdmin = async (page: Page) => {
   await page.evaluate(() => {
@@ -53,8 +55,8 @@ const resetMatch = async (matchId: string) => {
   throw new Error("[logger-substitution] reset failed after retries");
 };
 
-const openSubstitutionFlow = async (page: Page) => {
-  await gotoLoggerPage(page, SUB_MATCH_ID);
+const openSubstitutionFlow = async (page: Page, id: string) => {
+  await gotoLoggerPage(page, id);
   await promoteToAdmin(page);
   await resetHarnessFlow(page);
 
@@ -95,7 +97,8 @@ test.afterAll(async () => {
 
 test.describe("Logger substitution guardrails", () => {
   test.beforeEach(async ({ page }) => {
-    await resetMatch(SUB_MATCH_ID);
+    matchId = makeMatchId();
+    await resetMatch(matchId);
     await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   });
 
@@ -130,7 +133,7 @@ test.describe("Logger substitution guardrails", () => {
       },
     );
 
-    const subModal = await openSubstitutionFlow(page);
+    const subModal = await openSubstitutionFlow(page, matchId);
 
     await expect.poll(() => validationCalled).toBe(true);
     await expect(
@@ -172,7 +175,7 @@ test.describe("Logger substitution guardrails", () => {
       },
     );
 
-    const subModal = await openSubstitutionFlow(page);
+    const subModal = await openSubstitutionFlow(page, matchId);
 
     await expect(subModal.getByText("Validating...")).toBeHidden({
       timeout: 10000,
@@ -222,7 +225,7 @@ test.describe("Logger substitution guardrails", () => {
       },
     );
 
-    const subModal = await openSubstitutionFlow(page);
+    const subModal = await openSubstitutionFlow(page, matchId);
 
     await expect.poll(() => (lastPayload ? true : false)).toBe(true);
     await expect.poll(() => lastPayload?.is_concussion ?? null).toBe(false);

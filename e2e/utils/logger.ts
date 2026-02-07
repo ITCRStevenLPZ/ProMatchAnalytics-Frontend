@@ -136,6 +136,22 @@ export const submitStandardShot = async (
   await page.getByTestId(`outcome-btn-${outcome}`).click();
 };
 
+export const ensureClockRunning = async (page: Page): Promise<void> => {
+  const stopClockButton = page.getByTestId("btn-stop-clock");
+  const stopEnabled = await stopClockButton.isEnabled().catch(() => false);
+  if (stopEnabled) return;
+
+  const startClockButton = page.getByTestId("btn-start-clock");
+  const startEnabled = await startClockButton.isEnabled().catch(() => false);
+  if (startEnabled) {
+    await startClockButton.click({ timeout: 15000 });
+  } else {
+    await page.getByTestId("effective-time-toggle").click({ timeout: 15000 });
+  }
+
+  await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
+};
+
 export const waitForPendingAckToClear = async (page: Page): Promise<void> => {
   const badge = page.getByTestId("pending-ack-badge");
   try {

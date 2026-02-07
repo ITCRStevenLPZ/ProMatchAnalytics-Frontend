@@ -8,6 +8,7 @@ import {
 
 import {
   BACKEND_BASE_URL,
+  ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
   waitForPendingAckToClear,
@@ -157,15 +158,9 @@ test.describe("Logger event taxonomy", () => {
     await resetHarnessFlow(page);
 
     const liveEvents = page.getByTestId("live-event-item");
-
-    const startClock = page.getByTestId("btn-start-clock");
-    const stopClock = page.getByTestId("btn-stop-clock");
     await unlockClockControls(page);
     await unlockClockControls(page);
-    if (await startClock.isEnabled()) {
-      await startClock.click();
-    }
-    await expect(stopClock).toBeEnabled({ timeout: 5000 });
+    await ensureClockRunning(page);
 
     const context = await getHarnessMatchContext(page);
     expect(context).not.toBeNull();

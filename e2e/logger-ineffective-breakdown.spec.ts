@@ -8,6 +8,7 @@ import {
 
 import {
   BACKEND_BASE_URL,
+  ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
   getHarnessMatchContext,
@@ -298,10 +299,7 @@ test.describe("Logger ineffective time breakdown", () => {
 
     await page.getByTestId("team-select-away").click();
 
-    await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
-    await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
-      timeout: 15000,
-    });
+    await ensureClockRunning(page);
     const initialEffectiveClock = await page
       .getByTestId("effective-clock-value")
       .innerText();
@@ -384,10 +382,7 @@ test.describe("Logger ineffective time breakdown", () => {
     await resetHarnessFlow(page);
     await setRole(page, "admin");
 
-    await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
-    await expect(page.getByTestId("btn-stop-clock")).toBeEnabled({
-      timeout: 15000,
-    });
+    await ensureClockRunning(page);
 
     await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
     const modal = page.getByTestId("ineffective-note-modal");
