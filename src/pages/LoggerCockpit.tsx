@@ -58,6 +58,13 @@ import HalftimePanel from "./logger/components/HalftimePanel";
 import SubstitutionFlow from "./logger/components/SubstitutionFlow";
 import QuickSubstitutionPanel from "./logger/components/QuickSubstitutionPanel";
 import { MatchAnalytics } from "./logger/components/MatchAnalytics";
+import type {
+  IneffectiveAction,
+  LoggerHarness,
+  Match,
+  Player,
+  QueuedEventSummary,
+} from "./logger/types";
 
 import { useAuthStore } from "../store/authStore";
 

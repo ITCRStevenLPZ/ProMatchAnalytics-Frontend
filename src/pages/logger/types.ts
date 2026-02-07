@@ -78,7 +78,10 @@ export interface Match {
   match_time_seconds?: number;
   current_period_start_timestamp?: string;
   clock_seconds_at_period_start?: number;
-  period_timestamps?: Record<string, { start?: string; end?: string }>;
+  period_timestamps?: Record<
+    string,
+    { start?: string; end?: string; global_start_seconds?: number }
+  >;
   ineffective_time_seconds?: number;
   time_off_seconds?: number;
   ineffective_aggregates?: IneffectiveAggregates | null;
