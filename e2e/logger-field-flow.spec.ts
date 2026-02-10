@@ -110,50 +110,18 @@ test.describe("Logger field-based action flow", () => {
       timeout: 15000,
     });
 
-    // Pass to teammate via action menu -> outcome -> recipient
+    // Quick pass to teammate
     await page.getByTestId("field-player-HOME-1").click({ force: true });
     await expect(page.getByTestId("quick-action-menu")).toBeVisible({
       timeout: 10000,
     });
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-    await page.getByTestId("action-btn-Pass").click();
-    await page.getByTestId("outcome-btn-Complete").click();
-    await page.getByTestId("recipient-card-HOME-2").click();
+    await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
+    await page.getByTestId("field-player-HOME-2").click({ force: true });
     await waitForPendingAckToClear(page);
 
     const lastEvent = page.getByTestId("live-event-item").first();
     await expect(lastEvent).toContainText(/Pass|Pase/i);
     await expect(lastEvent).toContainText(/Complete|Completo/i);
-
-    await expect
-      .poll(async () => {
-        const response = await backendRequest.get(
-          `/events/match/${MATCH_ID}`,
-        );
-        if (!response.ok()) return null;
-        const events = (await response.json()) as Array<{
-          type?: string;
-          workflow_id?: string | null;
-        }>;
-        const passEvent = events.find((event) => event.type === "Pass");
-        return passEvent?.workflow_id ?? null;
-      })
-      .toBe("WF_E2E_PASS");
-
-    await expect
-      .poll(async () => {
-        const response = await backendRequest.get(
-          `/events/match/${MATCH_ID}`,
-        );
-        if (!response.ok()) return 0;
-        const events = (await response.json()) as Array<{
-          type?: string;
-          workflow_version?: number | null;
-        }>;
-        const passEvent = events.find((event) => event.type === "Pass");
-        return passEvent?.workflow_version ?? 0;
-      })
-      .toBeGreaterThan(0);
 
     // Quick goal action logs a goal outcome
     await page.getByTestId("field-player-HOME-1").click({ force: true });

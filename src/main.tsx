@@ -1,9 +1,24 @@
-import { StrictMode, Suspense } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import App from './App.tsx';
-import './index.css';
-import './i18n'; // Initialize i18n
+import { StrictMode, Suspense } from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import selection from "d3-selection";
+import * as d3Transition from "d3-transition";
+import App from "./App.tsx";
+import "./index.css";
+import "./i18n"; // Initialize i18n
+
+if (!selection.prototype.transition) {
+  const transitionFn =
+    (d3Transition as { transition?: unknown; default?: unknown }).transition ??
+    (d3Transition as { transition?: unknown; default?: unknown }).default;
+  if (typeof transitionFn === "function") {
+    selection.prototype.transition = transitionFn;
+  } else {
+    selection.prototype.transition = function () {
+      return this;
+    };
+  }
+}
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -16,12 +31,18 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          Cargando...
+        </div>
+      }
+    >
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
     </Suspense>
-  </StrictMode>
+  </StrictMode>,
 );

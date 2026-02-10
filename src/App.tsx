@@ -41,6 +41,9 @@ import IngestionManager from "./pages/IngestionManager.tsx";
 import IngestionPage from "./pages/IngestionPage.tsx";
 import AdminModelConfig from "./pages/AdminModelConfig.tsx";
 import ConflictsView from "./pages/ConflictsView.tsx";
+import ActionDefinitionsPage from "./pages/admin/actions/ActionDefinitionsPage.tsx";
+import WorkflowListPage from "./pages/admin/workflows/WorkflowListPage.tsx";
+import WorkflowDesignerPage from "./pages/admin/workflows/WorkflowDesignerPage.tsx";
 
 // Components
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
@@ -131,8 +134,39 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
 
           {/* Admin-only routes */}
-          <Route path="admin" element={<AdminDashboard />} />
+          <Route
+            path="admin"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path="admin/users" element={<UsersManager />} />
+          <Route
+            path="admin/actions"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <ActionDefinitionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/workflows"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <WorkflowListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/workflows/:workflowId"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <WorkflowDesignerPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="admin/ingestion"
             element={

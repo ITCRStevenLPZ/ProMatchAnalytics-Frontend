@@ -1,13 +1,16 @@
 # ProMatchAnalytics - GANet Progress
 
 ## Current Objective
-- [ ] Expand workflow runtime E2E coverage (cockpit gating, prompt surfaces, tagged events, analytics, evaluation API).
+
+- [ ] Build workflow designer UI, action library, and E2E flow coverage.
 
 ## Status
-- Phase: Discovery
-- Overall: Needs Review
+
+- Phase: Build
+- Overall: On track
 
 ## Knowledge Gaps / Clarifications Needed
+
 - [x] Matching conflicts: execute all matching workflows.
 - [x] Matching context: team + player/position + role-based filters.
 - [x] Time-control input: reuse existing ineffective note modal at runtime.
@@ -20,56 +23,53 @@
 - [x] Match clock source: backend global clock (with per-action/team timers).
 - [x] Logging target: extend match_events with workflow fields.
 - [x] Side effects: clock, possession, score, banner updates.
-- [ ] Question: Default safety limit when a node/edge omits a max-steps value?
-      - Why it matters: Runtime guardrails must be deterministic.
-      - Options (if any): global default (e.g., 10) | disallow cycles unless
-        configured.
-      - Default: (NONE — must be confirmed)
-- [x] Workflow runtime E2E flows: action gating in cockpit, runtime prompts/notes,
-      workflow-tagged match events, analytics visibility, evaluation API.
-- [x] Roles for expanded workflow E2E: admin only.
-- [x] Question: Which runtime prompt/note UI should E2E validate for workflows?
-      - Why it matters: No explicit workflow prompt surface is obvious in the logger.
-      - Options (if any): logger toast, ineffective note modal, event notes panel,
-        workflow preview drawer.
-      - Default: (NONE — must be confirmed)
-- [x] Question: How should `workflow_id` and `workflow_version` be attached to match events?
-      - Why it matters: `useActionFlow` and `useMatchSocket` do not set workflow fields today.
-      - Options (if any): client adds from runtime evaluation response | backend enriches on ingest | E2E uses raw event payload with tags.
-      - Default: backend enriches on ingest.
-- [x] Question: How does backend enrichment map event payloads to workflow runtime inputs?
-      - Why it matters: Event types like SetPiece/GoalkeeperAction need mapping to action_id/outcome.
-      - Options (if any): only direct mappings (Pass/Shot/etc) | derive from event.data fields | restrict E2E to specific actions.
-      - Default: direct mappings; SetPiece uses data.set_piece_type; GoalkeeperAction uses data.action_type.
-- [x] Question: If multiple workflows match, which workflow_id/version should be stored?
-      - Why it matters: match_events store a single workflow_id/version but runtime can return many results.
-      - Options (if any): first match in evaluation order | prefer workflow_id from request | disallow multiple matches for logging.
-      - Default: first match in evaluation order.
-- [x] Workflow tag fields to assert: workflow_id + workflow_version only.
+- [ ] Question: Default safety limit when a node/edge omits a max-steps value? - Why it matters: Runtime guardrails must be deterministic. - Options (if any): global default (e.g., 10) | disallow cycles unless
+      configured. - Default: (NONE — must be confirmed)
 
 ## What Was Completed (since last update)
-- [x] Captured expanded workflow E2E scope and admin-only role coverage.
-- [x] Reviewed logger action flow payloads; workflow tags are not currently set on events.
-- [x] Confirmed backend enrichment as the source of workflow tags.
-- [x] Confirmed event mapping and multi-match defaults for backend enrichment.
-- [x] Added E2E assertion for backend-enriched workflow tags on logger events.
+
+- [x] Added admin routes and pages for Action Library and Workflow Designer.
+- [x] Implemented workflow designer layout, palette, canvas, inspectors,
+      validation panel, and runtime preview drawer.
+- [x] Added workflow/action API clients, graph mapping, validation helpers,
+      and designer Zustand store.
+- [x] Created E2E spec covering UI workflow creation, runtime preview,
+      and cockpit prompt surfaces.
+- [x] Fixed d3-transition patch to import `selection_interrupt` and stabilize
+      React Flow runtime loading in E2E mode.
+- [x] Hardened the logger e2e queue snapshot to rebuild per-match maps from
+      queued events when the store map lags.
+- [x] Allowed Completed transition based on local phase to avoid race between
+      status fetch and end-match final action (restores cockpit lock banner).
+- [x] Allowed extra-time transition from local Fulltime phase when backend
+      status is still catching up.
+- [x] Zeroed local match clock fields after reset to keep operator clock at
+      00:00.000 in E2E reset flows.
 
 ## Files Touched
-- Frontend:
-      - progress.md
-      - e2e/logger-field-flow.spec.ts
+
+- Frontend: - src/pages/LoggerCockpit.tsx - src/pages/AdminDashboard.tsx - src/App.tsx - src/pages/admin/actions/ActionDefinitionsPage.tsx - src/pages/admin/workflows/WorkflowListPage.tsx - src/pages/admin/workflows/WorkflowDesignerPage.tsx - src/pages/admin/workflows/components/WorkflowTopBar.tsx - src/pages/admin/workflows/components/WorkflowPalette.tsx - src/pages/admin/workflows/components/WorkflowCanvas.tsx - src/pages/admin/workflows/components/NodeInspector.tsx - src/pages/admin/workflows/components/EdgeInspector.tsx - src/pages/admin/workflows/components/ValidationPanel.tsx - src/pages/admin/workflows/components/RuntimePreviewDrawer.tsx - src/api/actionDefinitions.ts - src/api/workflows.ts - src/lib/workflow/graphMappers.ts - src/lib/workflow/graphValidators.ts - src/lib/workflow/conditionBuilder.ts - src/stores/workflowDesignerStore.ts - src/types/workflows.ts - e2e/workflow-designer-flow.spec.ts - package.json - progress.md
 
 ## Tests Run
-- Frontend:
-      - Not run (pending prompt/tag field confirmation).
+
+- Frontend: - `npm run test:e2e -- e2e/workflow-designer-flow.spec.ts` -> PASS - `npx playwright test e2e/workflow-designer-flow.spec.ts` -> PASS - `npx playwright test` -> FAIL (logger-keyboard: Space toggle label) - `npx playwright test e2e/admin-directory-filters.spec.ts e2e/admin-duplicate-review.spec.ts e2e/admin-ingestion-conflict-dialog.spec.ts e2e/admin-deletion-guards.spec.ts` -> PASS - `npx playwright test` -> FAIL (logger-period-transitions: cockpit lock banner missing) - `npx playwright test` -> FAIL (logger-ineffective-breakdown reset clocks) - `npx playwright test` -> PASS
 
 ## Failures / Debug Notes
-- Note: pre-commit hooks skipped for actionsv2; re-enable by running commits without `SKIP`/`HUSKY=0`.
+
+- Full Playwright run failed: [e2e/logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts#L59)
+  Space key did not flip the effective-time toggle label to Stop.
+- Admin-spec 500 was resolved by restarting the stale backend server on port 8000.
+- Full Playwright run failed: [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts#L138)
+  Cockpit lock banner missing after end-match final (fixed).
+- Full Playwright run failed: [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts#L562)
+  Operator clock did not reset to 00:00.000 (fixed).
 
 ## Risks / Follow-ups
+
 - Ensure workflow schema aligns with backend validation and cockpit usage.
 
 ## Next Steps
+
 - [ ] Confirm workflow trigger keys and scope.
 - [ ] Draft workflow data model and API contract.
 - [ ] Build test matrix (unit + e2e) for workflow execution.

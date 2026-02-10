@@ -800,7 +800,15 @@ export default function LoggerCockpit() {
       const refreshed = await resetMatch(matchId);
 
       // Reflect backend truth locally
-      setMatch(normalizeMatchPayload(refreshed as any));
+      const normalized = normalizeMatchPayload(refreshed as any);
+      setMatch({
+        ...normalized,
+        match_time_seconds: 0,
+        ineffective_time_seconds: 0,
+        time_off_seconds: 0,
+        current_period_start_timestamp: null,
+        period_timestamps: {},
+      });
       resetOperatorControls({ clock: "00:00.000", period: 1 });
 
       // Rehydrate events/timeline to reflect cleared state
@@ -845,6 +853,11 @@ export default function LoggerCockpit() {
     [removeLiveEventByClientId, removeQueuedEventByClientId, rejectPendingAck],
   );
 
+  const handleWorkflowBlock = useCallback((message: string) => {
+    setToast({ message });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const {
     currentStep,
     currentTeam,
@@ -864,13 +877,16 @@ export default function LoggerCockpit() {
     currentStepRef,
   } = useActionFlow({
     match,
+    matchId,
     globalClock,
     operatorPeriod,
     selectedTeam,
+    currentRole: currentUser?.role ?? null,
     isSubmitting,
     cardYellowCounts,
     expelledPlayerIds,
     recentEvents: [...liveEvents, ...queuedEvents],
+    onWorkflowBlock: handleWorkflowBlock,
     onIneffectiveTrigger: (payload) => {
       const note = payload.note
         ? payload.note
@@ -1025,10 +1041,15 @@ export default function LoggerCockpit() {
       // Allow Fulltime button to auto-walk Halftime -> Live_Second_Half -> Fulltime even if current status is earlier.
       if (!isTransitionAllowed(target)) {
         const canAutoAdvance =
-          target === "Fulltime" &&
-          ["Pending", "Live", "Live_First_Half", "Halftime"].includes(
-            current as Match["status"],
-          );
+          (target === "Fulltime" &&
+            ["Pending", "Live", "Live_First_Half", "Halftime"].includes(
+              current as Match["status"],
+            )) ||
+          (target === "Live_Extra_First" && currentPhase === "FULLTIME") ||
+          (target === "Completed" &&
+            ["FULLTIME", "SECOND_HALF_EXTRA_TIME", "PENALTIES"].includes(
+              currentPhase,
+            ));
 
         if (!canAutoAdvance) {
           setTransitionError(
@@ -1759,14 +1780,53 @@ export default function LoggerCockpit() {
             type: event.type,
           }));
         const state = useMatchLogStore.getState();
+        const queuedEventsByMatch = Object.fromEntries(
+          Object.entries(state.queuedEventsByMatch).map(
+            ([matchKey, events]) => [matchKey, summarize(events)],
+          ),
+        );
+        if (state.queuedEvents.length) {
+          const grouped = state.queuedEvents.reduce(
+            (acc, event) => {
+              const key =
+                event.match_id || state.currentMatchId || "unknown-match";
+              if (!acc[key]) {
+                acc[key] = [];
+              }
+              acc[key].push(event);
+              return acc;
+            },
+            {} as Record<string, MatchEvent[]>,
+          );
+          Object.entries(grouped).forEach(([matchKey, events]) => {
+            if (!queuedEventsByMatch[matchKey]) {
+              queuedEventsByMatch[matchKey] = summarize(events);
+              return;
+            }
+            const existing = queuedEventsByMatch[matchKey];
+            const merged = [...existing];
+            events.forEach((event) => {
+              const duplicate = merged.some(
+                (item) =>
+                  item.timestamp === event.timestamp &&
+                  item.type === event.type,
+              );
+              if (!duplicate) {
+                merged.push({
+                  match_id: event.match_id,
+                  timestamp: event.timestamp,
+                  client_id: event.client_id,
+                  type: event.type,
+                });
+              }
+            });
+            queuedEventsByMatch[matchKey] = merged;
+          });
+        }
         return {
           currentMatchId: state.currentMatchId,
           queuedEvents: summarize(state.queuedEvents),
-          queuedEventsByMatch: Object.fromEntries(
-            Object.entries(state.queuedEventsByMatch).map(
-              ([matchKey, events]) => [matchKey, summarize(events)],
-            ),
-          ),
+          queuedEventsByMatch,
         };
       },
       clearQueue: () => {

@@ -11,16 +11,21 @@ import {
   Player,
   Team,
 } from "../types";
+import { evaluateWorkflowRuntime } from "../../../api/workflows";
+import type { WorkflowRuntimeRequest } from "../../../types/workflows";
 
 interface UseActionFlowParams {
   match: Match | null;
+  matchId?: string | null;
   globalClock: string;
   operatorPeriod: number;
   selectedTeam: "home" | "away" | "both";
+  currentRole?: string | null;
   isSubmitting: boolean;
   cardYellowCounts: Record<string, number>;
   expelledPlayerIds: Set<string>;
   recentEvents: MatchEvent[];
+  onWorkflowBlock?: (message: string) => void;
   onIneffectiveTrigger?: (payload: {
     note?: string;
     teamId: string;
@@ -191,13 +196,16 @@ const buildEventPayload = (
 
 export const useActionFlow = ({
   match,
+  matchId,
   globalClock,
   operatorPeriod,
   selectedTeam,
+  currentRole,
   isSubmitting,
   cardYellowCounts,
   expelledPlayerIds,
   recentEvents,
+  onWorkflowBlock,
   onIneffectiveTrigger,
   sendEvent,
 }: UseActionFlowParams) => {
@@ -228,6 +236,141 @@ export const useActionFlow = ({
     }
     return undefined;
   }, [match, selectedPlayer, selectedTeam]);
+
+  const resolveWorkflowActionId = useCallback((event: MatchEvent): string => {
+    if (event.type === "SetPiece") {
+      return String(event.data?.set_piece_type || event.type);
+    }
+    if (event.type === "GoalkeeperAction") {
+      return String(event.data?.action_type || event.type);
+    }
+    return String(event.type);
+  }, []);
+
+  const resolveWorkflowOutcome = useCallback(
+    (event: MatchEvent): string | null => {
+      const outcome = event.data?.outcome;
+      if (typeof outcome === "string" && outcome.length) return outcome;
+      const cardType = event.data?.card_type;
+      if (typeof cardType === "string" && cardType.length) return cardType;
+      return null;
+    },
+    [],
+  );
+
+  const [workflowGate, setWorkflowGate] = useState<{
+    allowedActions: string[];
+    requiredActions: string[];
+    blocked: boolean;
+    reasons: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const evaluateGate = async () => {
+      if (!recentEvents.length) {
+        setWorkflowGate(null);
+        return;
+      }
+      const lastEvent = recentEvents[recentEvents.length - 1];
+      const actionId = resolveWorkflowActionId(lastEvent);
+      if (!actionId) {
+        setWorkflowGate(null);
+        return;
+      }
+
+      const payload: WorkflowRuntimeRequest = {
+        match_id: matchId || lastEvent.match_id || "E2E-MATCH",
+        context: {
+          team_scope: selectedTeam === "both" ? "any" : selectedTeam,
+          role: currentRole ?? undefined,
+          player_position: selectedPlayer?.position,
+          zone: { zone_type: "all" },
+        },
+        last_action: {
+          action_id: actionId,
+          outcome: resolveWorkflowOutcome(lastEvent) ?? undefined,
+        },
+      };
+
+      try {
+        const response = await evaluateWorkflowRuntime(payload);
+        if (cancelled) return;
+        if (!response.results.length) {
+          setWorkflowGate(null);
+          return;
+        }
+        const allowed = new Set<string>();
+        const required = new Set<string>();
+        response.results.forEach((result) => {
+          result.allowed_actions.forEach((action) => {
+            allowed.add(action.action_id);
+            if (action.required) {
+              required.add(action.action_id);
+            }
+          });
+          result.required_actions.forEach((action) => required.add(action));
+        });
+        setWorkflowGate({
+          allowedActions: Array.from(allowed),
+          requiredActions: Array.from(required),
+          blocked: response.blocked,
+          reasons: response.reasons ?? [],
+        });
+      } catch (error) {
+        console.error("[useActionFlow] workflow gate failed", error);
+        if (!cancelled) {
+          setWorkflowGate(null);
+        }
+      }
+    };
+
+    void evaluateGate();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentRole,
+    matchId,
+    recentEvents,
+    resolveWorkflowActionId,
+    resolveWorkflowOutcome,
+    selectedPlayer?.position,
+    selectedTeam,
+  ]);
+
+  const allowActionThroughWorkflow = useCallback(
+    (action: string): boolean => {
+      if (!workflowGate) return true;
+      if (!workflowGate.allowedActions.length) {
+        return !workflowGate.blocked;
+      }
+      return workflowGate.allowedActions.includes(action);
+    },
+    [workflowGate],
+  );
+
+  const notifyWorkflowBlock = useCallback(
+    (action: string) => {
+      if (!workflowGate) return;
+      const required = workflowGate.requiredActions.length
+        ? workflowGate.requiredActions
+        : workflowGate.allowedActions;
+      if (required.length) {
+        onWorkflowBlock?.(
+          `Workflow requires: ${required.join(", ")}. Blocked ${action}.`,
+        );
+        return;
+      }
+      if (workflowGate.reasons.length) {
+        onWorkflowBlock?.(`Workflow blocked: ${workflowGate.reasons[0]}`);
+        return;
+      }
+      onWorkflowBlock?.("Workflow blocked by runtime rules.");
+    },
+    [onWorkflowBlock, workflowGate],
+  );
 
   const resolvePlayerSide = useCallback(
     (player?: Player | null): "home" | "away" | null => {
@@ -404,6 +547,10 @@ export const useActionFlow = ({
 
   const handleQuickActionSelect = useCallback(
     (action: string) => {
+      if (!allowActionThroughWorkflow(action)) {
+        notifyWorkflowBlock(action);
+        return;
+      }
       setSelectedAction(action);
       setPendingOutcome(null);
       if (action === "Card") {
@@ -435,8 +582,10 @@ export const useActionFlow = ({
       setCurrentStep("selectDestination");
     },
     [
+      allowActionThroughWorkflow,
       currentTeam,
       dispatchEvent,
+      notifyWorkflowBlock,
       resetFlow,
       selectedPlayer,
       selectedPlayerLocation,
@@ -447,11 +596,18 @@ export const useActionFlow = ({
     setCurrentStep("selectAction");
   }, []);
 
-  const handleActionClick = useCallback((action: string) => {
-    setSelectedAction(action);
-    setPendingOutcome(null);
-    setCurrentStep("selectOutcome");
-  }, []);
+  const handleActionClick = useCallback(
+    (action: string) => {
+      if (!allowActionThroughWorkflow(action)) {
+        notifyWorkflowBlock(action);
+        return;
+      }
+      setSelectedAction(action);
+      setPendingOutcome(null);
+      setCurrentStep("selectOutcome");
+    },
+    [allowActionThroughWorkflow, notifyWorkflowBlock],
+  );
 
   const handleDestinationClick = useCallback(
     (payload: {

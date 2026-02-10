@@ -1,6 +1,7 @@
 # ProMatchAnalytics Frontend - Setup & Deployment Guide
 
 ## 📋 Table of Contents
+
 - [Prerequisites](#prerequisites)
 - [Phase 1: Local Development Setup](#phase-1-local-development-setup)
 - [Phase 2: Firebase Setup](#phase-2-firebase-setup)
@@ -15,6 +16,7 @@
 ## Prerequisites
 
 ### Required Tools
+
 - [ ] Node.js 18+ installed (`node --version`)
 - [ ] npm or yarn installed (`npm --version`)
 - [ ] Git installed (`git --version`)
@@ -22,6 +24,7 @@
 - [ ] Pre-commit installed (`brew install pre-commit`)
 
 ### Required Access
+
 - [ ] GitHub account with access to ITCRStevenLPZ/ProMatchAnalytics-Frontend
 - [ ] Firebase project created (or will create in Phase 2)
 - [ ] Backend API URL (from Backend deployment)
@@ -31,6 +34,7 @@
 ## Phase 1: Local Development Setup
 
 ### Step 1.1: Clone Repository
+
 ```bash
 # Clone the repository
 git clone https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend.git
@@ -41,6 +45,7 @@ git branch
 ```
 
 ### Step 1.2: Install Dependencies
+
 ```bash
 # Install all npm packages
 npm install
@@ -51,6 +56,7 @@ npm list --depth=0
 ```
 
 ### Step 1.3: Configure Environment Variables
+
 ```bash
 # Copy example environment file
 cp .env.example .env
@@ -60,6 +66,7 @@ nano .env
 ```
 
 **Required Environment Variables:**
+
 ```env
 # Backend API
 VITE_API_URL=http://localhost:8000
@@ -80,6 +87,7 @@ VITE_APP_VERSION=1.0.0
 ```
 
 ### Step 1.4: Install Pre-commit Hooks
+
 ```bash
 # Install pre-commit hooks
 pre-commit install
@@ -89,6 +97,7 @@ pre-commit run --all-files
 ```
 
 ### Step 1.5: Start Development Server
+
 ```bash
 # Start Vite development server
 npm run dev
@@ -97,6 +106,7 @@ npm run dev
 ```
 
 ### Step 1.6: Verify Application Loads
+
 ```bash
 # Open browser to http://localhost:5173
 # You should see the ProMatch login page
@@ -113,6 +123,7 @@ npm run dev
 ### Step 2.1: Create Firebase Project
 
 #### 2.1.1: Go to Firebase Console
+
 ```bash
 # Open Firebase Console
 open https://console.firebase.google.com
@@ -125,15 +136,18 @@ open https://console.firebase.google.com
 5. Click **"Create project"**
 
 #### 2.1.2: Register Web App
+
 1. In Firebase Console, click ⚙️ **Settings** → **Project settings**
 2. Scroll to "Your apps" section
 3. Click **Web** icon (`</>`)
 4. Register app:
+
    - App nickname: `ProMatch Frontend`
    - ✅ Also set up Firebase Hosting
    - Click **"Register app"**
 
 5. **Copy Firebase Configuration:**
+
 ```javascript
 // You'll see something like this:
 const firebaseConfig = {
@@ -143,7 +157,7 @@ const firebaseConfig = {
   storageBucket: "promatch-analytics.appspot.com",
   messagingSenderId: "123456789012",
   appId: "1:123456789012:web:xxxxxxxxxxxxx",
-  measurementId: "G-XXXXXXXXXX"
+  measurementId: "G-XXXXXXXXXX",
 };
 ```
 
@@ -152,6 +166,7 @@ const firebaseConfig = {
 ### Step 2.2: Configure Firebase Authentication
 
 #### 2.2.1: Enable Authentication Methods
+
 ```bash
 # In Firebase Console:
 # Navigate to: Build → Authentication → Get started
@@ -160,6 +175,7 @@ const firebaseConfig = {
 1. Click **"Get started"**
 2. Click **"Sign-in method"** tab
 3. Enable **Email/Password**:
+
    - Click on "Email/Password"
    - Toggle **Enable**
    - Click **"Save"**
@@ -171,6 +187,7 @@ const firebaseConfig = {
    - Click **"Save"**
 
 #### 2.2.2: Configure Authorized Domains
+
 ```bash
 # In Firebase Console:
 # Authentication → Settings → Authorized domains
@@ -183,6 +200,7 @@ const firebaseConfig = {
 ### Step 2.3: Set Up Firebase Hosting
 
 #### 2.3.1: Install Firebase CLI
+
 ```bash
 # Install globally
 npm install -g firebase-tools
@@ -197,6 +215,7 @@ firebase login
 ```
 
 #### 2.3.2: Initialize Firebase in Project
+
 ```bash
 # Make sure you're in the Frontend directory
 cd ProMatchAnalytics-Frontend
@@ -220,6 +239,7 @@ firebase init
 ```
 
 #### 2.3.3: Test Firebase Hosting Locally
+
 ```bash
 # Build the app
 npm run build
@@ -245,6 +265,7 @@ firebase login:ci
 ```
 
 **Example output:**
+
 ```
 ✔  Success! Use this token to login on a CI server:
 
@@ -256,6 +277,7 @@ Example: firebase deploy --token "$FIREBASE_TOKEN"
 ### Step 2.5: Get Service Account Key
 
 #### 2.5.1: Create Service Account
+
 ```bash
 # Go to Firebase Console
 # Project Settings → Service accounts → Generate new private key
@@ -267,6 +289,7 @@ Example: firebase deploy --token "$FIREBASE_TOKEN"
 4. **DO NOT** commit this file to git
 
 #### 2.5.2: Format Service Account for GitHub Secret
+
 ```bash
 # The JSON file content will be used as FIREBASE_SERVICE_ACCOUNT secret
 # You can minify it to single line:
@@ -287,6 +310,7 @@ nano .env
 ```
 
 Paste your Firebase values:
+
 ```env
 VITE_API_URL=https://your-backend-url.run.app
 # Get this from Backend Cloud Run deployment
@@ -302,11 +326,12 @@ VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 
 ### Step 3.2: Add GitHub Secrets
 
-Navigate to: https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/settings/secrets/actions
+Navigate to: <https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/settings/secrets/actions>
 
 Click **"New repository secret"** for each of the following:
 
 #### 3.2.1: Backend API Secret
+
 ```
 Secret Name: VITE_API_URL
 Value: https://your-backend-service-xxxxx.run.app
@@ -314,6 +339,7 @@ Value: https://your-backend-service-xxxxx.run.app
 ```
 
 #### 3.2.2: Firebase Configuration Secrets
+
 ```
 Secret Name: VITE_FIREBASE_API_KEY
 Value: AIzaSyXXXXXXXXXXXXXXXX
@@ -350,6 +376,7 @@ Value: G-XXXXXXXXXX
 ```
 
 #### 3.2.3: Firebase Deployment Secrets
+
 ```
 Secret Name: FIREBASE_TOKEN
 Value: 1//XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -368,7 +395,7 @@ Value: {
 
 ### Step 3.3: Configure Branch Protection
 
-Navigate to: https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/settings/branches
+Navigate to: <https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/settings/branches>
 
 1. Click **"Add rule"**
 2. Branch name pattern: `main`
@@ -439,7 +466,7 @@ git push origin feature/test-deployment
 
 ### Step 4.4: Create Pull Request
 
-1. Go to: https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/pulls
+1. Go to: <https://github.com/ITCRStevenLPZ/ProMatchAnalytics-Frontend/pulls>
 2. Click **"New pull request"**
 3. Base: `main` ← Compare: `feature/test-deployment`
 4. Click **"Create pull request"**
@@ -725,6 +752,7 @@ For more detailed information, please refer to the following documents:
 **Symptoms:** "Firebase: Error (auth/...)" in console
 
 **Solutions:**
+
 1. Verify Firebase config in .env matches Firebase Console
 2. Check authorized domains in Firebase Console
 3. Verify authentication methods are enabled
@@ -743,6 +771,7 @@ firebase.auth().onAuthStateChanged(user => console.log(user))
 **Symptoms:** Network errors, CORS errors, API requests fail
 
 **Solutions:**
+
 ```bash
 # 1. Verify backend URL is correct
 echo $VITE_API_URL
@@ -757,11 +786,29 @@ curl https://your-backend-url.run.app/health
 # DevTools → Network → Failed request → Response
 ```
 
+### Issue: Vite cache errors after dependency patching
+
+**Symptoms:** Vite dev server crashes, React Flow fails to render, or d3 module export errors after `npm install`.
+
+**Solutions:**
+
+```bash
+# Re-apply the d3 patch (postinstall also runs this)
+node scripts/patch-d3-modules.mjs
+
+# Clear Vite pre-bundle cache
+rm -rf node_modules/.vite/deps*
+
+# Restart the dev server
+npm run dev
+```
+
 ### Issue: Build Fails
 
 **Symptoms:** `npm run build` throws errors
 
 **Solutions:**
+
 ```bash
 # Clear node_modules and reinstall
 rm -rf node_modules package-lock.json
@@ -785,6 +832,7 @@ npm run build -- --debug
 **Symptoms:** `firebase deploy` fails or GitHub Action fails
 
 **Solutions:**
+
 ```bash
 # Re-authenticate
 firebase login
@@ -811,6 +859,7 @@ firebase deploy --only hosting
 **Symptoms:** PR doesn't get preview URL comment
 
 **Solutions:**
+
 1. Check GitHub Actions logs for errors
 2. Verify FIREBASE_SERVICE_ACCOUNT secret is correct JSON
 3. Check Firebase Hosting quota limits
@@ -832,6 +881,7 @@ firebase hosting:channel:delete preview-old
 **Symptoms:** Changes don't appear automatically
 
 **Solutions:**
+
 ```bash
 # Restart dev server
 # Ctrl+C then npm run dev
@@ -849,6 +899,7 @@ echo "kern.maxfilesperproc=65536" | sudo tee -a /etc/sysctl.conf
 **Symptoms:** `import.meta.env.VITE_XXX` is undefined
 
 **Solutions:**
+
 ```bash
 # 1. Verify .env file exists
 ls -la .env
