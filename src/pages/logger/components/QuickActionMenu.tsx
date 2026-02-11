@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { TFunction } from "i18next";
 import { FieldAnchor } from "../types";
 
@@ -18,19 +19,66 @@ const QuickActionMenu = ({
   onCancel,
   t,
 }: QuickActionMenuProps) => {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const anchorX = anchor.xPercent ?? 0;
   const anchorY = anchor.yPercent ?? 0;
-  const shiftLeft = anchorX > 70;
-  const shiftUp = anchorY > 70;
-  const translateX = shiftLeft ? "-100%" : "0";
-  const translateY = shiftUp ? "-100%" : "0";
-  const translate = `translate(${translateX}, ${translateY})`;
+
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      const node = menuRef.current;
+      if (!node) return;
+      const parent = node.offsetParent as HTMLElement | null;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const menuRect = node.getBoundingClientRect();
+      if (!parentRect.width || !parentRect.height) return;
+
+      const anchorLeft = (anchorX / 100) * parentRect.width;
+      const anchorTop = (anchorY / 100) * parentRect.height;
+      const padding = 12;
+
+      const minLeft = Math.min(
+        menuRect.width / 2 + padding,
+        parentRect.width / 2,
+      );
+      const maxLeft = Math.max(
+        parentRect.width - menuRect.width / 2 - padding,
+        parentRect.width / 2,
+      );
+      const minTop = Math.min(
+        menuRect.height / 2 + padding,
+        parentRect.height / 2,
+      );
+      const maxTop = Math.max(
+        parentRect.height - menuRect.height / 2 - padding,
+        parentRect.height / 2,
+      );
+
+      const clampedLeft = Math.min(Math.max(anchorLeft, minLeft), maxLeft);
+      const clampedTop = Math.min(Math.max(anchorTop, minTop), maxTop);
+
+      setPosition({ left: clampedLeft, top: clampedTop });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
+  }, [anchorX, anchorY, actions.length]);
+
+  const left = position ? `${position.left}px` : `${anchorX}%`;
+  const top = position ? `${position.top}px` : `${anchorY}%`;
+  const translate = "translate(-50%, -50%)";
 
   return (
     <div
-      className="absolute z-20 flex flex-col gap-2 bg-slate-900/95 border border-slate-700 rounded-lg p-3 shadow-xl"
+      ref={menuRef}
+      className="absolute z-20 flex flex-col gap-2 bg-slate-900/95 border border-slate-700 rounded-lg p-3 shadow-xl pointer-events-auto"
       data-testid="quick-action-menu"
-      style={{ left: `${anchorX}%`, top: `${anchorY}%`, transform: translate }}
+      style={{ left, top, transform: translate }}
     >
       <div className="text-xs uppercase tracking-wide text-slate-400">
         {t("quickActionTitle", "Quick actions")}

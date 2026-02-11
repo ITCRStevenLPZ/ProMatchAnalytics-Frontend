@@ -18,6 +18,7 @@ interface MatchTimerDisplayProps {
   locked?: boolean;
   lockReason?: string;
   onModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => void;
+  hideResumeButton?: boolean;
   t: any;
 }
 
@@ -37,17 +38,21 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   locked = false,
   lockReason,
   onModeSwitch,
+  hideResumeButton = false,
   t,
 }) => {
-  const startDisabled = locked || !!match?.current_period_start_timestamp;
+  const clockLocked =
+    locked || match?.status === "Fulltime" || match?.status === "Completed";
+  const startDisabled = clockLocked || !!match?.current_period_start_timestamp;
   const stopDisabled =
-    locked ||
+    clockLocked ||
     (!match?.current_period_start_timestamp &&
       !(
         match?.period_timestamps?.[String(operatorPeriod)]?.start &&
         !match?.period_timestamps?.[String(operatorPeriod)]?.end
       ));
-  const modeSwitchDisabled = locked || !match?.current_period_start_timestamp;
+  const modeSwitchDisabled =
+    clockLocked || !match?.current_period_start_timestamp;
   const lockNotice =
     lockReason || t("lockNotice", "Cockpit locked. Match is finished.");
   const trimMs = (value: string) => value.split(".")[0] || value;
@@ -118,7 +123,10 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
       </div>
 
       <div className="flex items-center justify-between mb-4 bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3">
-        <span className="text-sm font-semibold text-slate-300">
+        <span
+          className="text-sm font-semibold text-slate-300"
+          data-testid="ball-state-label"
+        >
           {isBallInPlay
             ? t("ballInPlay", "Balón en Juego")
             : t("ballOutOfPlay", "Balón Fuera")}
@@ -132,7 +140,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
               ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50"
               : "bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/50"
           }`}
-          disabled={locked}
+          disabled={clockLocked}
         >
           {isBallInPlay
             ? t("stopClock", "Detener reloj")
@@ -259,15 +267,17 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
             </button>
           </div>
         ) : (
-          <button
-            data-testid="btn-resume-effective"
-            onClick={() => onModeSwitch("EFFECTIVE")}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={locked}
-          >
-            <Play size={14} />
-            {t("resumeEffective", "Resume Effective Time")}
-          </button>
+          !hideResumeButton && (
+            <button
+              data-testid="btn-resume-effective"
+              onClick={() => onModeSwitch("EFFECTIVE")}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={locked}
+            >
+              <Play size={14} />
+              {t("resumeEffective", "Resume Effective Time")}
+            </button>
+          )
         )}
       </div>
     </div>

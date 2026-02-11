@@ -24,6 +24,8 @@ interface LiveEventFeedProps {
   match: Match | null;
   duplicateHighlight?: DuplicateHighlight | null;
   onDeletePending?: (clientId: string) => void;
+  onDeleteEvent?: (event: MatchEvent) => Promise<void> | void;
+  canDeleteEvent?: (event: MatchEvent) => boolean;
   onUpdateEventNotes?: (event: MatchEvent, notes: string | null) => void;
   t: any;
 }
@@ -137,6 +139,8 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   match,
   duplicateHighlight,
   onDeletePending,
+  onDeleteEvent,
+  canDeleteEvent,
   onUpdateEventNotes,
   t,
 }) => {
@@ -144,6 +148,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   const [pageSize, setPageSize] = useState(20);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
 
   const pendingCount = useMemo(
     () => events.filter((event) => event.client_id && !event._id).length,
@@ -197,6 +202,22 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
     if (!onUpdateEventNotes) return;
     onUpdateEventNotes(event, null);
     setEditingKey(null);
+  };
+
+  const handleDeleteEvent = async (event: MatchEvent) => {
+    if (!onDeleteEvent) return;
+    const key = getEventKey(event);
+    if (deletingKeys.has(key)) return;
+    setDeletingKeys((prev) => new Set(prev).add(key));
+    try {
+      await onDeleteEvent(event);
+    } finally {
+      setDeletingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
   };
 
   return (
@@ -273,6 +294,10 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
             const eventKey = getEventKey(event);
             const isEditing = editingKey === eventKey;
             const noteDraft = noteDrafts[eventKey] ?? event.notes ?? "";
+            const canDelete =
+              typeof onDeleteEvent === "function" &&
+              (canDeleteEvent ? canDeleteEvent(event) : Boolean(event._id));
+            const deleteDisabled = deletingKeys.has(eventKey);
 
             return (
               <div
@@ -309,6 +334,21 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                     <span className="text-sm font-mono font-semibold text-slate-300">
                       {event.match_clock}
                     </span>
+                    {canDelete && displayType === "Card" && (
+                      <button
+                        type="button"
+                        data-testid="event-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEvent(event);
+                        }}
+                        className="text-slate-400 hover:text-rose-300 p-1 rounded hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={t("deleteEvent", "Delete event")}
+                        disabled={deleteDisabled}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
 

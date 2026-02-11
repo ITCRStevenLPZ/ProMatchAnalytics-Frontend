@@ -477,10 +477,13 @@ export const useMatchLogStore = create<MatchLogState>()(
 
       // Set current match ID
       setCurrentMatch: (matchId: string | null) => {
+        const queuedEvents = matchId
+          ? get().queuedEventsByMatch[matchId] || []
+          : [];
         set({
           currentMatchId: matchId,
-          liveEvents: [], // Clear live events when switching matches
-          queuedEvents: matchId ? get().queuedEventsByMatch[matchId] || [] : [],
+          liveEvents: [...queuedEvents],
+          queuedEvents,
           undoStack: [],
         });
       },

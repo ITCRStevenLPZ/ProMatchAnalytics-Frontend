@@ -143,34 +143,37 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     [onDestinationClick],
   );
 
-  const renderPlayer = (
+  const renderPlayerListItem = (
     player: Player,
     index: number,
     side: "home" | "away",
   ) => {
     const { x, y } = getPositionCoordinates(index, side);
-    const isHome = side === "home";
     const anchor = { xPercent: x, yPercent: y } satisfies FieldAnchor;
     const location = resolveStatsbombLocation(x, y);
+    const isHome = side === "home";
 
     return (
-      <div
+      <button
         key={player.id}
+        type="button"
         onClick={(event) => {
           event.stopPropagation();
           onPlayerClick(player, anchor, location, side);
         }}
         data-testid={`field-player-${player.id}`}
-        className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer transform -translate-x-1/2 -translate-y-1/2 border-2 shadow-md transition-transform hover:scale-110 ${
+        className={`pointer-events-auto w-full rounded-md border px-2 py-1 text-left text-xs font-semibold shadow-sm transition-colors ${
           isHome
-            ? "bg-red-600 text-white border-white"
-            : "bg-blue-600 text-white border-white"
+            ? "border-red-300 bg-white/95 text-slate-900"
+            : "border-blue-300 bg-white/95 text-slate-900"
         }`}
-        style={{ left: `${x}%`, top: `${y}%` }}
         title={`${player.full_name} (${player.position})`}
       >
-        {player.jersey_number}
-      </div>
+        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] px-1.5 py-0.5 mr-2">
+          {player.jersey_number}
+        </span>
+        {player.full_name}
+      </button>
     );
   };
 
@@ -207,34 +210,51 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
 
   return (
     <div className="relative w-full px-6 py-6">
-      <div
-        ref={fieldRef}
-        data-testid="soccer-field"
-        onClick={handleFieldClick}
-        className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner"
-      >
-        {/* Field Markings */}
-        <div className="absolute inset-0 border-2 border-white opacity-50 m-4"></div>
-        <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white opacity-50 transform -translate-x-1/2"></div>
-        <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-50"></div>
+      <div className="relative overflow-visible">
+        <div
+          ref={fieldRef}
+          data-testid="soccer-field"
+          onClick={handleFieldClick}
+          className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner"
+        >
+          {/* Field Markings */}
+          <div className="absolute inset-0 border-2 border-white opacity-50 m-4"></div>
+          <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white opacity-50 transform -translate-x-1/2"></div>
+          <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full transform -translate-x-1/2 -translate-y-1/2 opacity-50"></div>
 
-        {/* Penalty Areas */}
-        <div className="absolute top-1/2 left-0 w-32 h-64 border-2 border-white transform -translate-y-1/2 translate-x-4 opacity-50"></div>
-        <div className="absolute top-1/2 right-0 w-32 h-64 border-2 border-white transform -translate-y-1/2 -translate-x-4 opacity-50"></div>
+          {/* Penalty Areas */}
+          <div className="absolute top-1/2 left-0 w-32 h-64 border-2 border-white transform -translate-y-1/2 translate-x-4 opacity-50"></div>
+          <div className="absolute top-1/2 right-0 w-32 h-64 border-2 border-white transform -translate-y-1/2 -translate-x-4 opacity-50"></div>
 
-        {/* Team Labels */}
-        <div className="absolute top-2 left-2 text-white font-bold text-sm bg-black bg-opacity-30 px-2 py-1 rounded">
-          {homeTeamName} (Home)
+          {/* Team Labels */}
+          <div className="absolute top-2 left-2 text-white font-bold text-xs bg-black/40 px-2 py-1 rounded">
+            {flipSides ? `${awayTeamName} (Away)` : `${homeTeamName} (Home)`}
+          </div>
+          <div className="absolute top-2 right-2 text-white font-bold text-xs bg-black/40 px-2 py-1 rounded">
+            {flipSides ? `${homeTeamName} (Home)` : `${awayTeamName} (Away)`}
+          </div>
+
+          {/* Players (list layout) */}
+          <div className="absolute inset-0 flex items-center justify-between px-6 py-10 pointer-events-none">
+            <div className="w-[44%] space-y-2">
+              {(flipSides ? awayPlayers : homePlayers).map((p, i) =>
+                renderPlayerListItem(p, i, flipSides ? "away" : "home"),
+              )}
+            </div>
+            <div className="w-[44%] space-y-2">
+              {(flipSides ? homePlayers : awayPlayers).map((p, i) =>
+                renderPlayerListItem(p, i, flipSides ? "home" : "away"),
+              )}
+            </div>
+          </div>
+          {overlay ? (
+            <div className="absolute inset-0 z-20 pointer-events-none">
+              <div className="relative h-full w-full pointer-events-none">
+                {overlay}
+              </div>
+            </div>
+          ) : null}
         </div>
-        <div className="absolute top-2 right-2 text-white font-bold text-sm bg-black bg-opacity-30 px-2 py-1 rounded">
-          {awayTeamName} (Away)
-        </div>
-
-        {overlay}
-
-        {/* Players */}
-        {homePlayers.map((p, i) => renderPlayer(p, i, "home"))}
-        {awayPlayers.map((p, i) => renderPlayer(p, i, "away"))}
       </div>
 
       {onDestinationClick && showDestinationControls && (

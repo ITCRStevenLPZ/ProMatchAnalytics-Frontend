@@ -2,7 +2,7 @@ import { expect, Page } from "@playwright/test";
 
 interface HarnessApi {
   resetFlow?: () => void;
-  setSelectedTeam?: (team: "home" | "away") => void;
+  setSelectedTeam?: (team: "home" | "away" | "both") => void;
   sendRawEvent?: (payload: Record<string, any>) => void;
   getMatchContext?: () => HarnessMatchContext;
   undoLastEvent?: () => Promise<void> | void;
@@ -59,7 +59,7 @@ export const gotoLoggerPage = async (
 
 export const resetHarnessFlow = async (
   page: Page,
-  team: "home" | "away" = "home",
+  team: "home" | "away" | "both" = "home",
 ): Promise<void> => {
   await page.evaluate((selectedTeam) => {
     const harness = (
@@ -137,9 +137,11 @@ export const submitStandardShot = async (
 };
 
 export const ensureClockRunning = async (page: Page): Promise<void> => {
+  const ballStateLabel = page.getByTestId("ball-state-label");
+  const stateText = (await ballStateLabel.textContent()) || "";
+  if (/Ball In Play|Bal[oó]n en Juego/i.test(stateText)) return;
+
   const stopClockButton = page.getByTestId("btn-stop-clock");
-  const stopEnabled = await stopClockButton.isEnabled().catch(() => false);
-  if (stopEnabled) return;
 
   const startClockButton = page.getByTestId("btn-start-clock");
   const startEnabled = await startClockButton.isEnabled().catch(() => false);
@@ -149,6 +151,9 @@ export const ensureClockRunning = async (page: Page): Promise<void> => {
     await page.getByTestId("effective-time-toggle").click({ timeout: 15000 });
   }
 
+  await expect(ballStateLabel).toHaveText(/Ball In Play|Bal[oó]n en Juego/i, {
+    timeout: 15000,
+  });
   await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
 };
 

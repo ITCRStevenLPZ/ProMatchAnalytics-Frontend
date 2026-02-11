@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TFunction } from "i18next";
 import { Users, LayoutGrid, Map } from "lucide-react";
 import SoccerField from "../../../components/SoccerField";
@@ -20,9 +20,11 @@ interface PlayerSelectorPanelProps {
   onFieldDestinationClick?: (coordinate: FieldCoordinate) => void;
   fieldOverlay?: React.ReactNode;
   forceFieldMode?: boolean;
+  forceListMode?: boolean;
   priorityPlayerId?: string | null;
   isReadOnly?: boolean;
   showDestinationControls?: boolean;
+  cardSelectionActive?: boolean;
   t: TFunction<"logger">;
 }
 
@@ -37,14 +39,30 @@ const PlayerSelectorPanel = ({
   onFieldDestinationClick,
   fieldOverlay,
   forceFieldMode = false,
+  forceListMode = false,
   priorityPlayerId = null,
   isReadOnly = false,
   showDestinationControls = false,
+  cardSelectionActive = false,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field">(
     forceFieldMode ? "field" : "list",
   );
+  const resolvedViewMode = forceListMode
+    ? "list"
+    : forceFieldMode
+      ? "field"
+      : viewMode;
+
+  useEffect(() => {
+    if (forceListMode) {
+      setViewMode("list");
+      return;
+    }
+    if (!forceFieldMode) return;
+    setViewMode("field");
+  }, [forceFieldMode, forceListMode]);
   const prioritizePlayers = (players: Player[]) => {
     if (!priorityPlayerId) return players;
     const index = players.findIndex((p) => p.id === priorityPlayerId);
@@ -134,12 +152,15 @@ const PlayerSelectorPanel = ({
     </div>
   );
 
+  const selectionLocked = isReadOnly && !cardSelectionActive;
+  const resolvedFieldOverlay = fieldOverlay;
+
   return (
     <div
       className="bg-slate-800 rounded-lg shadow p-6 border border-slate-700 relative overflow-visible"
       data-testid="player-grid"
     >
-      {isReadOnly && (
+      {selectionLocked && (
         <div className="absolute inset-0 z-10 bg-slate-900/70 backdrop-blur-sm border border-amber-500/40">
           <div className="p-4 flex items-start gap-3 text-amber-200">
             <div className="mt-0.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
@@ -155,6 +176,13 @@ const PlayerSelectorPanel = ({
               </p>
             </div>
           </div>
+          {resolvedFieldOverlay && (
+            <div className="absolute inset-0">
+              <div className="relative h-full w-full">
+                {resolvedFieldOverlay}
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className="flex items-center justify-between mb-4">
@@ -162,7 +190,7 @@ const PlayerSelectorPanel = ({
           <Users size={20} />
           {t("selectPlayer", "Select Player")}
         </h2>
-        {!forceFieldMode && (
+        {!forceFieldMode && !forceListMode && (
           <div className="flex bg-slate-900 rounded-lg p-1">
             <button
               onClick={() => setViewMode("list")}
@@ -190,12 +218,8 @@ const PlayerSelectorPanel = ({
         )}
       </div>
 
-      {viewMode === "field" ? (
-        <div
-          className={`mb-6 ${
-            isReadOnly ? "pointer-events-none opacity-50" : ""
-          }`}
-        >
+      {resolvedViewMode === "field" ? (
+        <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
           <SoccerField
             homeTeamName={match.home_team.name}
             awayTeamName={match.away_team.name}
@@ -207,7 +231,7 @@ const PlayerSelectorPanel = ({
             )}
             flipSides={flipSides}
             onPlayerClick={(player, anchor, location, side) => {
-              if (isReadOnly) return;
+              if (selectionLocked) return;
               if (onFieldPlayerClick) {
                 onFieldPlayerClick(player, anchor, location, side);
                 return;
@@ -215,9 +239,9 @@ const PlayerSelectorPanel = ({
               onPlayerClick(player);
             }}
             onDestinationClick={
-              isReadOnly ? undefined : onFieldDestinationClick
+              selectionLocked ? undefined : onFieldDestinationClick
             }
-            overlay={fieldOverlay}
+            overlay={resolvedFieldOverlay}
             showDestinationControls={showDestinationControls}
           />
         </div>
@@ -236,6 +260,7 @@ const PlayerSelectorPanel = ({
             const benchPlayers = prioritizePlayers(
               team.players.filter((p) => !teamOnField.has(p.id)),
             );
+            const benchDisabled = selectionLocked || !cardSelectionActive;
 
             return (
               <div className="space-y-3" key={team.id}>
@@ -247,15 +272,18 @@ const PlayerSelectorPanel = ({
                   <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
                     {t("onPitch", "On Pitch")}
                   </div>
-                  {renderPlayerGrid(onFieldPlayers, tone, isReadOnly)}
+                  {renderPlayerGrid(onFieldPlayers, tone, selectionLocked)}
                 </div>
 
                 {benchPlayers.length > 0 && (
-                  <div className="space-y-2 mt-4">
+                  <div
+                    className="space-y-2 mt-4"
+                    data-testid={`bench-section-${tone}`}
+                  >
                     <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
                       {t("substitutes", "Substitutes")}
                     </div>
-                    {renderPlayerGrid(benchPlayers, tone, true)}
+                    {renderPlayerGrid(benchPlayers, tone, benchDisabled)}
                   </div>
                 )}
               </div>
