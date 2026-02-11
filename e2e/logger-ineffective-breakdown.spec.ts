@@ -91,7 +91,7 @@ test.describe("Logger ineffective time breakdown", () => {
     await resetHarnessFlow(page);
     await setRole(page, "admin");
 
-    await page.getByTestId("team-select-both").click();
+    await resetHarnessFlow(page, "both");
 
     const context = await getHarnessMatchContext(page);
     expect(context).not.toBeNull();
@@ -297,7 +297,7 @@ test.describe("Logger ineffective time breakdown", () => {
     await resetHarnessFlow(page);
     await setRole(page, "admin");
 
-    await page.getByTestId("team-select-away").click();
+    await resetHarnessFlow(page, "away");
 
     await ensureClockRunning(page);
     const initialEffectiveClock = await page

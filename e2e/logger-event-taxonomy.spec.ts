@@ -181,6 +181,22 @@ test.describe("Logger event taxonomy", () => {
         reason: "Foul",
       },
     );
+    const yellowCard = liveEvents.filter({ hasText: "Yellow" }).first();
+    await expect(yellowCard).toContainText("Card");
+    await yellowCard.getByTestId("event-delete").click();
+    await expect(liveEvents.filter({ hasText: "Yellow" })).toHaveCount(0);
+
+    await sendEventThroughHarness(
+      page,
+      "Card",
+      homeTeamId,
+      "HOME-2",
+      "00:05.500",
+      {
+        card_type: "Red",
+        reason: "Foul",
+      },
+    );
     await sendEventThroughHarness(
       page,
       "FoulCommitted",
@@ -218,6 +234,7 @@ test.describe("Logger event taxonomy", () => {
     await expectLiveEventCount(page, 1);
 
     await expect(liveEvents.filter({ hasText: "Card" })).toHaveCount(1);
+    await expect(liveEvents.filter({ hasText: "Red" })).toHaveCount(1);
     await expect
       .poll(
         async () =>

@@ -161,52 +161,76 @@ test.describe("Logger period transitions", () => {
     await expect(page.getByTestId("transition-error")).toHaveCount(0);
   });
 
-  test("flips field orientation between halves", async ({ page }) => {
+  test("manual field flip works in regular and extra time", async ({
+    page,
+  }) => {
     test.setTimeout(120000);
+
+    const assertPlayerSide = async (expected: "left" | "right") => {
+      const field = page.getByTestId("soccer-field");
+      await expect(field).toBeVisible({ timeout: 15000 });
+
+      const player = page.getByTestId("field-player-HOME-1");
+      await expect(player).toBeVisible({ timeout: 15000 });
+
+      const fieldBox = await field.boundingBox();
+      const playerBox = await player.boundingBox();
+      if (!fieldBox || !playerBox) {
+        throw new Error("Field or player bounding box not available");
+      }
+
+      const fieldCenterX = fieldBox.x + fieldBox.width / 2;
+      const playerCenterX = playerBox.x + playerBox.width / 2;
+      if (expected === "left") {
+        expect(playerCenterX).toBeLessThan(fieldCenterX);
+      } else {
+        expect(playerCenterX).toBeGreaterThan(fieldCenterX);
+      }
+    };
 
     const matchId = makeMatchId();
     await resetMatch(matchId, {
       status: "Live_First_Half",
-      matchTimeSeconds: 46 * 60,
+      matchTimeSeconds: 10 * 60,
     });
 
     await page.goto(`/matches/${matchId}/logger`);
     await ensureAdminRole(page);
 
-    const field = page.getByTestId("soccer-field");
-    await expect(field).toBeVisible({ timeout: 15000 });
+    await assertPlayerSide("left");
+    await page.getByTestId("toggle-field-flip").click();
+    await expect
+      .poll(async () => {
+        try {
+          await assertPlayerSide("right");
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBeTruthy();
 
-    const player = page.getByTestId("field-player-HOME-1");
-    await expect(player).toBeVisible({ timeout: 15000 });
-
-    const fieldBox = await field.boundingBox();
-    const playerBox = await player.boundingBox();
-    if (!fieldBox || !playerBox) {
-      throw new Error("Field or player bounding box not available");
-    }
-
-    const fieldCenterX = fieldBox.x + fieldBox.width / 2;
-    const playerCenterX = playerBox.x + playerBox.width / 2;
-    expect(playerCenterX).toBeLessThan(fieldCenterX);
-
-    await page.getByTestId("btn-end-first-half").click();
-    await expect(page.getByTestId("period-status-halftime")).toBeVisible({
-      timeout: 15000,
+    const extraMatchId = makeMatchId();
+    await resetMatch(extraMatchId, {
+      status: "Live_Extra_First",
+      matchTimeSeconds: 105 * 60,
     });
 
-    await page.getByTestId("btn-start-second-half").click();
-    await expect(page.getByTestId("period-status-second-half")).toBeVisible({
-      timeout: 15000,
-    });
+    await page.goto(`/matches/${extraMatchId}/logger`);
+    await ensureAdminRole(page);
 
-    await expect(player).toBeVisible({ timeout: 15000 });
-    const playerBoxSecond = await player.boundingBox();
-    if (!playerBoxSecond) {
-      throw new Error("Player bounding box not available after flip");
-    }
-
-    const playerCenterSecond = playerBoxSecond.x + playerBoxSecond.width / 2;
-    expect(playerCenterSecond).toBeGreaterThan(fieldCenterX);
+    await assertPlayerSide("left");
+    await page.getByTestId("toggle-field-flip").click();
+    await expect
+      .poll(async () => {
+        try {
+          await assertPlayerSide("right");
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBeTruthy();
   });
 
   test("allows extra time from regulation fulltime", async ({ page }) => {
@@ -344,11 +368,11 @@ test.describe("Logger period transitions", () => {
     await expect(endMatchBtn).toBeDisabled({ timeout: 15000 });
     const secondHalfReason = page.getByTestId("transition-reason");
     await expect(secondHalfReason).toBeVisible({ timeout: 15000 });
-    await expect(secondHalfReason).toContainText(/90:00/);
+    await expect(secondHalfReason).toContainText(/45:00/);
 
     await resetMatch(matchId, {
       status: "Live_Second_Half",
-      matchTimeSeconds: 91 * 60,
+      matchTimeSeconds: 136 * 60,
     });
     await page.reload();
     await ensureAdminRole(page);

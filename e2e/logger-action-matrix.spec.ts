@@ -122,20 +122,7 @@ const ensureAdminRole = async (page: Page) => {
 };
 
 const selectTeamSide = async (page: Page, side: "home" | "away" | "both") => {
-  if (side === "both") {
-    await page.getByRole("button", { name: /Both/i }).click({ timeout: 8000 });
-    return;
-  }
-  const label = side === "home" ? /HOM/i : /AWY/i;
-  const buttons = page.getByRole("button", { name: label });
-  if (await buttons.count()) {
-    await buttons.first().click({ timeout: 8000 });
-    return;
-  }
-  // Fallback to first/second team toggle button if labels change.
-  const container = page.locator('div:has(>button:has-text("Both"))').first();
-  const fallback = container.locator("button").nth(side === "home" ? 0 : 1);
-  await fallback.click({ timeout: 8000 });
+  await resetHarnessFlow(page, side);
 };
 
 test.describe("Logger action matrix", () => {

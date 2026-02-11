@@ -20,10 +20,6 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
     actions: ["Foul"],
     outcomes: { Foul: ["Standard", "Advantage", "Penalty"] },
   },
-  Card: {
-    actions: ["Card"],
-    outcomes: { Card: ["Yellow", "Red", "White"] },
-  },
   Carry: {
     actions: ["Carry"],
     outcomes: { Carry: ["Successful", "Dispossessed"] },
@@ -93,7 +89,6 @@ export const QUICK_ACTIONS = [
   "Foul",
   "Offside",
   "Duel",
-  "Card",
   "Save",
 ] as const;
 
@@ -133,9 +128,7 @@ export const KEY_ACTION_MAP: Record<string, string> = {
   R: "Recovery",
   o: "Offside",
   O: "Offside",
-  // Card and Carry
-  y: "Card",
-  Y: "Card",
+  // Carry
   a: "Carry",
   A: "Carry",
   // Set pieces

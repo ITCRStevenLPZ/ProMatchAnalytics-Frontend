@@ -1,55 +1,54 @@
-import { Match } from "../types";
+import { TFunction } from "i18next";
+import { ArrowLeftRight, CornerUpLeft } from "lucide-react";
 
 interface TeamSelectorProps {
-  match: Match;
-  selectedTeam: "home" | "away" | "both";
-  onTeamChange: (team: "home" | "away" | "both") => void;
+  isFlipped: boolean;
+  onFlip: () => void;
+  onUndo: () => void;
+  undoDisabled: boolean;
   disabled?: boolean;
+  t: TFunction<"logger">;
 }
 
 const TeamSelector = ({
-  match,
-  selectedTeam,
-  onTeamChange,
+  isFlipped,
+  onFlip,
+  onUndo,
+  undoDisabled,
   disabled = false,
+  t,
 }: TeamSelectorProps) => (
   <div className="bg-slate-800 rounded-lg shadow p-4 border border-slate-700">
-    <div className="flex gap-2">
+    <div className="flex gap-3">
       <button
-        onClick={() => onTeamChange("home")}
+        type="button"
+        onClick={onFlip}
         disabled={disabled}
-        data-testid="team-select-home"
-        className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          selectedTeam === "home"
-            ? "bg-red-900/40 text-red-100 border border-red-500/50"
-            : "bg-slate-700 text-slate-300 hover:bg-slate-600 border border-slate-600"
+        data-testid="toggle-field-flip"
+        className={`flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          disabled
+            ? "text-slate-600 border border-slate-700"
+            : isFlipped
+              ? "text-amber-200 border border-amber-400/60 bg-amber-500/10 hover:bg-amber-500/20"
+              : "text-slate-300 border border-slate-600 bg-slate-700 hover:bg-slate-600"
         }`}
       >
-        {match.home_team.short_name}
+        <ArrowLeftRight size={16} />
+        {t("flipField", "Flip field")}
       </button>
       <button
-        onClick={() => onTeamChange("away")}
-        disabled={disabled}
-        data-testid="team-select-away"
-        className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          selectedTeam === "away"
-            ? "bg-blue-900/40 text-blue-100 border border-blue-500/50"
-            : "bg-slate-700 text-slate-300 hover:bg-slate-600 border border-slate-600"
+        type="button"
+        onClick={onUndo}
+        disabled={undoDisabled}
+        data-testid="undo-button"
+        className={`flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          undoDisabled
+            ? "text-slate-600 border border-slate-700"
+            : "text-slate-300 border border-slate-600 bg-slate-700 hover:bg-slate-600"
         }`}
       >
-        {match.away_team.short_name}
-      </button>
-      <button
-        onClick={() => onTeamChange("both")}
-        disabled={disabled}
-        data-testid="team-select-both"
-        className={`flex-1 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          selectedTeam === "both"
-            ? "bg-indigo-900/40 text-indigo-100 border border-indigo-500/50"
-            : "bg-slate-700 text-slate-300 hover:bg-slate-600 border border-slate-600"
-        }`}
-      >
-        Both
+        <CornerUpLeft size={16} />
+        {t("undoLast", "Undo last")}
       </button>
     </div>
   </div>

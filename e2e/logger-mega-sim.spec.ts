@@ -224,16 +224,7 @@ test.describe("Logger mega simulation", () => {
     });
 
     const selectTeamSide = async (side: "home" | "away" | "both") => {
-      if (side === "both") {
-        await page
-          .getByRole("button", { name: /Both/i })
-          .click({ timeout: 10000 });
-        return;
-      }
-      const toggle = page
-        .locator('button:has-text("MEG")')
-        .nth(side === "home" ? 0 : 1);
-      await toggle.click({ timeout: 10000 });
+      await resetHarnessFlow(page, side);
     };
 
     await selectTeamSide("both");

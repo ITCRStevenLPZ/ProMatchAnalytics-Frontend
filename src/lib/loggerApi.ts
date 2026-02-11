@@ -218,3 +218,14 @@ export const updateMatchEvent = async (
 
   return response.json();
 };
+
+export const deleteMatchEvent = async (eventId: string): Promise<void> => {
+  const response = await fetchLoggerWithAuth(`${EVENTS_API_URL}/${eventId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.text().catch(() => "");
+    throw new Error(`Failed to delete event: ${errorPayload}`);
+  }
+};

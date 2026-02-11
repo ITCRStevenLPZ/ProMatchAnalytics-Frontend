@@ -5,8 +5,8 @@ import {
   AlertCircle,
   BarChart3,
   Clock,
-  CornerUpLeft,
   List,
+  Play,
   RotateCcw,
   Wifi,
   WifiOff,
@@ -20,6 +20,7 @@ import {
   IS_E2E_TEST_MODE,
   fetchAllMatchEvents,
   resetMatch,
+  deleteMatchEvent,
   updateMatchEvent,
 } from "../lib/loggerApi";
 import {
@@ -42,6 +43,9 @@ import ActionSelectionPanel from "./logger/components/ActionSelectionPanel";
 import OutcomeSelectionPanel from "./logger/components/OutcomeSelectionPanel";
 import RecipientSelectionPanel from "./logger/components/RecipientSelectionPanel";
 import QuickActionMenu from "./logger/components/QuickActionMenu";
+import QuickCardPanel, {
+  CardSelection,
+} from "./logger/components/QuickCardPanel";
 import { useMatchTimer } from "./logger/hooks/useMatchTimer";
 import MatchTimerDisplay from "./logger/components/MatchTimerDisplay";
 import LiveEventFeed from "./logger/components/LiveEventFeed";
@@ -140,6 +144,7 @@ export default function LoggerCockpit() {
     clearUndoStack,
     clearPendingAcks,
     removeLiveEventByClientId,
+    removeLiveEventById,
     removeQueuedEventByClientId,
     rejectPendingAck,
     lastTimelineRefreshRequest,
@@ -173,8 +178,12 @@ export default function LoggerCockpit() {
     home: new Set(),
     away: new Set(),
   });
+  const [manualFieldFlip, setManualFieldFlip] = useState(false);
   const [viewMode, setViewMode] = useState<"logger" | "analytics">("logger");
   const [priorityPlayerId, setPriorityPlayerId] = useState<string | null>(null);
+  const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
+    null,
+  );
   const [turboOpen, setTurboOpen] = useState(false);
   const [turboInput, setTurboInput] = useState("");
   const [turboError, setTurboError] = useState<string | null>(null);
@@ -255,6 +264,33 @@ export default function LoggerCockpit() {
 
     setOnFieldIds({ home, away });
   }, [getInitialOnField, liveEvents, match]);
+
+  useEffect(() => {
+    if (!match) return;
+    const isResetMatch =
+      match.status === "Pending" &&
+      (match.match_time_seconds || 0) === 0 &&
+      (match.ineffective_time_seconds || 0) === 0 &&
+      (match.time_off_seconds || 0) === 0 &&
+      !match.current_period_start_timestamp &&
+      (!match.period_timestamps ||
+        Object.keys(match.period_timestamps).length === 0);
+    if (
+      isResetMatch ||
+      match.status === "Fulltime" ||
+      match.status === "Completed"
+    ) {
+      setManualFieldFlip(false);
+    }
+  }, [
+    match,
+    match?.status,
+    match?.match_time_seconds,
+    match?.ineffective_time_seconds,
+    match?.time_off_seconds,
+    match?.current_period_start_timestamp,
+    match?.period_timestamps,
+  ]);
 
   const applyOnFieldChange = useCallback(
     (team: "home" | "away", playerOffId?: string, playerOnId?: string) => {
@@ -848,6 +884,34 @@ export default function LoggerCockpit() {
     [removeLiveEventByClientId, removeQueuedEventByClientId, rejectPendingAck],
   );
 
+  const handleDeleteLoggedEvent = useCallback(
+    async (event: MatchEvent) => {
+      if (!event._id || !isAdmin) return;
+      try {
+        await deleteMatchEvent(event._id);
+        removeLiveEventById(event._id);
+        if (event.client_id) {
+          removeQueuedEventByClientId(event.client_id);
+        }
+        await hydrateEvents();
+      } catch (error) {
+        console.error("Failed to delete event", error);
+        setToast({
+          message: t("deleteEventFailed", "Unable to delete event right now."),
+        });
+        setTimeout(() => setToast(null), 3000);
+      }
+    },
+    [
+      deleteMatchEvent,
+      hydrateEvents,
+      isAdmin,
+      removeLiveEventById,
+      removeQueuedEventByClientId,
+      t,
+    ],
+  );
+
   const {
     currentStep,
     currentTeam,
@@ -1137,9 +1201,111 @@ export default function LoggerCockpit() {
     [match],
   );
 
+  const handleCardSelection = useCallback(
+    (cardType: CardSelection) => {
+      if (cockpitLocked) return;
+      setPendingCardType((prev) => (prev === cardType ? null : cardType));
+      resetFlow();
+    },
+    [cockpitLocked, resetFlow],
+  );
+
+  const cancelCardSelection = useCallback(() => {
+    setPendingCardType(null);
+  }, []);
+
+  const logCardForPlayer = useCallback(
+    (player: Player, cardType: CardSelection, location?: [number, number]) => {
+      if (!match) return;
+      const playerTeam = determinePlayerTeam(player);
+      if (!playerTeam) return;
+      const team = playerTeam === "home" ? match.home_team : match.away_team;
+      const recentEvents = [...liveEvents, ...queuedEvents];
+
+      let resolvedCard: string = cardType;
+      if (cardType === "Yellow") {
+        const previousYellows = cardYellowCounts[player.id] || 0;
+        resolvedCard = previousYellows >= 1 ? "Yellow (Second)" : "Yellow";
+      }
+
+      const isDisciplinary =
+        resolvedCard === "Yellow" ||
+        resolvedCard === "Yellow (Second)" ||
+        resolvedCard === "Red";
+      const hasRecentFoul = recentEvents.some(
+        (event) =>
+          event.type === "FoulCommitted" &&
+          event.match_clock === globalClock &&
+          event.period === operatorPeriod,
+      );
+
+      const buildCardPayload = (cardValue: string) => ({
+        match_clock: globalClock,
+        period: operatorPeriod,
+        team_id: team.id,
+        player_id: player.id,
+        type: "Card" as const,
+        data: {
+          card_type: cardValue,
+          reason: cardValue === "Cancelled" ? "VAR" : "Foul",
+        },
+        ...(location ? { location } : {}),
+      });
+
+      if (isDisciplinary && !hasRecentFoul) {
+        sendEvent({
+          match_clock: globalClock,
+          period: operatorPeriod,
+          team_id: team.id,
+          player_id: player.id,
+          type: "FoulCommitted",
+          data: {
+            foul_type: "Standard",
+            outcome: "Standard",
+          },
+          ...(location ? { location } : {}),
+        });
+      }
+
+      sendEvent(buildCardPayload(resolvedCard));
+
+      if (resolvedCard === "Yellow (Second)") {
+        sendEvent(buildCardPayload("Red"));
+      }
+
+      if (isDisciplinary) {
+        beginIneffective(`Card: ${resolvedCard}`, {
+          teamId: team.id,
+          playerId: player.id,
+          actionType: "Card",
+          neutral: false,
+        });
+      }
+
+      setPendingCardType(null);
+      resetFlow();
+    },
+    [
+      match,
+      determinePlayerTeam,
+      liveEvents,
+      queuedEvents,
+      cardYellowCounts,
+      globalClock,
+      operatorPeriod,
+      sendEvent,
+      beginIneffective,
+      resetFlow,
+    ],
+  );
+
   const handlePlayerSelection = useCallback(
     (player: Player) => {
       if (cockpitLocked) return;
+      if (pendingCardType) {
+        logCardForPlayer(player, pendingCardType);
+        return;
+      }
       if (expelledPlayerIds.has(player.id)) {
         setToast({
           message: t(
@@ -1159,6 +1325,8 @@ export default function LoggerCockpit() {
     },
     [
       cockpitLocked,
+      pendingCardType,
+      logCardForPlayer,
       determinePlayerTeam,
       expelledPlayerIds,
       handlePlayerClick,
@@ -1216,6 +1384,11 @@ export default function LoggerCockpit() {
         return;
       }
 
+      if (pendingCardType) {
+        logCardForPlayer(player, pendingCardType, location);
+        return;
+      }
+
       if (side !== selectedTeam) {
         setSelectedTeam(side);
       }
@@ -1224,6 +1397,8 @@ export default function LoggerCockpit() {
     [
       cockpitLocked,
       currentStep,
+      pendingCardType,
+      logCardForPlayer,
       expelledPlayerIds,
       handleDestinationClick,
       beginIneffective,
@@ -1262,15 +1437,6 @@ export default function LoggerCockpit() {
       }
     },
     [cockpitLocked, currentStep, handleDestinationClick, beginIneffective],
-  );
-
-  const handleTeamChange = useCallback(
-    (team: "home" | "away" | "both") => {
-      if (cockpitLocked) return;
-      setSelectedTeam(team);
-      resetFlow();
-    },
-    [cockpitLocked, resetFlow],
   );
 
   const handleQuickSubstitution = useCallback(
@@ -1433,6 +1599,10 @@ export default function LoggerCockpit() {
   }, [matchId, resetDuplicateStats]);
 
   useEffect(() => {
+    setManualFieldFlip(false);
+  }, [matchId]);
+
+  useEffect(() => {
     if (!match) return;
     const defaultClock = formatMatchClock(match.match_time_seconds);
     const defaultPeriod =
@@ -1488,6 +1658,8 @@ export default function LoggerCockpit() {
       resetFlow();
     }
   }, [cockpitLocked, resetFlow]);
+
+  const showFieldResume = clockMode !== "EFFECTIVE" && !cockpitLocked;
 
   useEffect(() => {
     if (!IS_E2E_TEST_MODE || !match) return;
@@ -2013,20 +2185,6 @@ export default function LoggerCockpit() {
                     {t("waitingForServer", "Awaiting server confirmation…")}
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={handleUndoLastEvent}
-                  disabled={undoDisabled}
-                  data-testid="undo-button"
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
-                    undoDisabled
-                      ? "text-slate-600 border-slate-700 cursor-not-allowed"
-                      : "text-slate-300 border-slate-600 hover:bg-slate-800 hover:text-white"
-                  }`}
-                >
-                  <CornerUpLeft size={14} />
-                  {t("undoLast", "Undo last")}
-                </button>
                 {isAdmin && (
                   <button
                     type="button"
@@ -2791,6 +2949,7 @@ export default function LoggerCockpit() {
                 onGlobalStart={handleGlobalClockStartGuarded}
                 onGlobalStop={handleGlobalClockStopGuarded}
                 onModeSwitch={handleModeSwitchGuarded}
+                hideResumeButton={showFieldResume}
                 t={t}
               />
             </div>
@@ -2798,10 +2957,12 @@ export default function LoggerCockpit() {
             {/* 2. TEAM SELECTOR (Full Width) */}
             <div className="flex-none">
               <TeamSelector
-                match={match}
-                selectedTeam={selectedTeam}
-                onTeamChange={handleTeamChange}
+                isFlipped={manualFieldFlip}
+                onFlip={() => setManualFieldFlip((prev) => !prev)}
+                onUndo={handleUndoLastEvent}
+                undoDisabled={undoDisabled}
                 disabled={cockpitLocked}
+                t={t}
               />
             </div>
 
@@ -2812,6 +2973,15 @@ export default function LoggerCockpit() {
                 currentStep={currentStep}
                 selectedPlayer={selectedPlayer}
                 selectedAction={selectedAction}
+                cardSelection={
+                  pendingCardType
+                    ? pendingCardType === "Yellow"
+                      ? t("cardSelectYellow", "Yellow")
+                      : pendingCardType === "Red"
+                        ? t("cardSelectRed", "Red")
+                        : t("cardSelectCancel", "Cancel")
+                    : null
+                }
               />
             </div>
 
@@ -2867,15 +3037,26 @@ export default function LoggerCockpit() {
               )}
             </div>
 
+            {showFieldResume && pendingCardType && (
+              <div className="flex-none flex justify-center">
+                <button
+                  type="button"
+                  data-testid="btn-resume-effective"
+                  onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                >
+                  <Play size={14} />
+                  {t("resumeEffective", "Resume Effective Time")}
+                </button>
+              </div>
+            )}
+
             {/* 3. ACTION STAGE (Field Interaction / Panels) */}
             <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
               {match && (
                 <PlayerSelectorPanel
                   match={match}
-                  flipSides={
-                    currentPhase === "SECOND_HALF" ||
-                    currentPhase === "SECOND_HALF_EXTRA_TIME"
-                  }
+                  flipSides={manualFieldFlip}
                   selectedPlayer={selectedPlayer}
                   selectedTeam={selectedTeam}
                   onFieldIds={onFieldIds}
@@ -2885,18 +3066,49 @@ export default function LoggerCockpit() {
                   showDestinationControls={
                     currentStep === "selectDestination" && !cockpitLocked
                   }
+                  forceListMode={Boolean(pendingCardType)}
+                  cardSelectionActive={Boolean(pendingCardType)}
                   fieldOverlay={
                     currentStep === "selectQuickAction" &&
                     selectedPlayer &&
                     fieldAnchor ? (
-                      <QuickActionMenu
-                        anchor={fieldAnchor}
-                        actions={[...QUICK_ACTIONS]}
-                        onActionSelect={handleQuickActionSelect}
-                        onMoreActions={handleOpenMoreActions}
-                        onCancel={resetFlow}
-                        t={t}
-                      />
+                      <>
+                        <QuickActionMenu
+                          anchor={fieldAnchor}
+                          actions={[...QUICK_ACTIONS]}
+                          onActionSelect={handleQuickActionSelect}
+                          onMoreActions={handleOpenMoreActions}
+                          onCancel={resetFlow}
+                          t={t}
+                        />
+                        {showFieldResume && (
+                          <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
+                            <button
+                              type="button"
+                              data-testid="btn-resume-effective"
+                              onClick={() =>
+                                handleModeSwitchGuarded("EFFECTIVE")
+                              }
+                              className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                            >
+                              <Play size={14} />
+                              {t("resumeEffective", "Resume Effective Time")}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : showFieldResume ? (
+                      <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
+                        <button
+                          type="button"
+                          data-testid="btn-resume-effective"
+                          onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
+                          className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                        >
+                          <Play size={14} />
+                          {t("resumeEffective", "Resume Effective Time")}
+                        </button>
+                      </div>
                     ) : null
                   }
                   forceFieldMode
@@ -2910,13 +3122,22 @@ export default function LoggerCockpit() {
               )}
 
               {match && currentStep === "selectPlayer" && (
-                <QuickSubstitutionPanel
-                  homeTeamName={match.home_team.short_name}
-                  awayTeamName={match.away_team.short_name}
-                  onHomeSubstitution={() => handleQuickSubstitution("home")}
-                  onAwaySubstitution={() => handleQuickSubstitution("away")}
-                  disabled={cockpitLocked}
-                />
+                <div className="space-y-3">
+                  <QuickSubstitutionPanel
+                    homeTeamName={match.home_team.short_name}
+                    awayTeamName={match.away_team.short_name}
+                    onHomeSubstitution={() => handleQuickSubstitution("home")}
+                    onAwaySubstitution={() => handleQuickSubstitution("away")}
+                    disabled={cockpitLocked}
+                  />
+                  <QuickCardPanel
+                    activeCard={pendingCardType}
+                    onSelectCard={handleCardSelection}
+                    onCancelSelection={cancelCardSelection}
+                    disabled={cockpitLocked}
+                    t={t}
+                  />
+                </div>
               )}
 
               {currentStep === "selectAction" && (
@@ -2968,6 +3189,10 @@ export default function LoggerCockpit() {
                   match={match}
                   duplicateHighlight={duplicateHighlight}
                   onDeletePending={handleDeletePendingEvent}
+                  onDeleteEvent={isAdmin ? handleDeleteLoggedEvent : undefined}
+                  canDeleteEvent={(event) =>
+                    isAdmin && event.type === "Card" && Boolean(event._id)
+                  }
                   onUpdateEventNotes={handleUpdateEventNotes}
                   t={t}
                 />

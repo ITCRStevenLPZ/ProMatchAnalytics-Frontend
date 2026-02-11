@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Match } from "../types";
 import { updateMatchStatus } from "../../../lib/loggerApi";
 
@@ -86,6 +86,7 @@ export const usePeriodManager = (
   const [currentPhase, setCurrentPhase] = useState<PeriodPhase>("NOT_STARTED");
   const [operatorPeriod, setOperatorPeriod] = useState(1);
   const [showExtraTimeAlert, setShowExtraTimeAlert] = useState(false);
+  const lastMatchIdRef = useRef<string | null>(null);
 
   const phaseRank: Record<PeriodPhase, number> = {
     NOT_STARTED: 0,
@@ -135,6 +136,21 @@ export const usePeriodManager = (
     match?.current_period_start_timestamp,
     match?.period_timestamps,
   ]);
+
+  useEffect(() => {
+    if (!match?.id) return;
+    if (lastMatchIdRef.current && lastMatchIdRef.current !== match.id) {
+      const nextPhase = statusToPhase(match.status) ?? "NOT_STARTED";
+      setCurrentPhase(nextPhase);
+      setShowExtraTimeAlert(false);
+      if (nextPhase === "SECOND_HALF") setOperatorPeriod(2);
+      else if (nextPhase === "FIRST_HALF_EXTRA_TIME") setOperatorPeriod(3);
+      else if (nextPhase === "SECOND_HALF_EXTRA_TIME") setOperatorPeriod(4);
+      else if (nextPhase === "PENALTIES") setOperatorPeriod(5);
+      else setOperatorPeriod(1);
+    }
+    lastMatchIdRef.current = match.id;
+  }, [match?.id, match?.status]);
 
   // Update operator period based on phase
   useEffect(() => {
