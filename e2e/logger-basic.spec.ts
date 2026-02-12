@@ -84,6 +84,18 @@ test.describe("Logger core flows", () => {
     await ensureAdminRole(page);
     await resetHarnessFlow(page);
 
+    const playerRow = page.getByTestId("field-player-HOME-1");
+    await expect(playerRow).toBeVisible({ timeout: 10000 });
+    const title = await playerRow.getAttribute("title");
+    const positionMatch = title?.match(/\(([^)]+)\)$/);
+    const positionText = positionMatch?.[1] ?? null;
+    expect(positionText).not.toBeNull();
+    if (positionText) {
+      await expect(playerRow).toContainText(positionText);
+    }
+    const positionGroup = await playerRow.getAttribute("data-position-group");
+    expect(positionGroup).not.toBeNull();
+
     await submitStandardPass(page);
 
     const pendingBadge = page.getByTestId("pending-ack-badge");

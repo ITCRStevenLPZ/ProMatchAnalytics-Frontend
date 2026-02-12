@@ -567,7 +567,7 @@ test.describe("Admin model CRUD APIs", () => {
     await apiRequest.delete(`players/${playerTwoId}`);
   });
 
-  test("Team roster enforces max active players limit", async () => {
+  test("Team roster allows more than previous active-player limit", async () => {
     const teamId = uniqueId("TEAMMAX");
     const teamPayload = {
       team_id: teamId,
@@ -623,9 +623,13 @@ test.describe("Admin model CRUD APIs", () => {
         is_active: true,
       },
     });
-    expect(overflowAddResp.status()).toBe(400);
-    const overflowError = await overflowAddResp.json();
-    expect(overflowError.detail).toContain(`${MAX_ACTIVE_PLAYERS}`);
+    expect(overflowAddResp.status()).toBe(201);
+
+    const rosterResponse = await apiRequest.get(
+      `teams/${teamId}/players?page=1&page_size=100`,
+    );
+    const rosterPayload = await json<{ total: number }>(rosterResponse);
+    expect(rosterPayload.total).toBe(MAX_ACTIVE_PLAYERS + 1);
 
     const deleteTeamResponse = await apiRequest.delete(`teams/${teamId}`);
     expect(deleteTeamResponse.status()).toBe(204);

@@ -97,6 +97,7 @@ export default function TeamsManager() {
   const { loading, withLoading } = useLoading(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [genderFilter, setGenderFilter] = useState<"male" | "female" | "">("");
   const [showForm, setShowForm] = useState(false);
   const [showRosterModal, setShowRosterModal] = useState(false);
@@ -225,9 +226,18 @@ export default function TeamsManager() {
   };
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+      setCurrentPage(1);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchTeams();
     fetchAllPlayers();
-  }, [currentPage, pageSize, genderFilter, searchTerm]);
+  }, [currentPage, pageSize, genderFilter, debouncedSearchTerm]);
 
   useEffect(() => {
     if (!showRosterModal || !selectedTeam) return;
@@ -249,8 +259,8 @@ export default function TeamsManager() {
           params.gender = genderFilter;
         }
 
-        if (searchTerm) {
-          params.search = searchTerm;
+        if (debouncedSearchTerm) {
+          params.search = debouncedSearchTerm;
         }
 
         const response = await apiClient.get<
@@ -289,12 +299,16 @@ export default function TeamsManager() {
     }
   };
 
-  const fetchTeamRoster = async (teamId: string) => {
+  const fetchTeamRoster = async (
+    teamId: string,
+    pageOverride: number = rosterPage,
+    pageSizeOverride: number = rosterPageSize,
+  ) => {
     setRosterLoading(true);
     try {
       const params: any = {
-        page: rosterPage,
-        page_size: rosterPageSize,
+        page: pageOverride,
+        page_size: pageSizeOverride,
       };
 
       const response = await apiClient.get<PaginatedResponse<TeamPlayer>>(
@@ -613,10 +627,11 @@ export default function TeamsManager() {
 
   const handleManageRoster = async (team: Team) => {
     setSelectedTeam(team);
+    setRosterPage(1);
     clearRosterFieldErrors();
     setRosterFormError(null);
     setShowRosterModal(true);
-    fetchTeamRoster(team.team_id);
+    fetchTeamRoster(team.team_id, 1, rosterPageSize);
   };
 
   const handleRosterFieldChange = (
@@ -1584,14 +1599,22 @@ export default function TeamsManager() {
                           onPageChange={(page) => {
                             setRosterPage(page);
                             if (selectedTeam) {
-                              fetchTeamRoster(selectedTeam.team_id);
+                              fetchTeamRoster(
+                                selectedTeam.team_id,
+                                page,
+                                rosterPageSize,
+                              );
                             }
                           }}
                           onPageSizeChange={(newPageSize) => {
                             setRosterPageSize(newPageSize);
                             setRosterPage(1);
                             if (selectedTeam) {
-                              fetchTeamRoster(selectedTeam.team_id);
+                              fetchTeamRoster(
+                                selectedTeam.team_id,
+                                1,
+                                newPageSize,
+                              );
                             }
                           }}
                         />

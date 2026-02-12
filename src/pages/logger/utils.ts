@@ -28,6 +28,9 @@ export interface IneffectiveBreakdown {
     action: IneffectiveAction;
     startMs: number;
   } | null;
+  varActive?: {
+    startMs: number;
+  } | null;
 }
 
 const INEFFECTIVE_ACTIONS: IneffectiveAction[] = [
@@ -59,6 +62,25 @@ const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
   return "Other";
 };
 
+const parseClockToMs = (clock?: string | null): number | null => {
+  if (!clock) return null;
+  const match = String(clock)
+    .trim()
+    .match(/^(\d+):(\d{2})(?:\.(\d{1,3}))?$/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  const millis = Number((match[3] || "0").padEnd(3, "0"));
+  if (
+    !Number.isFinite(minutes) ||
+    !Number.isFinite(seconds) ||
+    !Number.isFinite(millis)
+  ) {
+    return null;
+  }
+  return (minutes * 60 + seconds) * 1000 + millis;
+};
+
 const buildEmptyTotals = (): IneffectiveTotals => {
   const byAction = INEFFECTIVE_ACTIONS.reduce(
     (acc, action) => {
@@ -74,20 +96,17 @@ const resolveTeamKey = (
   event: MatchEvent,
   homeTeamId: string,
   awayTeamId: string,
+  action: IneffectiveAction,
 ): IneffectiveTeamKey => {
-  const neutralFlag = event.data?.neutral;
-  const isNeutral =
-    neutralFlag === true || String(neutralFlag).toLowerCase() === "true";
-  if (isNeutral) return "neutral";
+  if (action === "VAR") return "neutral";
   const triggerTeamRaw =
     event.data?.trigger_team_id || event.team_id || "NEUTRAL";
   const triggerTeam = String(triggerTeamRaw || "").toLowerCase();
   const home = String(homeTeamId || "").toLowerCase();
   const away = String(awayTeamId || "").toLowerCase();
-  if (triggerTeam === "neutral") return "neutral";
   if (triggerTeam === home) return "home";
   if (triggerTeam === away) return "away";
-  return "neutral";
+  return "home";
 };
 
 export const computeIneffectiveBreakdown = (
@@ -98,20 +117,31 @@ export const computeIneffectiveBreakdown = (
 ): IneffectiveBreakdown => {
   const totals = buildEmptyTotals();
   const stoppages = events
+    .map((event, index) => ({ event, index }))
     .filter(
-      (event) =>
+      ({ event }) =>
         event.type === "GameStoppage" &&
         typeof event.data?.stoppage_type === "string",
     )
     .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    );
+    .sort((left, right) => {
+      const leftTs = new Date(left.event.timestamp).getTime();
+      const rightTs = new Date(right.event.timestamp).getTime();
+      const leftValid = Number.isFinite(leftTs);
+      const rightValid = Number.isFinite(rightTs);
+      if (leftValid && rightValid && leftTs !== rightTs) {
+        return leftTs - rightTs;
+      }
+      return left.index - right.index;
+    })
+    .map(({ event }) => event);
 
   let activeTeamKey: IneffectiveTeamKey | null = null;
   let activeAction: IneffectiveAction | null = null;
   let activeStartMs: number | null = null;
+  let pausedByVarTeamKey: IneffectiveTeamKey | null = null;
+  let pausedByVarAction: IneffectiveAction | null = null;
+  let varStartMs: number | null = null;
 
   const addDuration = (
     teamKey: IneffectiveTeamKey,
@@ -125,17 +155,57 @@ export const computeIneffectiveBreakdown = (
 
   stoppages.forEach((event) => {
     const stoppageType = String(event.data?.stoppage_type || "");
+    const timestampMs = (() => {
+      const parsedTimestamp = new Date(event.timestamp).getTime();
+      if (Number.isFinite(parsedTimestamp)) return parsedTimestamp;
+      const fromClock = parseClockToMs(event.match_clock);
+      if (fromClock !== null) return fromClock;
+      return NaN;
+    })();
+    if (!Number.isFinite(timestampMs)) return;
+
+    if (stoppageType === "VARStart") {
+      if (activeTeamKey && activeAction && activeStartMs !== null) {
+        addDuration(
+          activeTeamKey,
+          activeAction,
+          (timestampMs - activeStartMs) / 1000,
+        );
+        pausedByVarTeamKey = activeTeamKey;
+        pausedByVarAction = activeAction;
+        activeTeamKey = null;
+        activeAction = null;
+        activeStartMs = null;
+      }
+      varStartMs = timestampMs;
+      return;
+    }
+    if (stoppageType === "VARStop") {
+      if (varStartMs !== null) {
+        addDuration("neutral", "VAR", (timestampMs - varStartMs) / 1000);
+      }
+      varStartMs = null;
+      if (!activeTeamKey && pausedByVarTeamKey && pausedByVarAction) {
+        activeTeamKey = pausedByVarTeamKey;
+        activeAction = pausedByVarAction;
+        activeStartMs = timestampMs;
+      }
+      pausedByVarTeamKey = null;
+      pausedByVarAction = null;
+      return;
+    }
+
     const action = normalizeIneffectiveAction(
       event.data?.trigger_action || event.data?.reason,
     );
-    const teamKey = resolveTeamKey(event, homeTeamId, awayTeamId);
-    const timestampMs = new Date(event.timestamp).getTime();
-    if (!Number.isFinite(timestampMs)) return;
+    const teamKey = resolveTeamKey(event, homeTeamId, awayTeamId, action);
 
     if (stoppageType === "ClockStop") {
       activeTeamKey = teamKey;
       activeAction = action;
       activeStartMs = timestampMs;
+      pausedByVarTeamKey = null;
+      pausedByVarAction = null;
       return;
     }
     if (stoppageType === "ClockStart") {
@@ -149,11 +219,17 @@ export const computeIneffectiveBreakdown = (
       activeTeamKey = null;
       activeAction = null;
       activeStartMs = null;
+      pausedByVarTeamKey = null;
+      pausedByVarAction = null;
     }
   });
 
   if (activeTeamKey && activeAction && activeStartMs !== null) {
     addDuration(activeTeamKey, activeAction, (nowMs - activeStartMs) / 1000);
+  }
+
+  if (varStartMs !== null) {
+    addDuration("neutral", "VAR", (nowMs - varStartMs) / 1000);
   }
 
   const active =
@@ -165,7 +241,14 @@ export const computeIneffectiveBreakdown = (
         }
       : null;
 
-  return { totals, active };
+  const varActive =
+    varStartMs !== null
+      ? {
+          startMs: varStartMs,
+        }
+      : null;
+
+  return { totals, active, varActive };
 };
 
 export const buildIneffectiveBreakdownFromAggregates = (
@@ -191,6 +274,7 @@ export const buildIneffectiveBreakdownFromAggregates = (
     action: IneffectiveAction;
     startMs: number;
   } | null = null;
+  let varActive: { startMs: number } | null = null;
   if (aggregates.active?.start_timestamp) {
     const startMs = new Date(aggregates.active.start_timestamp).getTime();
     if (Number.isFinite(startMs)) {
@@ -199,13 +283,35 @@ export const buildIneffectiveBreakdownFromAggregates = (
         action: aggregates.active.action,
         startMs,
       };
-      const deltaSeconds = Math.max(0, (nowMs - startMs) / 1000);
+      let deltaSeconds = Math.max(0, (nowMs - startMs) / 1000);
+      if (aggregates.var_active?.start_timestamp) {
+        const varStartMs = new Date(
+          aggregates.var_active.start_timestamp,
+        ).getTime();
+        if (Number.isFinite(varStartMs)) {
+          const overlapSeconds = Math.max(
+            0,
+            (nowMs - Math.max(startMs, varStartMs)) / 1000,
+          );
+          deltaSeconds = Math.max(0, deltaSeconds - overlapSeconds);
+        }
+      }
       totals[active.teamKey] += deltaSeconds;
       totals.byAction[active.action][active.teamKey] += deltaSeconds;
     }
   }
 
-  return { totals, active };
+  if (aggregates.var_active?.start_timestamp) {
+    const startMs = new Date(aggregates.var_active.start_timestamp).getTime();
+    if (Number.isFinite(startMs)) {
+      varActive = { startMs };
+      const deltaSeconds = Math.max(0, (nowMs - startMs) / 1000);
+      totals.neutral += deltaSeconds;
+      totals.byAction.VAR.neutral += deltaSeconds;
+    }
+  }
+
+  return { totals, active, varActive };
 };
 
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
@@ -276,9 +382,9 @@ export const normalizeMatchPayload = (payload: any): Match => {
     clock_seconds_at_period_start: payload.clock_seconds_at_period_start,
     period_timestamps: payload.period_timestamps ?? {},
     ineffective_time_seconds: payload.ineffective_time_seconds ?? 0,
-    time_off_seconds: payload.time_off_seconds ?? 0,
     ineffective_aggregates: payload.ineffective_aggregates ?? null,
-    clock_mode: payload.clock_mode ?? "EFFECTIVE",
+    clock_mode:
+      payload.clock_mode === "INEFFECTIVE" ? "INEFFECTIVE" : "EFFECTIVE",
     last_mode_change_timestamp: payload.last_mode_change_timestamp,
     home_team: normalizeTeamFromApi(payload.home_team, "HOME"),
     away_team: normalizeTeamFromApi(payload.away_team, "AWAY"),

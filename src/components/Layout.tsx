@@ -1,11 +1,23 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useAuthStore } from '../store/authStore';
-import { auth } from '../lib/firebase';
-import { signOut } from 'firebase/auth';
-import { Home, Trophy, LogOut, Settings, Shield, MapPin, Flag, User as UserIcon, Menu, X, Upload } from 'lucide-react';
-import LanguageSwitcher from './LanguageSwitcher';
-import { useState, useRef, useEffect } from 'react';
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useAuthStore } from "../store/authStore";
+import { auth } from "../lib/firebase";
+import { signOut } from "firebase/auth";
+import {
+  Home,
+  Trophy,
+  LogOut,
+  Settings,
+  Shield,
+  MapPin,
+  Flag,
+  User as UserIcon,
+  Menu,
+  X,
+  Upload,
+} from "lucide-react";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useState, useRef, useEffect } from "react";
 
 // Profile Avatar Component with fallback
 function ProfileAvatar({ user }: { user: any }) {
@@ -14,7 +26,7 @@ function ProfileAvatar({ user }: { user: any }) {
   if (!user?.photoURL || imageError) {
     return (
       <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold">
-        {(user?.displayName || user?.email || 'U')[0].toUpperCase()}
+        {(user?.displayName || user?.email || "U")[0].toUpperCase()}
       </div>
     );
   }
@@ -31,7 +43,7 @@ function ProfileAvatar({ user }: { user: any }) {
 }
 
 export default function Layout() {
-  const { t, ready } = useTranslation('common');
+  const { t, ready } = useTranslation("common");
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -46,16 +58,21 @@ export default function Layout() {
     return location.pathname.startsWith(path);
   };
 
+  const isLoggerRoute = /^\/matches\/[^/]+\/logger$/.test(location.pathname);
+
   // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target as Node)
+      ) {
         setShowMobileMenu(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Close mobile menu when route changes
@@ -73,34 +90,34 @@ export default function Layout() {
 
   const dataManagementItems = [
     {
-      path: '/competitions',
+      path: "/competitions",
       icon: Trophy,
-      label: t('admin.competitions', 'Competitions'),
+      label: t("admin.competitions", "Competitions"),
     },
     {
-      path: '/teams',
+      path: "/teams",
       icon: Shield,
-      label: t('admin.teams', 'Teams'),
+      label: t("admin.teams", "Teams"),
     },
     {
-      path: '/matches',
+      path: "/matches",
       icon: Trophy,
-      label: t('admin.matches', 'Matches'),
+      label: t("admin.matches", "Matches"),
     },
     {
-      path: '/players',
+      path: "/players",
       icon: UserIcon,
-      label: t('admin.players', 'Players'),
+      label: t("admin.players", "Players"),
     },
     {
-      path: '/venues',
+      path: "/venues",
       icon: MapPin,
-      label: t('admin.venues', 'Venues'),
+      label: t("admin.venues", "Venues"),
     },
     {
-      path: '/referees',
+      path: "/referees",
       icon: Flag,
-      label: t('admin.referees', 'Referees'),
+      label: t("admin.referees", "Referees"),
     },
   ];
 
@@ -122,7 +139,9 @@ export default function Layout() {
 
               <Link to="/dashboard" className="flex items-center gap-2">
                 <Trophy className="text-primary-600" size={32} />
-                <span className="text-xl font-bold text-gray-900">ProMatchAnalytics</span>
+                <span className="text-xl font-bold text-gray-900">
+                  ProMatchAnalytics
+                </span>
               </Link>
             </div>
 
@@ -133,14 +152,14 @@ export default function Layout() {
                   {user?.displayName || user?.email}
                 </p>
                 <p className="text-xs text-gray-500 capitalize">
-                  {user?.role || 'guest'}
+                  {user?.role || "guest"}
                 </p>
               </div>
               <ProfileAvatar user={user} />
               <button
                 onClick={handleLogout}
                 className="btn btn-secondary"
-                title={t('login.signOut', 'Sign Out')}
+                title={t("login.signOut", "Sign Out")}
               >
                 <LogOut size={20} />
               </button>
@@ -153,13 +172,13 @@ export default function Layout() {
       {showMobileMenu && (
         <>
           {/* Backdrop */}
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40"
             onClick={() => setShowMobileMenu(false)}
           />
-          
+
           {/* Sidebar */}
-          <div 
+          <div
             ref={mobileMenuRef}
             className="fixed top-0 left-0 h-full w-72 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto"
           >
@@ -186,7 +205,7 @@ export default function Layout() {
                     {user?.displayName || user?.email}
                   </p>
                   <p className="text-xs text-gray-500 capitalize">
-                    {user?.role || 'guest'}
+                    {user?.role || "guest"}
                   </p>
                 </div>
               </div>
@@ -198,22 +217,22 @@ export default function Layout() {
                 to="/dashboard"
                 onClick={() => setShowMobileMenu(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-                  isActive('/dashboard')
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isActive("/dashboard")
+                    ? "bg-primary-100 text-primary-700"
+                    : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
                 <Home size={20} />
-                <span>{t('nav.dashboard', 'Dashboard')}</span>
+                <span>{t("nav.dashboard", "Dashboard")}</span>
               </Link>
 
               {/* Data Management Section */}
-              {(user?.role === 'admin' || user?.role === 'analyst') && (
+              {(user?.role === "admin" || user?.role === "analyst") && (
                 <div className="pt-2 border-t border-gray-200 mt-2">
                   <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    {t('nav.dataManagement', 'Data Management')}
+                    {t("nav.dataManagement", "Data Management")}
                   </div>
-                  
+
                   {dataManagementItems.map((item) => {
                     const Icon = item.icon;
                     return (
@@ -223,8 +242,8 @@ export default function Layout() {
                         onClick={() => setShowMobileMenu(false)}
                         className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
                           isActive(item.path)
-                            ? 'bg-primary-100 text-primary-700'
-                            : 'text-gray-700 hover:bg-gray-100'
+                            ? "bg-primary-100 text-primary-700"
+                            : "text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <Icon size={20} />
@@ -236,34 +255,34 @@ export default function Layout() {
               )}
 
               {/* Admin Section */}
-              {user?.role === 'admin' && (
+              {user?.role === "admin" && (
                 <div className="pt-2 border-t border-gray-200 mt-2">
                   <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    {t('nav.admin', 'Admin')}
+                    {t("nav.admin", "Admin")}
                   </div>
                   <Link
                     to="/admin"
                     onClick={() => setShowMobileMenu(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-                      isActive('/admin') && location.pathname === '/admin'
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      isActive("/admin") && location.pathname === "/admin"
+                        ? "bg-primary-100 text-primary-700"
+                        : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
                     <Settings size={20} />
-                    <span>{t('nav.userManagement', 'User Management')}</span>
+                    <span>{t("nav.userManagement", "User Management")}</span>
                   </Link>
                   <Link
                     to="/admin/ingestion"
                     onClick={() => setShowMobileMenu(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${
-                      isActive('/admin/ingestion')
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      isActive("/admin/ingestion")
+                        ? "bg-primary-100 text-primary-700"
+                        : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
                     <Upload size={20} />
-                    <span>{t('nav.dataIngestion', 'Data Ingestion')}</span>
+                    <span>{t("nav.dataIngestion", "Data Ingestion")}</span>
                   </Link>
                 </div>
               )}
@@ -276,7 +295,7 @@ export default function Layout() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut size={20} />
-                <span>{t('login.signOut', 'Sign Out')}</span>
+                <span>{t("login.signOut", "Sign Out")}</span>
               </button>
             </div>
           </div>
@@ -284,7 +303,13 @@ export default function Layout() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main
+        className={
+          isLoggerRoute
+            ? "w-full max-w-none px-0 py-0"
+            : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+        }
+      >
         <Outlet />
       </main>
     </div>

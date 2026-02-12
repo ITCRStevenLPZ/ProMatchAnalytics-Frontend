@@ -81,7 +81,6 @@ test.describe("Comprehensive Match Logger", () => {
 
     // Log a Set Piece (Corner) at 00:03.000
     console.log("Logging Corner...");
-    await page.getByPlaceholder("00:00.000").fill("00:03.000");
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });
@@ -94,14 +93,18 @@ test.describe("Comprehensive Match Logger", () => {
     // 1. Test Effective Time Toggle
     const effectiveTimeDisplay = page.getByTestId("effective-clock-value");
     await expect(effectiveTimeDisplay).toBeVisible();
-    await expect(page.getByText("Balón Fuera")).toBeVisible();
+    const ballStateLabel = page.getByTestId("ball-state-label");
+    await expect(ballStateLabel).toHaveText(/Bal[oó]n Fuera|Ball Out/i, {
+      timeout: 10000,
+    });
 
-    // Toggle Ball In Play
-    const toggleBtn = page.getByTestId("effective-time-toggle");
+    // Start clock
+    const startClock = page.getByTestId("btn-start-clock");
+    await startClock.click();
 
-    await toggleBtn.click();
-
-    await expect(page.getByText("Balón en Juego")).toBeVisible();
+    await expect(ballStateLabel).toHaveText(/Bal[oó]n en Juego|Ball In/i, {
+      timeout: 10000,
+    });
 
     // Wait a bit and check if time increased
     await page.waitForTimeout(2000);
@@ -121,13 +124,11 @@ test.describe("Comprehensive Match Logger", () => {
     await expect(page.getByTestId("action-btn-Block")).toBeVisible();
 
     // Log an Interception at 00:01.000
-    await page.getByPlaceholder("00:00.000").fill("00:01.000");
     await page.getByTestId("action-btn-Interception").click();
     await page.getByTestId("outcome-btn-Success").click(); // Outcome
     await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
 
     // Log a Clearance at 00:02.000
-    await page.getByPlaceholder("00:00.000").fill("00:02.000");
     await page.getByTestId(`field-player-${firstPlayerId}`).click();
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Clearance").click();
@@ -142,7 +143,6 @@ test.describe("Comprehensive Match Logger", () => {
     }
 
     // Log a Set Piece (Corner) at 00:03.000
-    await page.getByPlaceholder("00:00.000").fill("00:03.000");
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });

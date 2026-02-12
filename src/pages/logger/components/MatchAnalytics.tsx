@@ -41,7 +41,7 @@ interface MatchAnalyticsProps {
   match: Match | null;
   events: MatchEvent[];
   effectiveTime: number;
-  timeOffSeconds?: number;
+  varTimeSeconds?: number;
   ineffectiveSeconds?: number;
   ineffectiveBreakdown?: IneffectiveBreakdown | null;
   t: any;
@@ -118,7 +118,7 @@ export function MatchAnalytics({
   match,
   events,
   effectiveTime,
-  timeOffSeconds = 0,
+  varTimeSeconds = 0,
   ineffectiveSeconds = 0,
   ineffectiveBreakdown,
   t,
@@ -134,6 +134,44 @@ export function MatchAnalytics({
     const breakdown =
       ineffectiveBreakdown ||
       computeIneffectiveBreakdown(events, homeTeamId, awayTeamId, Date.now());
+
+    const ineffectiveTotals = breakdown?.totals ?? {
+      home: 0,
+      away: 0,
+      neutral: 0,
+      byAction: {} as Record<
+        IneffectiveAction,
+        { home: number; away: number; neutral: number }
+      >,
+    };
+
+    const getIneffectiveAction = (
+      action: IneffectiveAction,
+      team: "home" | "away",
+    ) => ineffectiveTotals.byAction?.[action]?.[team] ?? 0;
+
+    const summedTeamIneffective = Object.entries(
+      ineffectiveTotals.byAction || {},
+    ).reduce(
+      (acc, [action, totals]) => {
+        if (action === "VAR") return acc;
+        acc.home += totals?.home ?? 0;
+        acc.away += totals?.away ?? 0;
+        return acc;
+      },
+      { home: 0, away: 0 },
+    );
+
+    const teamIneffectiveTotals = {
+      home:
+        summedTeamIneffective.home > 0 || summedTeamIneffective.away > 0
+          ? summedTeamIneffective.home
+          : ineffectiveTotals.home,
+      away:
+        summedTeamIneffective.home > 0 || summedTeamIneffective.away > 0
+          ? summedTeamIneffective.away
+          : ineffectiveTotals.away,
+    };
 
     // Event timeline (events per 5-minute interval)
     const timelineMap = new Map<number, { home: number; away: number }>();
@@ -233,6 +271,10 @@ export function MatchAnalytics({
       "OffTarget",
       "Post",
     ]);
+    const homeGoals = getShotOutcomeCount(homeEvents, ["Goal"]);
+    const awayGoals = getShotOutcomeCount(awayEvents, ["Goal"]);
+    const homeScore = homeGoals > 0 ? homeGoals : match.home_team.score || 0;
+    const awayScore = awayGoals > 0 ? awayGoals : match.away_team.score || 0;
     const homeCorners = homeEvents.filter(
       (e) => e.type === "SetPiece" && e.data?.set_piece_type === "Corner",
     ).length;
@@ -255,21 +297,6 @@ export function MatchAnalytics({
     const awayYellows = getCardCount(awayEvents, ["Yellow", "Yellow (Second)"]);
     const homeReds = getCardCount(homeEvents, ["Red", "Yellow (Second)"]);
     const awayReds = getCardCount(awayEvents, ["Red", "Yellow (Second)"]);
-
-    const ineffectiveTotals = breakdown?.totals ?? {
-      home: 0,
-      away: 0,
-      neutral: 0,
-      byAction: {} as Record<
-        IneffectiveAction,
-        { home: number; away: number; neutral: number }
-      >,
-    };
-
-    const getIneffectiveAction = (
-      action: IneffectiveAction,
-      team: "home" | "away" | "neutral",
-    ) => ineffectiveTotals.byAction?.[action]?.[team] ?? 0;
 
     const teamComparison: TeamComparison[] = [
       {
@@ -337,6 +364,11 @@ export function MatchAnalytics({
     const totalEvents = events.length;
     const avgEventsPerMinute =
       maxMinute > 0 ? (totalEvents / maxMinute).toFixed(1) : "0.0";
+    const totalMatchSeconds = effectiveTime + ineffectiveSeconds;
+    const effectiveTimePercent =
+      totalMatchSeconds > 0
+        ? `${((effectiveTime / totalMatchSeconds) * 100).toFixed(1)}%`
+        : "0.0%";
     const mostActiveMinute = Array.from(timelineMap.entries()).reduce(
       (max, [min, counts]) => {
         const total = counts.home + counts.away;
@@ -352,66 +384,62 @@ export function MatchAnalytics({
       topPlayers,
       homePossession,
       awayPossession: 100 - homePossession,
-      ineffectiveTotals,
+      ineffectiveTotals: {
+        ...ineffectiveTotals,
+        home: teamIneffectiveTotals.home,
+        away: teamIneffectiveTotals.away,
+      },
       ineffectiveActionRows: [
         {
           action: "Goal",
           label: t("analytics.ineffectiveGoal", "Goal"),
           home: getIneffectiveAction("Goal", "home"),
           away: getIneffectiveAction("Goal", "away"),
-          neutral: getIneffectiveAction("Goal", "neutral"),
         },
         {
           action: "OutOfBounds",
           label: t("analytics.ineffectiveOut", "Out of bounds"),
           home: getIneffectiveAction("OutOfBounds", "home"),
           away: getIneffectiveAction("OutOfBounds", "away"),
-          neutral: getIneffectiveAction("OutOfBounds", "neutral"),
         },
         {
           action: "Card",
           label: t("analytics.ineffectiveCard", "Card"),
           home: getIneffectiveAction("Card", "home"),
           away: getIneffectiveAction("Card", "away"),
-          neutral: getIneffectiveAction("Card", "neutral"),
         },
         {
           action: "Foul",
           label: t("analytics.ineffectiveFoul", "Foul"),
           home: getIneffectiveAction("Foul", "home"),
           away: getIneffectiveAction("Foul", "away"),
-          neutral: getIneffectiveAction("Foul", "neutral"),
         },
         {
           action: "Substitution",
           label: t("analytics.ineffectiveSubstitution", "Substitution"),
           home: getIneffectiveAction("Substitution", "home"),
           away: getIneffectiveAction("Substitution", "away"),
-          neutral: getIneffectiveAction("Substitution", "neutral"),
         },
         {
           action: "Injury",
           label: t("analytics.ineffectiveInjury", "Injury"),
           home: getIneffectiveAction("Injury", "home"),
           away: getIneffectiveAction("Injury", "away"),
-          neutral: getIneffectiveAction("Injury", "neutral"),
-        },
-        {
-          action: "VAR",
-          label: t("analytics.ineffectiveVar", "VAR"),
-          home: getIneffectiveAction("VAR", "home"),
-          away: getIneffectiveAction("VAR", "away"),
-          neutral: getIneffectiveAction("VAR", "neutral"),
         },
         {
           action: "Other",
           label: t("analytics.ineffectiveOther", "Other"),
           home: getIneffectiveAction("Other", "home"),
           away: getIneffectiveAction("Other", "away"),
-          neutral: getIneffectiveAction("Other", "neutral"),
         },
       ],
       comparativeRows: [
+        {
+          label: t("analytics.score", "Score"),
+          home: homeScore,
+          away: awayScore,
+          testId: "stat-score",
+        },
         {
           label: t("analytics.possession", "Possession"),
           home: `${homePossession}%`,
@@ -419,19 +447,13 @@ export function MatchAnalytics({
           testId: "stat-possession",
         },
         {
-          label: t("analytics.accuratePasses", "Accurate Passes"),
+          label: t("analytics.accuratePasses", "Passes (Total/Accurate)"),
           home: `${homePasses.total} (${homePasses.accurate})`,
           away: `${awayPasses.total} (${awayPasses.accurate})`,
           testId: "stat-accurate-passes",
         },
         {
-          label: t("analytics.corners", "Corners"),
-          home: homeCorners,
-          away: awayCorners,
-          testId: "stat-corners",
-        },
-        {
-          label: t("analytics.shots", "Shots"),
+          label: t("analytics.shots", "Total Shots"),
           home: homeShots,
           away: awayShots,
           testId: "stat-shots",
@@ -449,6 +471,12 @@ export function MatchAnalytics({
           testId: "stat-shots-off-target",
         },
         {
+          label: t("analytics.corners", "Corners"),
+          home: homeCorners,
+          away: awayCorners,
+          testId: "stat-corners",
+        },
+        {
           label: t("analytics.offsides", "Offsides"),
           home: homeOffsides,
           away: awayOffsides,
@@ -459,6 +487,12 @@ export function MatchAnalytics({
           home: homeFouls,
           away: awayFouls,
           testId: "stat-fouls",
+        },
+        {
+          label: t("analytics.duels", "Duels"),
+          home: getEventCount(homeEvents, "Duel"),
+          away: getEventCount(awayEvents, "Duel"),
+          testId: "stat-duels",
         },
         {
           label: t("analytics.yellowCards", "Yellow Cards"),
@@ -485,27 +519,30 @@ export function MatchAnalytics({
           testId: "stat-effective-time",
         },
         {
-          label: t("analytics.varTime", "VAR Time"),
-          home: formatSecondsAsClock(timeOffSeconds),
-          away: formatSecondsAsClock(timeOffSeconds),
-          testId: "stat-var-time",
+          label: t("analytics.effectiveTimePercent", "Effective Time %"),
+          home: effectiveTimePercent,
+          away: effectiveTimePercent,
+          testId: "stat-effective-time-percent",
         },
       ] as ComparativeRow[],
-      totalMatchSeconds: effectiveTime + ineffectiveSeconds + timeOffSeconds,
+      totalMatchSeconds,
       totalEvents,
       avgEventsPerMinute,
       mostActiveMinute: mostActiveMinute.minute,
       homeTotal: homeEvents.length,
       awayTotal: awayEvents.length,
+      varTimeSeconds,
+      homeScore,
+      awayScore,
     };
   }, [
     match,
     events,
     effectiveTime,
     ineffectiveSeconds,
-    timeOffSeconds,
     ineffectiveBreakdown,
     t,
+    varTimeSeconds,
   ]);
 
   if (!match || !analytics) {
@@ -568,18 +605,23 @@ export function MatchAnalytics({
       </div>
 
       {/* Comparative Table */}
-      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
+      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-900 rounded-2xl p-4 sm:p-5 md:p-6 text-white shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <div className="text-sm uppercase tracking-wider text-emerald-200">
+          <div className="text-base uppercase tracking-wider text-emerald-200">
             {t("analytics.totalTime", "Total Time")}:
           </div>
-          <div className="text-lg font-mono font-semibold text-emerald-100">
+          <div className="text-xl font-mono font-semibold text-emerald-100">
             {formatSecondsAsClock(analytics.totalMatchSeconds)}
           </div>
         </div>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-4">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 md:gap-4 mb-4">
           <div className="flex flex-col gap-2">
-            <div className="text-lg font-semibold">{match.home_team.name}</div>
+            <div
+              className="text-lg md:text-xl font-semibold truncate"
+              title={match.home_team.name}
+            >
+              {match.home_team.name}
+            </div>
             <div
               className="relative h-16 w-16"
               data-testid="analytics-possession-home"
@@ -590,16 +632,21 @@ export function MatchAnalytics({
                   background: `conic-gradient(${COLORS.home} ${analytics.homePossession}%, rgba(255,255,255,0.12) 0)`,
                 }}
               />
-              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-sm font-bold">
+              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-base font-bold">
                 {analytics.homePossession}%
               </div>
             </div>
           </div>
-          <div className="text-sm text-emerald-200 font-semibold uppercase tracking-wide">
+          <div className="text-base text-emerald-200 font-semibold uppercase tracking-wide">
             VS
           </div>
           <div className="flex flex-col items-end gap-2">
-            <div className="text-lg font-semibold">{match.away_team.name}</div>
+            <div
+              className="text-lg md:text-xl font-semibold truncate"
+              title={match.away_team.name}
+            >
+              {match.away_team.name}
+            </div>
             <div
               className="relative h-16 w-16"
               data-testid="analytics-possession-away"
@@ -610,33 +657,40 @@ export function MatchAnalytics({
                   background: `conic-gradient(${COLORS.away} ${analytics.awayPossession}%, rgba(255,255,255,0.12) 0)`,
                 }}
               />
-              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-sm font-bold">
+              <div className="absolute inset-2 rounded-full bg-slate-900 flex items-center justify-center text-base font-bold">
                 {analytics.awayPossession}%
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_auto_1fr] text-xs uppercase tracking-wide text-emerald-200 mb-2">
-          <div>{match.home_team.short_name}</div>
-          <div className="text-center">{t("analytics.metric", "Metric")}</div>
-          <div className="text-right">{match.away_team.short_name}</div>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
+          <div className="truncate">{match.home_team.short_name}</div>
+          <div className="text-center truncate">
+            {t("analytics.metric", "Metric")}
+          </div>
+          <div className="text-right truncate">
+            {match.away_team.short_name}
+          </div>
         </div>
 
         <div className="space-y-2" data-testid="analytics-comparison-table">
           {analytics.comparativeRows.map((row) => (
             <div
               key={row.testId}
-              className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+              className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
               data-testid={row.testId}
             >
-              <div className="text-sm font-semibold text-emerald-50">
+              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 truncate">
                 {row.home}
               </div>
-              <div className="text-xs text-emerald-200 text-center">
+              <div
+                className="text-sm sm:text-base md:text-lg text-emerald-200 text-center font-medium leading-tight px-1 truncate"
+                title={row.label}
+              >
                 {row.label}
               </div>
-              <div className="text-sm font-semibold text-emerald-50 text-right">
+              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right truncate">
                 {row.away}
               </div>
             </div>
@@ -644,47 +698,43 @@ export function MatchAnalytics({
         </div>
 
         <div className="mt-6" data-testid="analytics-ineffective-breakdown">
-          <div className="text-xs uppercase tracking-wide text-emerald-200 mb-2">
+          <div className="text-sm uppercase tracking-wide text-emerald-200 mb-2">
             {t("analytics.ineffectiveBreakdown", "Ineffective Breakdown")}
           </div>
-          <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] gap-2 text-[10px] uppercase tracking-wider text-emerald-200 mb-2">
+          <div className="grid grid-cols-[minmax(120px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] md:grid-cols-[minmax(180px,1fr)_minmax(110px,1fr)_minmax(110px,1fr)] gap-2 text-xs md:text-sm uppercase tracking-wider text-emerald-200 mb-2">
             <div className="text-left">{t("analytics.metric", "Metric")}</div>
             <div className="text-center">{match.home_team.short_name}</div>
-            <div className="text-center">
-              {t("analytics.neutral", "Neutral")}
-            </div>
             <div className="text-center">{match.away_team.short_name}</div>
           </div>
           <div className="space-y-2">
             {analytics.ineffectiveActionRows.map((row: any) => (
               <div
                 key={row.action}
-                className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-white/5 rounded-lg px-3 py-2"
+                className="grid grid-cols-[minmax(120px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] md:grid-cols-[minmax(180px,1fr)_minmax(110px,1fr)_minmax(110px,1fr)] items-center gap-2 bg-white/5 rounded-lg px-2.5 md:px-3 py-2"
                 data-testid={`stat-ineffective-${row.action.toLowerCase()}`}
               >
-                <div className="text-xs text-emerald-100">{row.label}</div>
-                <div className="text-xs font-semibold text-emerald-50 text-center">
+                <div
+                  className="text-sm md:text-base text-emerald-100 truncate"
+                  title={row.label}
+                >
+                  {row.label}
+                </div>
+                <div className="text-sm md:text-base font-semibold text-emerald-50 text-center">
                   {formatSecondsAsClock(row.home)}
                 </div>
-                <div className="text-xs font-semibold text-amber-100 text-center">
-                  {formatSecondsAsClock(row.neutral)}
-                </div>
-                <div className="text-xs font-semibold text-emerald-50 text-center">
+                <div className="text-sm md:text-base font-semibold text-emerald-50 text-center">
                   {formatSecondsAsClock(row.away)}
                 </div>
               </div>
             ))}
-            <div className="grid grid-cols-[minmax(160px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] items-center gap-2 bg-emerald-500/20 rounded-lg px-3 py-2">
-              <div className="text-xs text-emerald-50 font-semibold">
+            <div className="grid grid-cols-[minmax(120px,1fr)_minmax(90px,1fr)_minmax(90px,1fr)] md:grid-cols-[minmax(180px,1fr)_minmax(110px,1fr)_minmax(110px,1fr)] items-center gap-2 bg-emerald-500/20 rounded-lg px-2.5 md:px-3 py-2">
+              <div className="text-sm md:text-base text-emerald-50 font-semibold">
                 {t("analytics.ineffectiveTotals", "Totals")}
               </div>
-              <div className="text-xs font-semibold text-emerald-50 text-center">
+              <div className="text-sm md:text-base font-semibold text-emerald-50 text-center">
                 {formatSecondsAsClock(analytics.ineffectiveTotals.home)}
               </div>
-              <div className="text-xs font-semibold text-amber-100 text-center">
-                {formatSecondsAsClock(analytics.ineffectiveTotals.neutral)}
-              </div>
-              <div className="text-xs font-semibold text-emerald-50 text-center">
+              <div className="text-sm md:text-base font-semibold text-emerald-50 text-center">
                 {formatSecondsAsClock(analytics.ineffectiveTotals.away)}
               </div>
             </div>
@@ -693,7 +743,7 @@ export function MatchAnalytics({
       </div>
 
       {/* Key Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard
           icon={Activity}
           label={t("analytics.totalEvents", "Total Events")}
@@ -714,6 +764,13 @@ export function MatchAnalytics({
           value={`${analytics.mostActiveMinute}'`}
           color="from-green-500 to-green-600"
           testId="analytics-peak-minute"
+        />
+        <StatCard
+          icon={Clock}
+          label={t("analytics.varTime", "VAR Time")}
+          value={formatSecondsAsClock(analytics.varTimeSeconds)}
+          color="from-amber-500 to-amber-600"
+          testId="analytics-var-time"
         />
         <StatCard
           icon={Target}

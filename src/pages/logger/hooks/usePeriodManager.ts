@@ -74,9 +74,9 @@ export const usePeriodManager = (
   match: Match | null,
   effectiveTime: number,
   globalTimeSeconds: number,
-  clockMode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF",
+  clockMode: "EFFECTIVE" | "INEFFECTIVE",
   isClockRunning: boolean,
-  handleModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => void,
+  handleModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE") => void,
   fetchMatch: () => void,
   onTransitionError?: (info: {
     target: Match["status"];
@@ -109,7 +109,6 @@ export const usePeriodManager = (
       match.status === "Pending" &&
       (match.match_time_seconds || 0) === 0 &&
       (match.ineffective_time_seconds || 0) === 0 &&
-      (match.time_off_seconds || 0) === 0 &&
       !match.current_period_start_timestamp &&
       (!match.period_timestamps ||
         Object.keys(match.period_timestamps).length === 0);
@@ -132,7 +131,6 @@ export const usePeriodManager = (
     match?.status,
     match?.match_time_seconds,
     match?.ineffective_time_seconds,
-    match?.time_off_seconds,
     match?.current_period_start_timestamp,
     match?.period_timestamps,
   ]);
@@ -276,7 +274,7 @@ export const usePeriodManager = (
   const performTransition = async (
     targetPhase: PeriodPhase,
     targetStatus: Match["status"],
-    targetMode: "EFFECTIVE" | "TIMEOFF",
+    targetMode: "EFFECTIVE" | "INEFFECTIVE" | null,
   ) => {
     if (!match) return false;
     console.log(`🔄 Transitioning to ${targetPhase}...`);
@@ -284,10 +282,8 @@ export const usePeriodManager = (
     setCurrentPhase(targetPhase);
     setShowExtraTimeAlert(false);
 
-    if (targetMode === "TIMEOFF") {
-      await handleModeSwitch("TIMEOFF");
-    } else {
-      await handleModeSwitch("EFFECTIVE");
+    if (targetMode) {
+      await handleModeSwitch(targetMode);
     }
 
     try {
@@ -303,16 +299,16 @@ export const usePeriodManager = (
   };
 
   const transitionToHalftime = () =>
-    performTransition("HALFTIME", "Halftime", "TIMEOFF");
+    performTransition("HALFTIME", "Halftime", null);
   const transitionToSecondHalf = () =>
     performTransition("SECOND_HALF", "Live_Second_Half", "EFFECTIVE");
   const transitionToFulltime = () =>
-    performTransition("FULLTIME", "Fulltime", "TIMEOFF");
+    performTransition("FULLTIME", "Fulltime", null);
 
   const transitionToExtraFirst = () =>
     performTransition("FIRST_HALF_EXTRA_TIME", "Live_Extra_First", "EFFECTIVE");
   const transitionToExtraHalftime = () =>
-    performTransition("EXTRA_HALFTIME", "Extra_Halftime", "TIMEOFF");
+    performTransition("EXTRA_HALFTIME", "Extra_Halftime", null);
   const transitionToExtraSecond = () =>
     performTransition(
       "SECOND_HALF_EXTRA_TIME",
@@ -320,10 +316,9 @@ export const usePeriodManager = (
       "EFFECTIVE",
     );
   const transitionToPenalties = () =>
-    performTransition("PENALTIES", "Penalties", "TIMEOFF");
+    performTransition("PENALTIES", "Penalties", null);
   // Treat "match finished" as the standard Fulltime state to align with backend enums.
-  const finishMatch = () =>
-    performTransition("COMPLETED", "Completed", "TIMEOFF");
+  const finishMatch = () => performTransition("COMPLETED", "Completed", null);
 
   const dismissExtraTimeAlert = useCallback(() => {
     setShowExtraTimeAlert(false);

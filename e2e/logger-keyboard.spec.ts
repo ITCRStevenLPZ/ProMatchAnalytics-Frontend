@@ -84,18 +84,22 @@ test.describe("Logger Keyboard Shortcuts", () => {
   test("should toggle clock with Space", async ({ page }) => {
     await gotoLoggerPage(page, MATCH_ID);
 
-    // Initial state: Ball Out (Effective Time Paused)
+    const ballStateLabel = page.getByTestId("ball-state-label");
+    await expect(ballStateLabel).toHaveText(/Bal[oó]n Fuera|Ball Out/i, {
+      timeout: 10000,
+    });
+
     // Toggle to Ball In
     await page.keyboard.press("Space");
-    await expect(page.getByTestId("effective-time-toggle")).toHaveText(
-      /Detener reloj|Stop/i,
-    );
+    await expect(ballStateLabel).toHaveText(/Bal[oó]n en Juego|Ball In/i, {
+      timeout: 10000,
+    });
 
     // Toggle back
     await page.keyboard.press("Space");
-    await expect(page.getByTestId("effective-time-toggle")).toHaveText(
-      /Iniciar reloj|Start/i,
-    );
+    await expect(ballStateLabel).toHaveText(/Bal[oó]n Fuera|Ball Out/i, {
+      timeout: 10000,
+    });
   });
 
   test("should cancel flow with Escape", async ({ page }) => {
