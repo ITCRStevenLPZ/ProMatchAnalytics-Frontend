@@ -98,15 +98,15 @@ const compareCardEventOrder = (
   const rightPeriod = Number(right.event.period || 0);
   if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
 
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
+
   const leftTs = Date.parse(left.event.timestamp || "");
   const rightTs = Date.parse(right.event.timestamp || "");
   const leftHasTs = Number.isFinite(leftTs);
   const rightHasTs = Number.isFinite(rightTs);
   if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
-
-  const leftClock = parseClockToSeconds(left.event.match_clock);
-  const rightClock = parseClockToSeconds(right.event.match_clock);
-  if (leftClock !== rightClock) return leftClock - rightClock;
 
   return left.index - right.index;
 };
@@ -2312,886 +2312,941 @@ export default function LoggerCockpit() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
-      {/* Header */}
-      <header className="bg-slate-900 shadow-sm border-b border-slate-700">
-        <div className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-slate-100">
-                {t("cockpit")}
-              </h1>
-              <div className="flex items-center gap-2">
-                {isConnected ? (
-                  <span
-                    data-testid="connection-status"
-                    data-status="connected"
-                    className="flex items-center gap-1 text-green-600 text-sm"
-                  >
-                    <Wifi size={16} />
-                    {t("connected")}
-                  </span>
-                ) : (
-                  <span
-                    data-testid="connection-status"
-                    data-status="disconnected"
-                    className="flex items-center gap-1 text-red-600 text-sm"
-                  >
-                    <WifiOff size={16} />
-                    {t("disconnected")}
-                  </span>
-                )}
-                {queuedEvents.length > 0 && (
-                  <span
-                    data-testid="queued-badge"
-                    className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"
-                  >
-                    {queuedEvents.length} {t("queued")}
-                  </span>
-                )}
-                {isSubmitting && (
-                  <span
-                    className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"
-                    data-testid="pending-ack-badge"
-                  >
-                    {t("waitingForServer", "Awaiting server confirmation…")}
-                  </span>
-                )}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={openResetModal}
-                    // disabled={resetBlocked} // ALLOW FORCE RESET
-                    data-testid="btn-reset-clock"
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
-                      resetBlocked
-                        ? "text-red-300 border-red-100 cursor-not-allowed"
-                        : "text-red-700 border-red-300 hover:bg-red-50"
-                    }`}
-                    title={resetTooltip}
-                  >
-                    <RotateCcw size={14} />
-                    {t("reset", "Reset")}
-                  </button>
-                )}
-              </div>
-              {showResetModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-                    <h3 className="text-lg font-bold mb-3 text-red-600 flex items-center gap-2">
-                      <RotateCcw size={20} />
-                      {t("confirmReset", "Confirm Reset")}
-                    </h3>
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
-                      <p className="text-red-800 font-semibold mb-2">
-                        ⚠️ {t("warning", "WARNING")}
-                      </p>
-                      <p className="text-red-700 text-sm mb-1">
-                        {t(
-                          "resetWarning1",
-                          "This will permanently delete ALL logged events and reset all timers!",
-                        )}
-                      </p>
-                      <p className="text-red-700 text-sm">
-                        {t(
-                          "resetWarning2",
-                          "This action CANNOT be undone. All match data will be lost.",
-                        )}
-                      </p>
-                      {isFulltime && (
-                        <p className="text-red-700 text-sm mt-2">
+      <div
+        className="w-full max-w-[2200px] mx-auto xl:grid xl:grid-cols-[minmax(140px,1fr)_minmax(0,7.5fr)_minmax(140px,1fr)] 2xl:grid-cols-[minmax(180px,1fr)_minmax(0,8fr)_minmax(180px,1fr)]"
+        data-testid="logger-page-shell"
+      >
+        <aside
+          className="hidden xl:block border-r border-slate-800/80"
+          data-testid="logger-shell-left"
+          aria-hidden="true"
+        />
+
+        <div className="min-w-0" data-testid="logger-shell-center">
+          {/* Header */}
+          <header className="bg-slate-900 shadow-sm border-b border-slate-700">
+            <div className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-2xl font-bold text-slate-100">
+                    {t("cockpit")}
+                  </h1>
+                  <div className="flex items-center gap-2">
+                    {isConnected ? (
+                      <span
+                        data-testid="connection-status"
+                        data-status="connected"
+                        className="flex items-center gap-1 text-green-600 text-sm"
+                      >
+                        <Wifi size={16} />
+                        {t("connected")}
+                      </span>
+                    ) : (
+                      <span
+                        data-testid="connection-status"
+                        data-status="disconnected"
+                        className="flex items-center gap-1 text-red-600 text-sm"
+                      >
+                        <WifiOff size={16} />
+                        {t("disconnected")}
+                      </span>
+                    )}
+                    {queuedEvents.length > 0 && (
+                      <span
+                        data-testid="queued-badge"
+                        className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"
+                      >
+                        {queuedEvents.length} {t("queued")}
+                      </span>
+                    )}
+                    {isSubmitting && (
+                      <span
+                        className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"
+                        data-testid="pending-ack-badge"
+                      >
+                        {t("waitingForServer", "Awaiting server confirmation…")}
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={openResetModal}
+                        // disabled={resetBlocked} // ALLOW FORCE RESET
+                        data-testid="btn-reset-clock"
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                          resetBlocked
+                            ? "text-red-300 border-red-100 cursor-not-allowed"
+                            : "text-red-700 border-red-300 hover:bg-red-50"
+                        }`}
+                        title={resetTooltip}
+                      >
+                        <RotateCcw size={14} />
+                        {t("reset", "Reset")}
+                      </button>
+                    )}
+                  </div>
+                  {showResetModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                        <h3 className="text-lg font-bold mb-3 text-red-600 flex items-center gap-2">
+                          <RotateCcw size={20} />
+                          {t("confirmReset", "Confirm Reset")}
+                        </h3>
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+                          <p className="text-red-800 font-semibold mb-2">
+                            ⚠️ {t("warning", "WARNING")}
+                          </p>
+                          <p className="text-red-700 text-sm mb-1">
+                            {t(
+                              "resetWarning1",
+                              "This will permanently delete ALL logged events and reset all timers!",
+                            )}
+                          </p>
+                          <p className="text-red-700 text-sm">
+                            {t(
+                              "resetWarning2",
+                              "This action CANNOT be undone. All match data will be lost.",
+                            )}
+                          </p>
+                          {isFulltime && (
+                            <p className="text-red-700 text-sm mt-2">
+                              {t(
+                                "resetAfterFulltimeWarning",
+                                "Match is fulltime. Resetting will clear logs and restart clocks from zero.",
+                              )}
+                            </p>
+                          )}
+                          {resetBlocked && (
+                            <p className="text-red-700 text-sm mt-2">
+                              {resetDisabledReason ||
+                                t(
+                                  "resetBlockedUnsent",
+                                  "Unsent events detected. Clear queue/acks before resetting.",
+                                )}
+                            </p>
+                          )}
+                        </div>
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {t(
+                              "typeResetToConfirm",
+                              "Type RESET in capital letters to confirm:",
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            value={resetConfirmText}
+                            onChange={(e) =>
+                              setResetConfirmText(e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            placeholder="RESET"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => {
+                              setShowResetModal(false);
+                              setResetConfirmText("");
+                            }}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                            {t("cancel", "Cancel")}
+                          </button>
+                          <button
+                            onClick={confirmGlobalReset}
+                            disabled={resetConfirmText !== "RESET"}
+                            data-testid="reset-confirm-button"
+                            className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {t("yesReset", "Yes, Reset")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {ineffectiveNoteOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <div
+                        className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
+                        data-testid="ineffective-note-modal"
+                      >
+                        <h3 className="text-lg font-bold mb-3 text-slate-800">
+                          {t("ineffectiveNoteTitle", "Ineffective time note")}
+                        </h3>
+                        <p className="text-sm text-slate-600 mb-3">
                           {t(
-                            "resetAfterFulltimeWarning",
-                            "Match is fulltime. Resetting will clear logs and restart clocks from zero.",
+                            "ineffectiveNoteHelp",
+                            "Add a note for why effective time stopped.",
                           )}
                         </p>
-                      )}
-                      {resetBlocked && (
-                        <p className="text-red-700 text-sm mt-2">
-                          {resetDisabledReason ||
-                            t(
-                              "resetBlockedUnsent",
-                              "Unsent events detected. Clear queue/acks before resetting.",
-                            )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        {t(
-                          "typeResetToConfirm",
-                          "Type RESET in capital letters to confirm:",
-                        )}
-                      </label>
-                      <input
-                        type="text"
-                        value={resetConfirmText}
-                        onChange={(e) => setResetConfirmText(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                        placeholder="RESET"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        onClick={() => {
-                          setShowResetModal(false);
-                          setResetConfirmText("");
-                        }}
-                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
-                      >
-                        {t("cancel", "Cancel")}
-                      </button>
-                      <button
-                        onClick={confirmGlobalReset}
-                        disabled={resetConfirmText !== "RESET"}
-                        data-testid="reset-confirm-button"
-                        className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {t("yesReset", "Yes, Reset")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {ineffectiveNoteOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                  <div
-                    className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
-                    data-testid="ineffective-note-modal"
-                  >
-                    <h3 className="text-lg font-bold mb-3 text-slate-800">
-                      {t("ineffectiveNoteTitle", "Ineffective time note")}
-                    </h3>
-                    <p className="text-sm text-slate-600 mb-3">
-                      {t(
-                        "ineffectiveNoteHelp",
-                        "Add a note for why effective time stopped.",
-                      )}
-                    </p>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                      {t("ineffectiveReasonLabel", "Ineffective reason")}
-                    </label>
-                    <select
-                      value={ineffectiveActionType}
-                      onChange={(e) =>
-                        setIneffectiveActionType(
-                          e.target.value as IneffectiveAction,
-                        )
-                      }
-                      className="w-full mb-3 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      data-testid="ineffective-note-action"
-                    >
-                      <option value="Injury">
-                        {t("ineffectiveReasonInjury", "Injury")}
-                      </option>
-                      <option value="VAR">
-                        {t("ineffectiveReasonVar", "VAR")}
-                      </option>
-                      <option value="Other">
-                        {t("ineffectiveReasonOther", "Other")}
-                      </option>
-                    </select>
-                    <textarea
-                      value={ineffectiveNoteText}
-                      onChange={(e) => setIneffectiveNoteText(e.target.value)}
-                      data-testid="ineffective-note-input"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      placeholder={t("notesPlaceholder", "Add a note...")}
-                      rows={3}
-                      autoFocus
-                    />
-                    <div className="flex justify-end gap-3 mt-4">
-                      <button
-                        onClick={cancelIneffectiveNote}
-                        data-testid="ineffective-note-cancel"
-                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded"
-                      >
-                        {t("cancel", "Cancel")}
-                      </button>
-                      <button
-                        onClick={confirmIneffectiveNote}
-                        data-testid="ineffective-note-save"
-                        className="px-4 py-2 bg-amber-600 text-white hover:bg-amber-700 rounded"
-                      >
-                        {t("save", "Save")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            {undoError && (
-              <p className="text-xs text-red-600 mt-1" data-testid="undo-error">
-                {undoError}
-              </p>
-            )}
-
-            <div className="flex items-center gap-4">
-              {/* View Toggle */}
-              <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1 border border-slate-700">
-                <button
-                  onClick={() => setViewMode("logger")}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-                    viewMode === "logger"
-                      ? "bg-slate-700 text-white shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  <List size={16} />
-                  {t("logger.view", "Logger")}
-                </button>
-                <button
-                  onClick={() => setViewMode("analytics")}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-                    viewMode === "analytics"
-                      ? "bg-slate-700 text-white shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                  data-testid="toggle-analytics"
-                >
-                  <BarChart3 size={16} />
-                  {t("logger.analytics", "Analytics")}
-                </button>
-              </div>
-              <div className="text-sm text-slate-400 font-mono font-bold">
-                <Clock className="inline mr-1" size={16} />
-                {Math.floor((match.match_time_seconds || 0) / 60)}:
-                {String((match.match_time_seconds || 0) % 60).padStart(2, "0")}
-              </div>
-              {(() => {
-                const statusForDisplay = (
-                  statusOverride ||
-                  match.status ||
-                  "Pending"
-                ).toLowerCase();
-                const colorClass =
-                  statusForDisplay === "live" ||
-                  statusForDisplay === "live_first_half"
-                    ? "bg-green-100 text-green-700"
-                    : statusForDisplay === "halftime"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-gray-100 text-gray-700";
-                return (
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}
-                  >
-                    {t(`status.${statusForDisplay}`)}
-                  </span>
-                );
-              })()}
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex flex-col flex-1">
-              <div className="text-xl font-bold text-slate-100 text-center">
-                {t("matchTitle", "{{home}} vs {{away}}", {
-                  home: match.home_team.name,
-                  away: match.away_team.name,
-                })}
-              </div>
-              {/* Stadium Score Display */}
-              <div className="mt-3 w-full flex justify-center">
-                <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 shadow-lg bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 sm:px-6 py-3 grid grid-cols-[minmax(120px,0.9fr)_minmax(190px,1.5fr)_minmax(120px,0.9fr)] sm:grid-cols-[minmax(150px,0.85fr)_minmax(260px,1.6fr)_minmax(150px,0.85fr)] items-center gap-2 sm:gap-4 min-w-[260px]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_30%)]" />
-                  <div className="flex flex-col items-center z-10 min-w-0">
-                    <span className="text-xs uppercase tracking-wide text-slate-300 truncate max-w-full text-center">
-                      {match.home_team.name}
-                    </span>
-                    <span
-                      className="text-4xl font-black text-emerald-300 drop-shadow"
-                      data-testid="home-score"
-                    >
-                      {liveScore.home || match.home_team.score || 0}
-                    </span>
-                  </div>
-                  <div className="z-10 flex flex-col items-center px-2 sm:px-4">
-                    <span className="text-xs font-semibold text-slate-400">
-                      {t("statusLabel", "Status")}
-                    </span>
-                    <span className="text-lg font-black text-slate-200">
-                      {t("vs", "VS")}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center z-10 min-w-0">
-                    <span className="text-xs uppercase tracking-wide text-slate-300 text-center truncate max-w-full">
-                      {match.away_team.name}
-                    </span>
-                    <span
-                      className="text-4xl font-black text-amber-300 drop-shadow"
-                      data-testid="away-score"
-                    >
-                      {liveScore.away || match.away_team.score || 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              {(goalEvents.home.length > 0 || goalEvents.away.length > 0) && (
-                <div
-                  className="mt-3 w-full flex flex-col items-center gap-2"
-                  data-testid="goal-log-board"
-                >
-                  <span className="text-xs uppercase tracking-widest text-slate-400">
-                    {t("goalIndicator", "Goal")}
-                  </span>
-                  <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="flex flex-col items-center gap-1">
-                      {goalEvents.home.map((event) => (
-                        <span
-                          key={
-                            event.client_id || event._id || event.match_clock
+                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                          {t("ineffectiveReasonLabel", "Ineffective reason")}
+                        </label>
+                        <select
+                          value={ineffectiveActionType}
+                          onChange={(e) =>
+                            setIneffectiveActionType(
+                              e.target.value as IneffectiveAction,
+                            )
                           }
-                          data-testid="goal-log-home"
-                          className="text-xs text-emerald-200 bg-emerald-900/30 border border-emerald-700/40 px-2 py-1 rounded-full"
+                          className="w-full mb-3 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          data-testid="ineffective-note-action"
                         >
-                          {formatGoalLabel(event)}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex flex-col items-center gap-1">
-                      {goalEvents.away.map((event) => (
-                        <span
-                          key={
-                            event.client_id || event._id || event.match_clock
+                          <option value="Injury">
+                            {t("ineffectiveReasonInjury", "Injury")}
+                          </option>
+                          <option value="VAR">
+                            {t("ineffectiveReasonVar", "VAR")}
+                          </option>
+                          <option value="Other">
+                            {t("ineffectiveReasonOther", "Other")}
+                          </option>
+                        </select>
+                        <textarea
+                          value={ineffectiveNoteText}
+                          onChange={(e) =>
+                            setIneffectiveNoteText(e.target.value)
                           }
-                          data-testid="goal-log-away"
-                          className="text-xs text-amber-200 bg-amber-900/30 border border-amber-700/40 px-2 py-1 rounded-full"
-                        >
-                          {formatGoalLabel(event)}
-                        </span>
-                      ))}
+                          data-testid="ineffective-note-input"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          placeholder={t("notesPlaceholder", "Add a note...")}
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-3 mt-4">
+                          <button
+                            onClick={cancelIneffectiveNote}
+                            data-testid="ineffective-note-cancel"
+                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded"
+                          >
+                            {t("cancel", "Cancel")}
+                          </button>
+                          <button
+                            onClick={confirmIneffectiveNote}
+                            data-testid="ineffective-note-save"
+                            className="px-4 py-2 bg-amber-600 text-white hover:bg-amber-700 rounded"
+                          >
+                            {t("save", "Save")}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              {queuedCount > 0 && (
-                <span
-                  className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold border border-amber-200"
-                  title="Events queued for send"
-                >
-                  🔄{" "}
-                  {t("queuedLabel", "Queued: {{count}}", {
-                    count: queuedCount,
-                  })}
-                </span>
-              )}
-              {pendingAckCount > 0 && (
-                <span
-                  className="flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold border border-blue-200"
-                  title="Awaiting server acknowledgements"
-                >
-                  ⏳{" "}
-                  {t("pendingAckLabel", "Pending acks: {{count}}", {
-                    count: pendingAckCount,
-                  })}
-                </span>
-              )}
-              {(transitionError || toast?.message) && (
-                <span
-                  className="flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold border border-red-200"
-                  title="Last error"
-                >
-                  ⚠️ {transitionError || toast?.message}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Status Ribbon */}
-          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-            <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
-              <span className="font-semibold text-slate-400">
-                {t("statusLabel", "Status")}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-700 text-blue-300 font-semibold border border-blue-900/30">
-                {currentStatusNormalized}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
-              <span className="font-semibold text-slate-400">
-                {t("phaseLabel", "Phase")}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-700 text-emerald-300 font-semibold border border-emerald-900/30">
-                {currentPhase}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
-              <span className="font-semibold text-slate-400">
-                {t("clockModeLabel", "Clock Mode")}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-slate-700 text-indigo-300 font-semibold border border-indigo-900/30">
-                {clockMode}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
-              <span className="font-semibold text-slate-400">
-                {t("runningLabel", "Running")}
-              </span>
-              <span
-                className={`px-2 py-0.5 rounded-full font-semibold border ${
-                  isGlobalClockRunning
-                    ? "bg-slate-700 text-green-400 border-green-900/30"
-                    : "bg-slate-700 text-red-400 border-red-900/30"
-                }`}
-              >
-                {isGlobalClockRunning
-                  ? t("runningYes", "Yes")
-                  : t("runningNo", "No")}
-              </span>
-            </div>
-          </div>
-
-          {cockpitLocked && (
-            <div
-              className="mt-3 flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2"
-              data-testid="cockpit-lock-banner"
-            >
-              🔒{" "}
-              {lockReason ||
-                t(
-                  "lockBanner",
-                  "Match is closed (Fulltime). Editing is disabled.",
+                {undoError && (
+                  <p
+                    className="text-xs text-red-600 mt-1"
+                    data-testid="undo-error"
+                  >
+                    {undoError}
+                  </p>
                 )}
+
+                <div className="flex items-center gap-4">
+                  {/* View Toggle */}
+                  <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1 border border-slate-700">
+                    <button
+                      onClick={() => setViewMode("logger")}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                        viewMode === "logger"
+                          ? "bg-slate-700 text-white shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      <List size={16} />
+                      {t("logger.view", "Logger")}
+                    </button>
+                    <button
+                      onClick={() => setViewMode("analytics")}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
+                        viewMode === "analytics"
+                          ? "bg-slate-700 text-white shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                      data-testid="toggle-analytics"
+                    >
+                      <BarChart3 size={16} />
+                      {t("logger.analytics", "Analytics")}
+                    </button>
+                  </div>
+                  <div className="text-sm text-slate-400 font-mono font-bold">
+                    <Clock className="inline mr-1" size={16} />
+                    {Math.floor((match.match_time_seconds || 0) / 60)}:
+                    {String((match.match_time_seconds || 0) % 60).padStart(
+                      2,
+                      "0",
+                    )}
+                  </div>
+                  {(() => {
+                    const statusForDisplay = (
+                      statusOverride ||
+                      match.status ||
+                      "Pending"
+                    ).toLowerCase();
+                    const colorClass =
+                      statusForDisplay === "live" ||
+                      statusForDisplay === "live_first_half"
+                        ? "bg-green-100 text-green-700"
+                        : statusForDisplay === "halftime"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-gray-100 text-gray-700";
+                    return (
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${colorClass}`}
+                      >
+                        {t(`status.${statusForDisplay}`)}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex flex-col flex-1">
+                  <div className="text-2xl sm:text-3xl font-bold text-slate-100 text-center">
+                    {t("matchTitle", "{{home}} vs {{away}}", {
+                      home: match.home_team.name,
+                      away: match.away_team.name,
+                    })}
+                  </div>
+                  {/* Stadium Score Display */}
+                  <div className="mt-3 w-full flex justify-center">
+                    <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 shadow-lg bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-5 sm:px-7 py-4 grid grid-cols-[minmax(120px,0.9fr)_minmax(190px,1.5fr)_minmax(120px,0.9fr)] sm:grid-cols-[minmax(150px,0.85fr)_minmax(260px,1.6fr)_minmax(150px,0.85fr)] items-center gap-3 sm:gap-5 min-w-[260px]">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_30%)]" />
+                      <div className="flex flex-col items-center z-10 min-w-0">
+                        <span className="text-sm sm:text-base uppercase tracking-wide text-slate-300 truncate max-w-full text-center">
+                          {match.home_team.name}
+                        </span>
+                        <span
+                          className="text-5xl sm:text-6xl font-black text-emerald-300 drop-shadow"
+                          data-testid="home-score"
+                        >
+                          {liveScore.home || match.home_team.score || 0}
+                        </span>
+                      </div>
+                      <div className="z-10 flex flex-col items-center px-2 sm:px-4">
+                        <span className="text-sm font-semibold text-slate-400">
+                          {t("statusLabel", "Status")}
+                        </span>
+                        <span className="text-xl sm:text-2xl font-black text-slate-200">
+                          {t("vs", "VS")}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center z-10 min-w-0">
+                        <span className="text-sm sm:text-base uppercase tracking-wide text-slate-300 text-center truncate max-w-full">
+                          {match.away_team.name}
+                        </span>
+                        <span
+                          className="text-5xl sm:text-6xl font-black text-amber-300 drop-shadow"
+                          data-testid="away-score"
+                        >
+                          {liveScore.away || match.away_team.score || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {(goalEvents.home.length > 0 ||
+                    goalEvents.away.length > 0) && (
+                    <div
+                      className="mt-3 w-full flex flex-col items-center gap-2"
+                      data-testid="goal-log-board"
+                    >
+                      <span className="text-xs uppercase tracking-widest text-slate-400">
+                        {t("goalIndicator", "Goal")}
+                      </span>
+                      <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="flex flex-col items-center gap-1">
+                          {goalEvents.home.map((event) => (
+                            <span
+                              key={
+                                event.client_id ||
+                                event._id ||
+                                event.match_clock
+                              }
+                              data-testid="goal-log-home"
+                              className="text-xs text-emerald-200 bg-emerald-900/30 border border-emerald-700/40 px-2 py-1 rounded-full"
+                            >
+                              {formatGoalLabel(event)}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          {goalEvents.away.map((event) => (
+                            <span
+                              key={
+                                event.client_id ||
+                                event._id ||
+                                event.match_clock
+                              }
+                              data-testid="goal-log-away"
+                              className="text-xs text-amber-200 bg-amber-900/30 border border-amber-700/40 px-2 py-1 rounded-full"
+                            >
+                              {formatGoalLabel(event)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {queuedCount > 0 && (
+                    <span
+                      className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold border border-amber-200"
+                      title="Events queued for send"
+                    >
+                      🔄{" "}
+                      {t("queuedLabel", "Queued: {{count}}", {
+                        count: queuedCount,
+                      })}
+                    </span>
+                  )}
+                  {pendingAckCount > 0 && (
+                    <span
+                      className="flex items-center gap-1 px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold border border-blue-200"
+                      title="Awaiting server acknowledgements"
+                    >
+                      ⏳{" "}
+                      {t("pendingAckLabel", "Pending acks: {{count}}", {
+                        count: pendingAckCount,
+                      })}
+                    </span>
+                  )}
+                  {(transitionError || toast?.message) && (
+                    <span
+                      className="flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold border border-red-200"
+                      title="Last error"
+                    >
+                      ⚠️ {transitionError || toast?.message}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Ribbon */}
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
+                  <span className="font-semibold text-slate-400">
+                    {t("statusLabel", "Status")}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-700 text-blue-300 font-semibold border border-blue-900/30">
+                    {currentStatusNormalized}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
+                  <span className="font-semibold text-slate-400">
+                    {t("phaseLabel", "Phase")}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-700 text-emerald-300 font-semibold border border-emerald-900/30">
+                    {currentPhase}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
+                  <span className="font-semibold text-slate-400">
+                    {t("clockModeLabel", "Clock Mode")}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-700 text-indigo-300 font-semibold border border-indigo-900/30">
+                    {clockMode}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-800 rounded-md px-3 py-2 border border-slate-700">
+                  <span className="font-semibold text-slate-400">
+                    {t("runningLabel", "Running")}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full font-semibold border ${
+                      isGlobalClockRunning
+                        ? "bg-slate-700 text-green-400 border-green-900/30"
+                        : "bg-slate-700 text-red-400 border-red-900/30"
+                    }`}
+                  >
+                    {isGlobalClockRunning
+                      ? t("runningYes", "Yes")
+                      : t("runningNo", "No")}
+                  </span>
+                </div>
+              </div>
+
+              {cockpitLocked && (
+                <div
+                  className="mt-3 flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2"
+                  data-testid="cockpit-lock-banner"
+                >
+                  🔒{" "}
+                  {lockReason ||
+                    t(
+                      "lockBanner",
+                      "Match is closed (Fulltime). Editing is disabled.",
+                    )}
+                </div>
+              )}
+
+              {/* Extra Time Alert */}
+              {showExtraTimeAlert &&
+                (currentPhase === "FIRST_HALF_EXTRA_TIME" ||
+                  currentPhase === "SECOND_HALF_EXTRA_TIME") && (
+                  <div className="mt-4">
+                    <ExtraTimeAlert
+                      phase={currentPhase}
+                      extraTimeSeconds={periodInfo.extraTimeSeconds}
+                      onTransition={
+                        currentPhase === "FIRST_HALF_EXTRA_TIME"
+                          ? transitionToHalftime
+                          : transitionToFulltime
+                      }
+                      onDismiss={dismissExtraTimeAlert}
+                      t={t}
+                    />
+                  </div>
+                )}
+
+              <div className="mt-4 flex flex-col gap-4">
+                {showDriftNudge && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+                    <div className="text-xs font-medium">
+                      {t(
+                        "clockDriftDetected",
+                        "Clock drift detected (~{{seconds}}s). Refresh to resync with server time.",
+                        {
+                          seconds: driftSeconds.toFixed(1),
+                        },
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={fetchMatch}
+                      className="text-xs font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
+                    >
+                      {t("resync", "Resync")}
+                    </button>
+                  </div>
+                )}
+
+                <MatchPeriodSelector
+                  match={match}
+                  operatorPeriod={operatorPeriod}
+                  currentPhase={currentPhase}
+                  isExtraTime={periodInfo.isExtraTime}
+                  extraTimeSeconds={periodInfo.extraTimeSeconds}
+                  globalClock={globalClock}
+                  isClockRunning={isGlobalClockRunning}
+                  onTransitionToHalftime={() =>
+                    guardTransition("Halftime", transitionToHalftime)
+                  }
+                  onTransitionToSecondHalf={() =>
+                    guardTransition("Live_Second_Half", transitionToSecondHalf)
+                  }
+                  onTransitionToFulltime={() =>
+                    guardTransition("Fulltime", transitionToFulltime)
+                  }
+                  onTransitionToExtraFirst={() =>
+                    guardTransition("Live_Extra_First", transitionToExtraFirst)
+                  }
+                  onTransitionToExtraHalftime={() =>
+                    guardTransition("Extra_Halftime", transitionToExtraHalftime)
+                  }
+                  onTransitionToExtraSecond={() =>
+                    guardTransition(
+                      "Live_Extra_Second",
+                      transitionToExtraSecond,
+                    )
+                  }
+                  onTransitionToPenalties={() =>
+                    guardTransition("Penalties", transitionToPenalties)
+                  }
+                  onFinishMatch={() =>
+                    guardTransition("Completed", finishMatch)
+                  }
+                  transitionDisabled={
+                    cockpitLocked ||
+                    !isAdmin ||
+                    (currentPhase === "FIRST_HALF"
+                      ? !canHalftime || !hasFirstHalfMinimum
+                      : currentPhase === "HALFTIME"
+                        ? !canSecondHalf
+                        : currentPhase === "FIRST_HALF_EXTRA_TIME"
+                          ? !hasExtraFirstHalfMinimum
+                          : currentPhase === "SECOND_HALF"
+                            ? !canFulltime || !hasSecondHalfMinimum
+                            : currentPhase === "SECOND_HALF_EXTRA_TIME"
+                              ? !hasExtraSecondHalfMinimum
+                              : false)
+                  }
+                  transitionReason={
+                    cockpitLocked
+                      ? lockReason
+                      : !isAdmin
+                        ? t(
+                            "adminOnlyTransitions",
+                            "Admin only: match status changes are locked.",
+                          )
+                        : currentPhase === "FIRST_HALF" &&
+                            (!canHalftime || !hasFirstHalfMinimum)
+                          ? !hasFirstHalfMinimum
+                            ? minimumFirstHalfReason
+                            : transitionGuardMessage
+                          : currentPhase === "HALFTIME" && !canSecondHalf
+                            ? transitionGuardMessage
+                            : currentPhase === "FIRST_HALF_EXTRA_TIME" &&
+                                !hasExtraFirstHalfMinimum
+                              ? minimumExtraFirstHalfReason
+                              : currentPhase === "SECOND_HALF" &&
+                                  (!canFulltime || !hasSecondHalfMinimum)
+                                ? !hasSecondHalfMinimum
+                                  ? minimumSecondHalfReason
+                                  : transitionGuardMessage
+                                : currentPhase === "SECOND_HALF_EXTRA_TIME" &&
+                                    !hasExtraSecondHalfMinimum
+                                  ? minimumExtraSecondHalfReason
+                                  : undefined
+                  }
+                  t={t}
+                />
+
+                {transitionError && (
+                  <div
+                    className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3"
+                    data-testid="transition-error"
+                  >
+                    {transitionError}
+                  </div>
+                )}
+
+                <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                      <AlertCircle size={16} className="text-blue-500" />
+                      {t("duplicateTelemetry", "Duplicate telemetry")}
+                    </p>
+                    <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                      {duplicateStats.count} {t("eventsLabel", "events")}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    {duplicateStats.count > 0 ? (
+                      <>
+                        <p className="font-medium text-gray-900">
+                          {t(
+                            "sessionDuplicates",
+                            "{{count}} duplicates this session",
+                            {
+                              count: duplicateStats.count,
+                            },
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {t("lastDuplicateSummary", {
+                            details: lastDuplicateSummaryDetails,
+                            eventType: duplicateStats.lastEventType || "Event",
+                            matchClock: duplicateStats.lastMatchClock,
+                            teamName: lastDuplicateTeamName,
+                            seenAt: lastDuplicateSeenAt,
+                            defaultValue: lastDuplicateSummaryDefault,
+                          })}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        {t(
+                          "noDuplicatesYet",
+                          "No duplicates detected this session.",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetDuplicateStats}
+                    className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-800 self-start"
+                    disabled={duplicateStats.count === 0}
+                  >
+                    {t("resetDuplicateCounter", "Reset counter")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {duplicateHighlight && (
+            <div
+              className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 pt-4"
+              data-testid="duplicate-banner"
+            >
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {t("duplicateNotice", "Already logged")}
+                  </p>
+                  <p className="text-sm">
+                    {t("duplicateDetails", {
+                      matchClock: duplicateHighlight.match_clock,
+                      period: duplicateHighlight.period,
+                      defaultValue: duplicateDetailsDefault,
+                    })}
+                  </p>
+                  {duplicateStats.count > 0 && (
+                    <p className="text-xs mt-2 text-blue-700">
+                      {t("duplicateSessionSummary", {
+                        count: duplicateStats.count,
+                        details: duplicateSessionDetailsSuffix,
+                        teamName: lastDuplicateTeamName,
+                        eventType: duplicateStats.lastEventType,
+                        matchClock: duplicateStats.lastMatchClock,
+                        seenAt: lastDuplicateSeenAt,
+                        defaultValue: duplicateSessionSummaryDefault,
+                      })}
+                    </p>
+                  )}
+                  {duplicateHighlight.existing_event_id && (
+                    <p className="text-xs text-blue-600 mt-1 font-mono">
+                      {t("duplicateExistingEventId", {
+                        eventId: duplicateHighlight.existing_event_id,
+                        defaultValue: duplicateExistingEventDefault,
+                      })}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <button
+                    type="button"
+                    onClick={clearDuplicateHighlight}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
+                  >
+                    {t("dismiss", "Dismiss")}
+                  </button>
+                  {duplicateStats.count > 0 && (
+                    <button
+                      type="button"
+                      onClick={resetDuplicateStats}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-semibold"
+                    >
+                      {t("resetDuplicateCounter", "Reset counter")}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Extra Time Alert */}
-          {showExtraTimeAlert &&
-            (currentPhase === "FIRST_HALF_EXTRA_TIME" ||
-              currentPhase === "SECOND_HALF_EXTRA_TIME") && (
-              <div className="mt-4">
-                <ExtraTimeAlert
-                  phase={currentPhase}
-                  extraTimeSeconds={periodInfo.extraTimeSeconds}
-                  onTransition={
-                    currentPhase === "FIRST_HALF_EXTRA_TIME"
-                      ? transitionToHalftime
-                      : transitionToFulltime
-                  }
-                  onDismiss={dismissExtraTimeAlert}
+          {toast && (
+            <div
+              className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-4 py-3 rounded shadow-lg max-w-sm flex items-start gap-3"
+              data-testid="logger-toast"
+            >
+              <div className="flex-1 text-sm leading-snug">{toast.message}</div>
+              {toast.action && toast.actionLabel && (
+                <button
+                  onClick={toast.action}
+                  className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
+                >
+                  {toast.actionLabel}
+                </button>
+              )}
+              <button
+                onClick={() => setToast(null)}
+                className="text-xs text-gray-300 hover:text-white"
+                aria-label="Dismiss toast"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Main Content */}
+          <main
+            className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-6"
+            data-testid="cockpit-main"
+          >
+            {buffer && (
+              <div
+                data-testid="keyboard-buffer"
+                className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-2xl font-mono tracking-widest z-50"
+              >
+                <div className="text-xs uppercase text-gray-400 leading-none mb-1">
+                  Input
+                </div>
+                <div
+                  className="text-3xl font-mono font-bold"
+                  data-testid="keyboard-buffer-value"
+                >
+                  {buffer}
+                </div>
+              </div>
+            )}
+
+            {/* Halftime Panel */}
+            {currentPhase === "HALFTIME" && (
+              <div className="mb-6">
+                <HalftimePanel
+                  onStartSecondHalf={transitionToSecondHalf}
                   t={t}
                 />
               </div>
             )}
 
-          <div className="mt-4 flex flex-col gap-4">
-            {showDriftNudge && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-                <div className="text-xs font-medium">
-                  {t(
-                    "clockDriftDetected",
-                    "Clock drift detected (~{{seconds}}s). Refresh to resync with server time.",
-                    {
-                      seconds: driftSeconds.toFixed(1),
-                    },
-                  )}
+            {/* Analytics View */}
+            {viewMode === "analytics" ? (
+              <div className="mb-6 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-900/60 border border-slate-800 px-3 py-2">
+                  <div className="flex items-center gap-2 text-slate-200 text-sm">
+                    <span className="text-xs uppercase tracking-wide text-slate-400">
+                      {t("effectiveTime", "Effective Time")}
+                    </span>
+                    <span
+                      className="font-mono font-semibold"
+                      data-testid="effective-clock-value"
+                    >
+                      {effectiveClock}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-200 text-sm">
+                    <span className="text-xs uppercase tracking-wide text-slate-400">
+                      {t("globalClock", "Global Clock")}
+                    </span>
+                    <span className="font-mono font-semibold">
+                      {globalClock}
+                    </span>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={fetchMatch}
-                  className="text-xs font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
-                >
-                  {t("resync", "Resync")}
-                </button>
-              </div>
-            )}
-
-            <MatchPeriodSelector
-              match={match}
-              operatorPeriod={operatorPeriod}
-              currentPhase={currentPhase}
-              isExtraTime={periodInfo.isExtraTime}
-              extraTimeSeconds={periodInfo.extraTimeSeconds}
-              globalClock={globalClock}
-              isClockRunning={isGlobalClockRunning}
-              onTransitionToHalftime={() =>
-                guardTransition("Halftime", transitionToHalftime)
-              }
-              onTransitionToSecondHalf={() =>
-                guardTransition("Live_Second_Half", transitionToSecondHalf)
-              }
-              onTransitionToFulltime={() =>
-                guardTransition("Fulltime", transitionToFulltime)
-              }
-              onTransitionToExtraFirst={() =>
-                guardTransition("Live_Extra_First", transitionToExtraFirst)
-              }
-              onTransitionToExtraHalftime={() =>
-                guardTransition("Extra_Halftime", transitionToExtraHalftime)
-              }
-              onTransitionToExtraSecond={() =>
-                guardTransition("Live_Extra_Second", transitionToExtraSecond)
-              }
-              onTransitionToPenalties={() =>
-                guardTransition("Penalties", transitionToPenalties)
-              }
-              onFinishMatch={() => guardTransition("Completed", finishMatch)}
-              transitionDisabled={
-                cockpitLocked ||
-                !isAdmin ||
-                (currentPhase === "FIRST_HALF"
-                  ? !canHalftime || !hasFirstHalfMinimum
-                  : currentPhase === "HALFTIME"
-                    ? !canSecondHalf
-                    : currentPhase === "FIRST_HALF_EXTRA_TIME"
-                      ? !hasExtraFirstHalfMinimum
-                      : currentPhase === "SECOND_HALF"
-                        ? !canFulltime || !hasSecondHalfMinimum
-                        : currentPhase === "SECOND_HALF_EXTRA_TIME"
-                          ? !hasExtraSecondHalfMinimum
-                          : false)
-              }
-              transitionReason={
-                cockpitLocked
-                  ? lockReason
-                  : !isAdmin
-                    ? t(
-                        "adminOnlyTransitions",
-                        "Admin only: match status changes are locked.",
-                      )
-                    : currentPhase === "FIRST_HALF" &&
-                        (!canHalftime || !hasFirstHalfMinimum)
-                      ? !hasFirstHalfMinimum
-                        ? minimumFirstHalfReason
-                        : transitionGuardMessage
-                      : currentPhase === "HALFTIME" && !canSecondHalf
-                        ? transitionGuardMessage
-                        : currentPhase === "FIRST_HALF_EXTRA_TIME" &&
-                            !hasExtraFirstHalfMinimum
-                          ? minimumExtraFirstHalfReason
-                          : currentPhase === "SECOND_HALF" &&
-                              (!canFulltime || !hasSecondHalfMinimum)
-                            ? !hasSecondHalfMinimum
-                              ? minimumSecondHalfReason
-                              : transitionGuardMessage
-                            : currentPhase === "SECOND_HALF_EXTRA_TIME" &&
-                                !hasExtraSecondHalfMinimum
-                              ? minimumExtraSecondHalfReason
-                              : undefined
-              }
-              t={t}
-            />
-
-            {transitionError && (
-              <div
-                className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3"
-                data-testid="transition-error"
-              >
-                {transitionError}
-              </div>
-            )}
-
-            <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                  <AlertCircle size={16} className="text-blue-500" />
-                  {t("duplicateTelemetry", "Duplicate telemetry")}
-                </p>
-                <span className="text-xs font-mono bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                  {duplicateStats.count} {t("eventsLabel", "events")}
-                </span>
-              </div>
-              <div className="text-sm text-gray-700">
-                {duplicateStats.count > 0 ? (
-                  <>
-                    <p className="font-medium text-gray-900">
-                      {t(
-                        "sessionDuplicates",
-                        "{{count}} duplicates this session",
-                        {
-                          count: duplicateStats.count,
-                        },
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {t("lastDuplicateSummary", {
-                        details: lastDuplicateSummaryDetails,
-                        eventType: duplicateStats.lastEventType || "Event",
-                        matchClock: duplicateStats.lastMatchClock,
-                        teamName: lastDuplicateTeamName,
-                        seenAt: lastDuplicateSeenAt,
-                        defaultValue: lastDuplicateSummaryDefault,
-                      })}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    {t(
-                      "noDuplicatesYet",
-                      "No duplicates detected this session.",
-                    )}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={resetDuplicateStats}
-                className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-800 self-start"
-                disabled={duplicateStats.count === 0}
-              >
-                {t("resetDuplicateCounter", "Reset counter")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {duplicateHighlight && (
-        <div
-          className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 pt-4"
-          data-testid="duplicate-banner"
-        >
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="font-medium">
-                {t("duplicateNotice", "Already logged")}
-              </p>
-              <p className="text-sm">
-                {t("duplicateDetails", {
-                  matchClock: duplicateHighlight.match_clock,
-                  period: duplicateHighlight.period,
-                  defaultValue: duplicateDetailsDefault,
-                })}
-              </p>
-              {duplicateStats.count > 0 && (
-                <p className="text-xs mt-2 text-blue-700">
-                  {t("duplicateSessionSummary", {
-                    count: duplicateStats.count,
-                    details: duplicateSessionDetailsSuffix,
-                    teamName: lastDuplicateTeamName,
-                    eventType: duplicateStats.lastEventType,
-                    matchClock: duplicateStats.lastMatchClock,
-                    seenAt: lastDuplicateSeenAt,
-                    defaultValue: duplicateSessionSummaryDefault,
-                  })}
-                </p>
-              )}
-              {duplicateHighlight.existing_event_id && (
-                <p className="text-xs text-blue-600 mt-1 font-mono">
-                  {t("duplicateExistingEventId", {
-                    eventId: duplicateHighlight.existing_event_id,
-                    defaultValue: duplicateExistingEventDefault,
-                  })}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={clearDuplicateHighlight}
-                className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
-              >
-                {t("dismiss", "Dismiss")}
-              </button>
-              {duplicateStats.count > 0 && (
-                <button
-                  type="button"
-                  onClick={resetDuplicateStats}
-                  className="text-blue-600 hover:text-blue-800 text-xs font-semibold"
-                >
-                  {t("resetDuplicateCounter", "Reset counter")}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toast && (
-        <div
-          className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-4 py-3 rounded shadow-lg max-w-sm flex items-start gap-3"
-          data-testid="logger-toast"
-        >
-          <div className="flex-1 text-sm leading-snug">{toast.message}</div>
-          {toast.action && toast.actionLabel && (
-            <button
-              onClick={toast.action}
-              className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
-            >
-              {toast.actionLabel}
-            </button>
-          )}
-          <button
-            onClick={() => setToast(null)}
-            className="text-xs text-gray-300 hover:text-white"
-            aria-label="Dismiss toast"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <main
-        className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-6"
-        data-testid="cockpit-main"
-      >
-        {buffer && (
-          <div
-            data-testid="keyboard-buffer"
-            className="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-2xl font-mono tracking-widest z-50"
-          >
-            <div className="text-xs uppercase text-gray-400 leading-none mb-1">
-              Input
-            </div>
-            <div
-              className="text-3xl font-mono font-bold"
-              data-testid="keyboard-buffer-value"
-            >
-              {buffer}
-            </div>
-          </div>
-        )}
-
-        {/* Halftime Panel */}
-        {currentPhase === "HALFTIME" && (
-          <div className="mb-6">
-            <HalftimePanel onStartSecondHalf={transitionToSecondHalf} t={t} />
-          </div>
-        )}
-
-        {/* Analytics View */}
-        {viewMode === "analytics" ? (
-          <div className="mb-6 flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-900/60 border border-slate-800 px-3 py-2">
-              <div className="flex items-center gap-2 text-slate-200 text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">
-                  {t("effectiveTime", "Effective Time")}
-                </span>
-                <span
-                  className="font-mono font-semibold"
-                  data-testid="effective-clock-value"
-                >
-                  {effectiveClock}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-200 text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-400">
-                  {t("globalClock", "Global Clock")}
-                </span>
-                <span className="font-mono font-semibold">{globalClock}</span>
-              </div>
-            </div>
-            <MatchAnalytics
-              match={match}
-              events={[...liveEvents, ...queuedEvents]}
-              effectiveTime={effectiveTime}
-              varTimeSeconds={varTimeSeconds}
-              ineffectiveSeconds={match?.ineffective_time_seconds || 0}
-              ineffectiveBreakdown={ineffectiveBreakdown}
-              t={t}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 pb-20">
-            {/* 1. CLOCK (Full Width) */}
-            <div className="flex-none space-y-3">
-              <MatchTimerDisplay
-                match={match}
-                operatorPeriod={operatorPeriod}
-                globalClock={globalClock}
-                effectiveClock={effectiveClock}
-                ineffectiveClock={ineffectiveClock}
-                varClock={varTimeClock}
-                clockMode={clockMode}
-                isClockRunning={isGlobalClockRunning}
-                isBallInPlay={isBallInPlay}
-                locked={cockpitLocked}
-                lockReason={lockReason}
-                onGlobalStart={handleGlobalClockStartGuarded}
-                onGlobalStop={handleGlobalClockStopGuarded}
-                onModeSwitch={handleModeSwitchGuarded}
-                onVarToggle={handleVarToggle}
-                isVarActive={isVarActive}
-                hideResumeButton={showFieldResume}
-                t={t}
-              />
-            </div>
-
-            {/* 2. TEAM SELECTOR (Full Width) */}
-            <div className="flex-none">
-              <TeamSelector
-                isFlipped={manualFieldFlip}
-                onFlip={() => setManualFieldFlip((prev) => !prev)}
-                onUndo={handleUndoLastEvent}
-                undoDisabled={undoDisabled}
-                disabled={cockpitLocked}
-                t={t}
-              />
-            </div>
-
-            {/* 2. INSTRUCTION BANNER */}
-            <div className="flex-none z-10">
-              <InstructionBanner
-                t={t}
-                currentStep={currentStep}
-                selectedPlayer={selectedPlayer}
-                selectedAction={selectedAction}
-                cardSelection={
-                  pendingCardType
-                    ? pendingCardType === "Yellow"
-                      ? t("cardSelectYellow", "Yellow")
-                      : pendingCardType === "Red"
-                        ? t("cardSelectRed", "Red")
-                        : t("cardSelectCancel", "Cancel")
-                    : null
-                }
-              />
-            </div>
-
-            {showFieldResume && pendingCardType && (
-              <div className="flex-none flex justify-center">
-                <button
-                  type="button"
-                  data-testid="btn-resume-effective"
-                  onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
-                >
-                  <Play size={14} />
-                  {t("resumeEffective", "Resume Effective Time")}
-                </button>
-              </div>
-            )}
-
-            {/* 3. ACTION STAGE (Field Interaction / Panels) */}
-            <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
-              {match && (
-                <PlayerSelectorPanel
+                <MatchAnalytics
                   match={match}
-                  flipSides={manualFieldFlip}
-                  selectedPlayer={selectedPlayer}
-                  selectedTeam={selectedTeam}
-                  disciplinaryStatusByPlayer={cardDisciplinaryStatus}
-                  onCardTeamSelect={
-                    pendingCardType
-                      ? (team) => setSelectedTeam(team)
-                      : undefined
-                  }
-                  onFieldIds={onFieldIds}
-                  onPlayerClick={handlePlayerSelection}
-                  onFieldPlayerClick={handleFieldPlayerSelection}
-                  onFieldDestinationClick={handleFieldDestination}
-                  showDestinationControls={
-                    currentStep === "selectDestination" && !cockpitLocked
-                  }
-                  forceListMode={Boolean(pendingCardType)}
-                  cardSelectionActive={Boolean(pendingCardType)}
-                  fieldOverlay={
-                    currentStep === "selectQuickAction" &&
-                    selectedPlayer &&
-                    fieldAnchor ? (
-                      <>
-                        <QuickActionMenu
-                          anchor={fieldAnchor}
-                          actions={[...QUICK_ACTIONS]}
-                          onActionSelect={handleQuickActionSelect}
-                          onMoreActions={handleOpenMoreActions}
-                          onCancel={resetFlow}
-                          t={t}
-                        />
-                        {showFieldResume && (
+                  events={[...liveEvents, ...queuedEvents]}
+                  effectiveTime={effectiveTime}
+                  varTimeSeconds={varTimeSeconds}
+                  ineffectiveSeconds={match?.ineffective_time_seconds || 0}
+                  ineffectiveBreakdown={ineffectiveBreakdown}
+                  t={t}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 pb-20">
+                {/* 1. CLOCK (Full Width) */}
+                <div className="flex-none space-y-3">
+                  <MatchTimerDisplay
+                    match={match}
+                    operatorPeriod={operatorPeriod}
+                    globalClock={globalClock}
+                    effectiveClock={effectiveClock}
+                    ineffectiveClock={ineffectiveClock}
+                    varClock={varTimeClock}
+                    clockMode={clockMode}
+                    isClockRunning={isGlobalClockRunning}
+                    isBallInPlay={isBallInPlay}
+                    locked={cockpitLocked}
+                    lockReason={lockReason}
+                    onGlobalStart={handleGlobalClockStartGuarded}
+                    onGlobalStop={handleGlobalClockStopGuarded}
+                    onModeSwitch={handleModeSwitchGuarded}
+                    onVarToggle={handleVarToggle}
+                    isVarActive={isVarActive}
+                    hideResumeButton={showFieldResume}
+                    t={t}
+                  />
+                </div>
+
+                {/* 2. TEAM SELECTOR (Full Width) */}
+                <div className="flex-none">
+                  <TeamSelector
+                    isFlipped={manualFieldFlip}
+                    onFlip={() => setManualFieldFlip((prev) => !prev)}
+                    onUndo={handleUndoLastEvent}
+                    undoDisabled={undoDisabled}
+                    disabled={cockpitLocked}
+                    t={t}
+                  />
+                </div>
+
+                {/* 2. INSTRUCTION BANNER */}
+                <div className="flex-none z-10">
+                  <InstructionBanner
+                    t={t}
+                    currentStep={currentStep}
+                    selectedPlayer={selectedPlayer}
+                    selectedAction={selectedAction}
+                    cardSelection={
+                      pendingCardType
+                        ? pendingCardType === "Yellow"
+                          ? t("cardSelectYellow", "Yellow")
+                          : pendingCardType === "Red"
+                            ? t("cardSelectRed", "Red")
+                            : t("cardSelectCancel", "Cancel")
+                        : null
+                    }
+                  />
+                </div>
+
+                {showFieldResume && pendingCardType && (
+                  <div className="flex-none flex justify-center">
+                    <button
+                      type="button"
+                      data-testid="btn-resume-effective"
+                      onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                    >
+                      <Play size={14} />
+                      {t("resumeEffective", "Resume Effective Time")}
+                    </button>
+                  </div>
+                )}
+
+                {/* 3. ACTION STAGE (Field Interaction / Panels) */}
+                <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
+                  {match && (
+                    <PlayerSelectorPanel
+                      match={match}
+                      flipSides={manualFieldFlip}
+                      selectedPlayer={selectedPlayer}
+                      selectedTeam={selectedTeam}
+                      disciplinaryStatusByPlayer={cardDisciplinaryStatus}
+                      onCardTeamSelect={
+                        pendingCardType
+                          ? (team) => setSelectedTeam(team)
+                          : undefined
+                      }
+                      onFieldIds={onFieldIds}
+                      onPlayerClick={handlePlayerSelection}
+                      onFieldPlayerClick={handleFieldPlayerSelection}
+                      onFieldDestinationClick={handleFieldDestination}
+                      showDestinationControls={
+                        currentStep === "selectDestination" && !cockpitLocked
+                      }
+                      forceListMode={Boolean(pendingCardType)}
+                      cardSelectionActive={Boolean(pendingCardType)}
+                      fieldOverlay={
+                        currentStep === "selectQuickAction" &&
+                        selectedPlayer &&
+                        fieldAnchor ? (
+                          <>
+                            <QuickActionMenu
+                              anchor={{ xPercent: 50, yPercent: 50 }}
+                              actions={[...QUICK_ACTIONS]}
+                              onActionSelect={handleQuickActionSelect}
+                              onMoreActions={handleOpenMoreActions}
+                              onCancel={resetFlow}
+                              t={t}
+                            />
+                            {showFieldResume && (
+                              <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
+                                <button
+                                  type="button"
+                                  data-testid="btn-resume-effective"
+                                  onClick={() =>
+                                    handleModeSwitchGuarded("EFFECTIVE")
+                                  }
+                                  className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                                >
+                                  <Play size={14} />
+                                  {t(
+                                    "resumeEffective",
+                                    "Resume Effective Time",
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        ) : showFieldResume ? (
                           <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
                             <button
                               type="button"
@@ -3205,117 +3260,117 @@ export default function LoggerCockpit() {
                               {t("resumeEffective", "Resume Effective Time")}
                             </button>
                           </div>
-                        )}
-                      </>
-                    ) : showFieldResume ? (
-                      <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
-                        <button
-                          type="button"
-                          data-testid="btn-resume-effective"
-                          onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
-                          className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
-                        >
-                          <Play size={14} />
-                          {t("resumeEffective", "Resume Effective Time")}
-                        </button>
-                      </div>
-                    ) : null
-                  }
-                  forceFieldMode
-                  priorityPlayerId={priorityPlayerId}
-                  isReadOnly={
-                    !IS_E2E_TEST_MODE &&
-                    (!isGlobalClockRunning ||
-                      clockMode !== "EFFECTIVE" ||
-                      isVarActive)
-                  }
-                  t={t}
-                />
-              )}
+                        ) : null
+                      }
+                      forceFieldMode
+                      priorityPlayerId={priorityPlayerId}
+                      isReadOnly={
+                        !IS_E2E_TEST_MODE &&
+                        (!isGlobalClockRunning ||
+                          clockMode !== "EFFECTIVE" ||
+                          isVarActive)
+                      }
+                      t={t}
+                    />
+                  )}
 
-              {match && currentStep === "selectPlayer" && (
-                <div className="space-y-3">
-                  <QuickSubstitutionPanel
-                    homeTeamName={match.home_team.short_name}
-                    awayTeamName={match.away_team.short_name}
-                    onHomeSubstitution={() => handleQuickSubstitution("home")}
-                    onAwaySubstitution={() => handleQuickSubstitution("away")}
-                    disabled={cockpitLocked}
-                  />
-                  <QuickCardPanel
-                    activeCard={pendingCardType}
-                    onSelectCard={handleCardSelection}
-                    onCancelSelection={cancelCardSelection}
-                    selectedTeam={selectedTeam}
-                    onSelectTeam={(team) => setSelectedTeam(team)}
-                    showTeamSelector={false}
-                    disabled={cockpitLocked}
-                    t={t}
-                  />
+                  {match && currentStep === "selectPlayer" && (
+                    <div className="space-y-3">
+                      <QuickSubstitutionPanel
+                        homeTeamName={match.home_team.short_name}
+                        awayTeamName={match.away_team.short_name}
+                        onHomeSubstitution={() =>
+                          handleQuickSubstitution("home")
+                        }
+                        onAwaySubstitution={() =>
+                          handleQuickSubstitution("away")
+                        }
+                        disabled={cockpitLocked}
+                      />
+                      <QuickCardPanel
+                        activeCard={pendingCardType}
+                        onSelectCard={handleCardSelection}
+                        onCancelSelection={cancelCardSelection}
+                        selectedTeam={selectedTeam}
+                        onSelectTeam={(team) => setSelectedTeam(team)}
+                        showTeamSelector={false}
+                        disabled={cockpitLocked}
+                        t={t}
+                      />
+                    </div>
+                  )}
+
+                  {currentStep === "selectAction" && (
+                    <ActionSelectionPanel
+                      actions={availableActions}
+                      selectedPlayer={selectedPlayer}
+                      isSubmitting={isSubmitting || cockpitLocked}
+                      keyHints={KEY_ACTION_MAP}
+                      onActionSelect={handleActionClickOverride}
+                      onCancel={resetFlow}
+                      t={t}
+                    />
+                  )}
+
+                  {currentStep === "selectOutcome" && (
+                    <OutcomeSelectionPanel
+                      selectedAction={selectedAction}
+                      outcomes={availableOutcomes}
+                      isSubmitting={isSubmitting || cockpitLocked}
+                      onOutcomeSelect={handleOutcomeSelect}
+                      onCancel={resetFlow}
+                      t={t}
+                    />
+                  )}
+
+                  {currentStep === "selectRecipient" && (
+                    <RecipientSelectionPanel
+                      team={currentTeam}
+                      eligiblePlayers={eligibleRecipients}
+                      selectedAction={selectedAction}
+                      isSubmitting={isSubmitting || cockpitLocked}
+                      onRecipientSelect={handleRecipientSelect}
+                      onCancel={resetFlow}
+                      t={t}
+                    />
+                  )}
                 </div>
-              )}
 
-              {currentStep === "selectAction" && (
-                <ActionSelectionPanel
-                  actions={availableActions}
-                  selectedPlayer={selectedPlayer}
-                  isSubmitting={isSubmitting || cockpitLocked}
-                  keyHints={KEY_ACTION_MAP}
-                  onActionSelect={handleActionClickOverride}
-                  onCancel={resetFlow}
-                  t={t}
-                />
-              )}
-
-              {currentStep === "selectOutcome" && (
-                <OutcomeSelectionPanel
-                  selectedAction={selectedAction}
-                  outcomes={availableOutcomes}
-                  isSubmitting={isSubmitting || cockpitLocked}
-                  onOutcomeSelect={handleOutcomeSelect}
-                  onCancel={resetFlow}
-                  t={t}
-                />
-              )}
-
-              {currentStep === "selectRecipient" && (
-                <RecipientSelectionPanel
-                  team={currentTeam}
-                  eligiblePlayers={eligibleRecipients}
-                  selectedAction={selectedAction}
-                  isSubmitting={isSubmitting || cockpitLocked}
-                  onRecipientSelect={handleRecipientSelect}
-                  onCancel={resetFlow}
-                  t={t}
-                />
-              )}
-            </div>
-
-            {/* 4. FEEDBACK: Live Event Feed (Stacked at Bottom) */}
-            <div className="flex-none bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
-              <div className="p-3 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
-                <span className="font-semibold text-xs text-slate-400 uppercase tracking-wider">
-                  Live Feed
-                </span>
+                {/* 4. FEEDBACK: Live Event Feed (Stacked at Bottom) */}
+                <div className="flex-none bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+                  <div className="p-3 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
+                    <span className="font-semibold text-xs text-slate-400 uppercase tracking-wider">
+                      Live Feed
+                    </span>
+                  </div>
+                  <div className="h-96 overflow-y-auto px-1">
+                    <LiveEventFeed
+                      events={liveEvents}
+                      match={match}
+                      duplicateHighlight={duplicateHighlight}
+                      onDeletePending={handleDeletePendingEvent}
+                      onDeleteEvent={
+                        isAdmin ? handleDeleteLoggedEvent : undefined
+                      }
+                      canDeleteEvent={(event) =>
+                        isAdmin && event.type === "Card" && Boolean(event._id)
+                      }
+                      onUpdateEventNotes={handleUpdateEventNotes}
+                      t={t}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="h-96 overflow-y-auto px-1">
-                <LiveEventFeed
-                  events={liveEvents}
-                  match={match}
-                  duplicateHighlight={duplicateHighlight}
-                  onDeletePending={handleDeletePendingEvent}
-                  onDeleteEvent={isAdmin ? handleDeleteLoggedEvent : undefined}
-                  canDeleteEvent={(event) =>
-                    isAdmin && event.type === "Card" && Boolean(event._id)
-                  }
-                  onUpdateEventNotes={handleUpdateEventNotes}
-                  t={t}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
+            )}
+          </main>
+        </div>
+
+        <aside
+          className="hidden xl:block border-l border-slate-800/80"
+          data-testid="logger-shell-right"
+          aria-hidden="true"
+        />
+      </div>
 
       {/* Substitution Flow Modal */}
       {showSubstitutionFlow && match && (

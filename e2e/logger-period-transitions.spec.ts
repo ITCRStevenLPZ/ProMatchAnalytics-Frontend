@@ -377,6 +377,12 @@ test.describe("Logger period transitions", () => {
     await page.reload();
     await ensureAdminRole(page);
 
+    await expect(page.getByTestId("period-status-second-half")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("btn-end-match")).toBeEnabled({
+      timeout: 15000,
+    });
     await page.getByTestId("btn-end-match").click();
     await expect(page.getByTestId("period-status-fulltime")).toBeVisible({
       timeout: 15000,

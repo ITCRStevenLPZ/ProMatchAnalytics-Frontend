@@ -62,6 +62,28 @@ const TECHNICAL_STAFF_ROLES = [
 const ADMIN_LOCALES = ["en", "es"] as const;
 type AdminLocale = (typeof ADMIN_LOCALES)[number];
 
+const ROSTER_POSITION_OPTIONS: PlayerPosition[] = [
+  "GK",
+  "CB",
+  "LB",
+  "RB",
+  "LWB",
+  "RWB",
+  "SW",
+  "CDM",
+  "CM",
+  "CAM",
+  "LM",
+  "RM",
+  "LW",
+  "RW",
+  "CF",
+  "ST",
+  "LF",
+  "RF",
+  "SS",
+];
+
 const withTeamFormDefaults = (data?: Partial<Team>): Partial<Team> => {
   const merged = { ...(data ?? {}) };
   const localizedNames: Record<string, string> = {
@@ -95,6 +117,7 @@ export default function TeamsManager() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const { loading, withLoading } = useLoading(true);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [genderFilter, setGenderFilter] = useState<"male" | "female" | "">("");
@@ -143,6 +166,11 @@ export default function TeamsManager() {
   const [rosterPageSize, setRosterPageSize] = useState(10);
   const [rosterTotalItems, setRosterTotalItems] = useState(0);
   const [rosterTotalPages, setRosterTotalPages] = useState(0);
+  const [isRosterModalLoading, setIsRosterModalLoading] = useState(false);
+  const [isRosterPaginationLoading, setIsRosterPaginationLoading] =
+    useState(false);
+  const [isTeamsPaginationLoading, setIsTeamsPaginationLoading] =
+    useState(false);
 
   const [formData, setFormData] = useState<Partial<Team>>(() =>
     withTeamFormDefaults(),
@@ -165,6 +193,14 @@ export default function TeamsManager() {
   const [rosterFieldErrors, setRosterFieldErrors] = useState<
     Record<string, string>
   >({});
+  const [rosterPlayerSearch, setRosterPlayerSearch] = useState("");
+  const [isPlayerPickerOpen, setIsPlayerPickerOpen] = useState(false);
+  const [isRosterPositionPickerOpen, setIsRosterPositionPickerOpen] =
+    useState(false);
+  const [rosterPositionFilter, setRosterPositionFilter] = useState<
+    PlayerPosition | "ALL"
+  >("ALL");
+  const [isRosterFilterOpen, setIsRosterFilterOpen] = useState(false);
 
   const clearRosterFieldErrors = () => setRosterFieldErrors({});
   const setRosterFieldError = (field: string, message: string) => {
@@ -227,6 +263,9 @@ export default function TeamsManager() {
         setTotalPages(response.total_pages);
       } catch (err: any) {
         setError(err.response?.data?.detail || t("errorFetchingData"));
+      } finally {
+        setHasInitialLoadCompleted(true);
+        setIsTeamsPaginationLoading(false);
       }
     });
   };
@@ -244,11 +283,23 @@ export default function TeamsManager() {
     }
   };
 
-  const fetchTeamRoster = async (teamId: string) => {
+  const fetchTeamRoster = async (
+    teamId: string,
+    mode: "modal" | "pagination" | "refresh" = "refresh",
+    pageOverride?: number,
+    pageSizeOverride?: number,
+  ) => {
+    if (mode === "modal") {
+      setIsRosterModalLoading(true);
+    }
+    if (mode === "pagination") {
+      setIsRosterPaginationLoading(true);
+    }
+
     try {
       const params: any = {
-        page: rosterPage,
-        page_size: rosterPageSize,
+        page: pageOverride ?? rosterPage,
+        page_size: pageSizeOverride ?? rosterPageSize,
       };
 
       const response = await apiClient.get<PaginatedResponse<TeamPlayer>>(
@@ -259,14 +310,37 @@ export default function TeamsManager() {
       setRosterTotalItems(response.total);
       setRosterTotalPages(response.total_pages);
 
-      // Filter available players (not in current roster and matching team gender)
-      const rosterPlayerIds = response.items.map((tp) => tp.player_id);
+      const rosterPlayerIds: string[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const fullPage = await apiClient.get<PaginatedResponse<TeamPlayer>>(
+          `/teams/${teamId}/players`,
+          {
+            params: {
+              page,
+              page_size: 100,
+            },
+          },
+        );
+        rosterPlayerIds.push(...fullPage.items.map((tp) => tp.player_id));
+        totalPages = Math.max(1, fullPage.total_pages || 1);
+        page += 1;
+      } while (page <= totalPages);
+
       const filtered = players.filter(
         (p) => !rosterPlayerIds.includes(p.player_id),
       );
       setAvailablePlayers(filtered);
     } catch (err: any) {
       setError(err.response?.data?.detail || t("errorFetchingData"));
+    } finally {
+      if (mode === "modal") {
+        setIsRosterModalLoading(false);
+      }
+      if (mode === "pagination") {
+        setIsRosterPaginationLoading(false);
+      }
     }
   };
 
@@ -538,8 +612,9 @@ export default function TeamsManager() {
     setSelectedTeam(team);
     clearRosterFieldErrors();
     setRosterFormError(null);
-    await fetchTeamRoster(team.team_id);
     setShowRosterModal(true);
+    setRosterPage(1);
+    await fetchTeamRoster(team.team_id, "modal", 1, rosterPageSize);
   };
 
   const handleAddPlayerToRoster = async (e: React.FormEvent) => {
@@ -549,6 +624,14 @@ export default function TeamsManager() {
     try {
       setRosterFormError(null);
       clearRosterFieldErrors();
+      const selectedIsAvailable = availablePlayers.some(
+        (player) => player.player_id === rosterFormData.player_id,
+      );
+      if (!selectedIsAvailable) {
+        setRosterFieldError("player_id", t("validation.invalidSelection"));
+        setRosterFormError(t("validation.fixErrors"));
+        return;
+      }
       const payload = {
         ...rosterFormData,
         team_id: selectedTeam.team_id,
@@ -561,6 +644,9 @@ export default function TeamsManager() {
         position: "CM",
         is_active: true,
       });
+      setRosterPlayerSearch("");
+      setIsPlayerPickerOpen(false);
+      setIsRosterPositionPickerOpen(false);
       clearRosterFieldErrors();
       setRosterFormError(null);
     } catch (err: any) {
@@ -609,6 +695,13 @@ export default function TeamsManager() {
     setSelectedTeam(null);
     setTeamRoster([]);
     setAvailablePlayers([]);
+    setIsRosterModalLoading(false);
+    setIsRosterPaginationLoading(false);
+    setRosterPositionFilter("ALL");
+    setIsRosterFilterOpen(false);
+    setIsPlayerPickerOpen(false);
+    setIsRosterPositionPickerOpen(false);
+    setRosterPlayerSearch("");
     clearRosterFieldErrors();
     setRosterFormError(null);
   };
@@ -644,7 +737,28 @@ export default function TeamsManager() {
     return matchesSearch && matchesGender;
   });
 
-  if (loading) {
+  const filteredRoster =
+    rosterPositionFilter === "ALL"
+      ? teamRoster
+      : teamRoster.filter((tp) => tp.position === rosterPositionFilter);
+
+  const rosterPlayerCandidates = availablePlayers.filter((player) => {
+    const query = rosterPlayerSearch.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      player.name.toLowerCase().includes(query) ||
+      player.player_id.toLowerCase().includes(query) ||
+      String(player.position || "")
+        .toLowerCase()
+        .includes(query)
+    );
+  });
+
+  const selectedRosterPlayer = availablePlayers.find(
+    (player) => player.player_id === rosterFormData.player_id,
+  );
+
+  if (loading && !hasInitialLoadCompleted) {
     return <LoadingSpinner size="lg" />;
   }
 
@@ -708,117 +822,133 @@ export default function TeamsManager() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("common:common.name")}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("localizedNames")}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("shortName")}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("common:common.country")}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("common:common.gender")}
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      {t("manager")}
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      {t("common:common.actions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTeams.map((item) => (
-                    <tr key={item._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {item.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        <div className="space-y-1">
-                          {ADMIN_LOCALES.map((locale) => (
-                            <div
-                              key={locale}
-                              className="flex items-center text-xs"
-                            >
-                              <span className="font-semibold uppercase text-gray-500 mr-2">
-                                {locale}
-                              </span>
-                              <span>{item.i18n_names?.[locale] || "-"}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {item.short_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {item.country_name}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            item.gender === "male"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-pink-100 text-pink-800"
-                          }`}
-                        >
-                          {t(item.gender)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {item.manager?.name || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => handleManageRoster(item)}
-                          className="text-green-600 hover:text-green-900"
-                          title={t("roster")}
-                        >
-                          <Users className="h-5 w-5 inline" />
-                        </button>
-                        {user?.role === "admin" && (
-                          <>
-                            <button
-                              onClick={() => handleEdit(item)}
-                              className="text-blue-600 hover:text-blue-900"
-                              title={t("common:common.edit")}
-                            >
-                              <Edit className="h-5 w-5 inline" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.team_id)}
-                              className="text-red-600 hover:text-red-900"
-                              title={t("common:common.delete")}
-                            >
-                              <Trash2 className="h-5 w-5 inline" />
-                            </button>
-                          </>
-                        )}
-                      </td>
+            <div className="relative">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("common:common.name")}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("localizedNames")}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("shortName")}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("common:common.country")}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("common:common.gender")}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        {t("manager")}
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                        {t("common:common.actions")}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredTeams.map((item) => (
+                      <tr key={item._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {item.name}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          <div className="space-y-1">
+                            {ADMIN_LOCALES.map((locale) => (
+                              <div
+                                key={locale}
+                                className="flex items-center text-xs"
+                              >
+                                <span className="font-semibold uppercase text-gray-500 mr-2">
+                                  {locale}
+                                </span>
+                                <span>{item.i18n_names?.[locale] || "-"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {item.short_name}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {item.country_name}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              item.gender === "male"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-pink-100 text-pink-800"
+                            }`}
+                          >
+                            {t(item.gender)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {item.manager?.name || "-"}
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
+                          <button
+                            onClick={() => handleManageRoster(item)}
+                            className="text-green-600 hover:text-green-900"
+                            title={t("roster")}
+                          >
+                            <Users className="h-5 w-5 inline" />
+                          </button>
+                          {user?.role === "admin" && (
+                            <>
+                              <button
+                                onClick={() => handleEdit(item)}
+                                className="text-blue-600 hover:text-blue-900"
+                                title={t("common:common.edit")}
+                              >
+                                <Edit className="h-5 w-5 inline" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item.team_id)}
+                                className="text-red-600 hover:text-red-900"
+                                title={t("common:common.delete")}
+                              >
+                                <Trash2 className="h-5 w-5 inline" />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={(page) => {
+                  if (page === currentPage) return;
+                  setIsTeamsPaginationLoading(true);
+                  setCurrentPage(page);
+                }}
+                onPageSizeChange={(newPageSize) => {
+                  if (newPageSize === pageSize && currentPage === 1) return;
+                  setIsTeamsPaginationLoading(true);
+                  setPageSize(newPageSize);
+                  setCurrentPage(1);
+                }}
+              />
+              {isTeamsPaginationLoading && (
+                <div
+                  className="absolute inset-0 bg-white/70 flex items-center justify-center z-10"
+                  data-testid="teams-pagination-loading"
+                >
+                  <LoadingSpinner size="sm" />
+                </div>
+              )}
             </div>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(newPageSize) => {
-                setPageSize(newPageSize);
-                setCurrentPage(1);
-              }}
-            />
           </>
         )}
       </div>
@@ -1258,11 +1388,14 @@ export default function TeamsManager() {
 
       {/* Roster Management Modal */}
       {showRosterModal && selectedTeam && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          data-testid="roster-modal"
+        >
           <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-2xl font-bold">
-                {t("admin.roster")} - {selectedTeam.name}
+                {t("roster")} - {selectedTeam.name}
               </h2>
               <button
                 onClick={handleCloseRosterModal}
@@ -1278,14 +1411,75 @@ export default function TeamsManager() {
                   <h3 className="text-lg font-semibold mb-4">
                     {t("starters")} ({rosterTotalItems})
                   </h3>
-                  {teamRoster.length === 0 ? (
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t("position")}
+                    </label>
+                    <div
+                      className="relative"
+                      data-testid="roster-filter-position"
+                    >
+                      <button
+                        type="button"
+                        data-testid="roster-filter-position-toggle"
+                        onClick={() => setIsRosterFilterOpen((prev) => !prev)}
+                        className="input w-full text-left flex items-center justify-between"
+                      >
+                        <span>
+                          {rosterPositionFilter === "ALL"
+                            ? t("allPositions")
+                            : t(`positions.${rosterPositionFilter}`)}
+                        </span>
+                        <span className="text-gray-500">▾</span>
+                      </button>
+                      {isRosterFilterOpen && (
+                        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-auto">
+                          <button
+                            type="button"
+                            data-testid="roster-filter-position-option-ALL"
+                            onClick={() => {
+                              setRosterPositionFilter("ALL");
+                              setIsRosterFilterOpen(false);
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                          >
+                            {t("allPositions")}
+                          </button>
+                          {ROSTER_POSITION_OPTIONS.map((position) => (
+                            <button
+                              key={`filter-${position}`}
+                              type="button"
+                              data-testid={`roster-filter-position-option-${position}`}
+                              onClick={() => {
+                                setRosterPositionFilter(position);
+                                setIsRosterFilterOpen(false);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                            >
+                              {t(`positions.${position}`)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {isRosterModalLoading ? (
+                    <div
+                      className="flex items-center justify-center py-12"
+                      data-testid="roster-modal-loading"
+                    >
+                      <LoadingSpinner size="sm" />
+                    </div>
+                  ) : filteredRoster.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      {t("noPlayers")}
+                      {rosterPositionFilter === "ALL"
+                        ? t("noPlayers")
+                        : t("noData")}
                     </div>
                   ) : (
-                    <>
+                    <div className="relative">
                       <div className="space-y-2">
-                        {teamRoster.map((tp) => (
+                        {filteredRoster.map((tp) => (
                           <div
                             key={tp.player_id}
                             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -1331,21 +1525,43 @@ export default function TeamsManager() {
                           totalItems={rosterTotalItems}
                           pageSize={rosterPageSize}
                           onPageChange={(page) => {
+                            if (page === rosterPage || !selectedTeam) return;
                             setRosterPage(page);
-                            if (selectedTeam) {
-                              fetchTeamRoster(selectedTeam.team_id);
-                            }
+                            fetchTeamRoster(
+                              selectedTeam.team_id,
+                              "pagination",
+                              page,
+                              rosterPageSize,
+                            );
                           }}
                           onPageSizeChange={(newPageSize) => {
+                            if (
+                              newPageSize === rosterPageSize &&
+                              rosterPage === 1
+                            ) {
+                              return;
+                            }
                             setRosterPageSize(newPageSize);
                             setRosterPage(1);
-                            if (selectedTeam) {
-                              fetchTeamRoster(selectedTeam.team_id);
-                            }
+                            if (!selectedTeam) return;
+                            fetchTeamRoster(
+                              selectedTeam.team_id,
+                              "pagination",
+                              1,
+                              newPageSize,
+                            );
                           }}
                         />
                       </div>
-                    </>
+                      {isRosterPaginationLoading && (
+                        <div
+                          className="absolute inset-0 bg-white/70 flex items-center justify-center z-10"
+                          data-testid="roster-pagination-loading"
+                        >
+                          <LoadingSpinner size="sm" />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1367,30 +1583,72 @@ export default function TeamsManager() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {t("players")} *
                       </label>
-                      <select
-                        required
-                        value={rosterFormData.player_id}
-                        onChange={(e) => {
-                          clearRosterFieldError("player_id");
-                          setRosterFormData({
-                            ...rosterFormData,
-                            player_id: e.target.value,
-                          });
-                        }}
-                        className={`input w-full ${
-                          rosterFieldErrors.player_id ? "border-red-500" : ""
-                        }`}
+                      <div
+                        className="space-y-2"
+                        data-testid="roster-player-picker"
                       >
-                        <option value="">{t("selectPlayers")}</option>
-                        {availablePlayers.map((player) => (
-                          <option
-                            key={player.player_id}
-                            value={player.player_id}
+                        <button
+                          type="button"
+                          data-testid="roster-player-picker-toggle"
+                          onClick={() => setIsPlayerPickerOpen((prev) => !prev)}
+                          className={`input w-full text-left flex items-center justify-between ${
+                            rosterFieldErrors.player_id ? "border-red-500" : ""
+                          }`}
+                        >
+                          <span>
+                            {selectedRosterPlayer
+                              ? `${selectedRosterPlayer.name} - ${t(
+                                  `positions.${selectedRosterPlayer.position}`,
+                                )}`
+                              : t("selectPlayers")}
+                          </span>
+                          <span className="text-gray-500">▾</span>
+                        </button>
+                        {isPlayerPickerOpen && (
+                          <div
+                            className="border border-gray-200 rounded-md p-2 space-y-2"
+                            data-testid="roster-player-picker-panel"
                           >
-                            {player.name} - {t(`positions.${player.position}`)}
-                          </option>
-                        ))}
-                      </select>
+                            <input
+                              type="text"
+                              value={rosterPlayerSearch}
+                              onChange={(e) =>
+                                setRosterPlayerSearch(e.target.value)
+                              }
+                              placeholder={t("search")}
+                              data-testid="roster-player-search"
+                              className="input w-full"
+                            />
+                            <div className="max-h-52 overflow-auto border border-gray-100 rounded-md">
+                              {rosterPlayerCandidates.length === 0 ? (
+                                <div className="px-3 py-2 text-sm text-gray-500">
+                                  {t("noData")}
+                                </div>
+                              ) : (
+                                rosterPlayerCandidates.map((player) => (
+                                  <button
+                                    key={player.player_id}
+                                    type="button"
+                                    data-testid={`roster-available-player-option-${player.player_id}`}
+                                    onClick={() => {
+                                      clearRosterFieldError("player_id");
+                                      setRosterFormData({
+                                        ...rosterFormData,
+                                        player_id: player.player_id,
+                                      });
+                                      setIsPlayerPickerOpen(false);
+                                    }}
+                                    className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
+                                  >
+                                    {player.name} -{" "}
+                                    {t(`positions.${player.position}`)}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       {rosterFieldErrors.player_id && (
                         <p className="mt-1 text-sm text-red-600">
                           {rosterFieldErrors.player_id}
@@ -1431,48 +1689,48 @@ export default function TeamsManager() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {t("position")} *
                         </label>
-                        <select
-                          required
-                          value={rosterFormData.position}
-                          onChange={(e) => {
-                            clearRosterFieldError("position");
-                            setRosterFormData({
-                              ...rosterFormData,
-                              position: e.target.value as PlayerPosition,
-                            });
-                          }}
-                          className={`input w-full ${
-                            rosterFieldErrors.position ? "border-red-500" : ""
-                          }`}
+                        <div
+                          className="relative"
+                          data-testid="roster-position-picker"
                         >
-                          <optgroup label={t("positionGroups.goalkeeper")}>
-                            <option value="GK">{t("positions.GK")}</option>
-                          </optgroup>
-                          <optgroup label={t("positionGroups.defenders")}>
-                            <option value="CB">{t("positions.CB")}</option>
-                            <option value="LB">{t("positions.LB")}</option>
-                            <option value="RB">{t("positions.RB")}</option>
-                            <option value="LWB">{t("positions.LWB")}</option>
-                            <option value="RWB">{t("positions.RWB")}</option>
-                            <option value="SW">{t("positions.SW")}</option>
-                          </optgroup>
-                          <optgroup label={t("positionGroups.midfielders")}>
-                            <option value="CDM">{t("positions.CDM")}</option>
-                            <option value="CM">{t("positions.CM")}</option>
-                            <option value="CAM">{t("positions.CAM")}</option>
-                            <option value="LM">{t("positions.LM")}</option>
-                            <option value="RM">{t("positions.RM")}</option>
-                            <option value="LW">{t("positions.LW")}</option>
-                            <option value="RW">{t("positions.RW")}</option>
-                          </optgroup>
-                          <optgroup label={t("positionGroups.forwards")}>
-                            <option value="CF">{t("positions.CF")}</option>
-                            <option value="ST">{t("positions.ST")}</option>
-                            <option value="LF">{t("positions.LF")}</option>
-                            <option value="RF">{t("positions.RF")}</option>
-                            <option value="SS">{t("positions.SS")}</option>
-                          </optgroup>
-                        </select>
+                          <button
+                            type="button"
+                            data-testid="roster-position-toggle"
+                            onClick={() =>
+                              setIsRosterPositionPickerOpen((prev) => !prev)
+                            }
+                            className={`input w-full text-left flex items-center justify-between ${
+                              rosterFieldErrors.position ? "border-red-500" : ""
+                            }`}
+                          >
+                            <span>
+                              {t(`positions.${rosterFormData.position}`)}
+                            </span>
+                            <span className="text-gray-500">▾</span>
+                          </button>
+                          {isRosterPositionPickerOpen && (
+                            <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-auto">
+                              {ROSTER_POSITION_OPTIONS.map((position) => (
+                                <button
+                                  key={`roster-position-${position}`}
+                                  type="button"
+                                  data-testid={`roster-position-option-${position}`}
+                                  onClick={() => {
+                                    clearRosterFieldError("position");
+                                    setRosterFormData({
+                                      ...rosterFormData,
+                                      position,
+                                    });
+                                    setIsRosterPositionPickerOpen(false);
+                                  }}
+                                  className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                                >
+                                  {t(`positions.${position}`)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         {rosterFieldErrors.position && (
                           <p className="mt-1 text-sm text-red-600">
                             {rosterFieldErrors.position}

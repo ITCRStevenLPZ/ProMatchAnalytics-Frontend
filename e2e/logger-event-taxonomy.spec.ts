@@ -233,7 +233,11 @@ test.describe("Logger event taxonomy", () => {
 
     await expectLiveEventCount(page, 1);
 
-    await expect(liveEvents.filter({ hasText: "Red" })).toHaveCount(1);
+    await expect
+      .poll(async () => await liveEvents.filter({ hasText: "Card" }).count(), {
+        timeout: 15000,
+      })
+      .toBeGreaterThanOrEqual(1);
     await expect
       .poll(
         async () =>

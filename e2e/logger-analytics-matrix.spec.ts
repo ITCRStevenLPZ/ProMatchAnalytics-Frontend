@@ -728,27 +728,51 @@ test.describe("Logger analytics matrix", () => {
     expect(typography.awaySize).toBeGreaterThanOrEqual(18);
   });
 
-  test("ANL-20: cockpit uses very wide layout on large screens", async ({
+  test("ANL-20: logger uses 3-column shell on large screens", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await gotoLoggerPage(page, MATRIX_MATCH_ID);
     await setRole(page, "admin");
 
-    const layout = await page.getByTestId("cockpit-main").evaluate((node) => {
-      const el = node as HTMLElement;
-      const rect = el.getBoundingClientRect();
-      const computed = getComputedStyle(el);
-      return {
-        width: rect.width,
-        viewport: window.innerWidth,
-        maxWidth: computed.maxWidth,
-      };
-    });
+    const layout = await page
+      .getByTestId("logger-page-shell")
+      .evaluate((node) => {
+        const shell = node as HTMLElement;
+        const shellRect = shell.getBoundingClientRect();
+        const left = shell.querySelector(
+          '[data-testid="logger-shell-left"]',
+        ) as HTMLElement | null;
+        const center = shell.querySelector(
+          '[data-testid="logger-shell-center"]',
+        ) as HTMLElement | null;
+        const right = shell.querySelector(
+          '[data-testid="logger-shell-right"]',
+        ) as HTMLElement | null;
+        const cockpit = shell.querySelector(
+          '[data-testid="cockpit-main"]',
+        ) as HTMLElement | null;
+        const leftRect = left?.getBoundingClientRect();
+        const centerRect = center?.getBoundingClientRect();
+        const rightRect = right?.getBoundingClientRect();
+        const cockpitRect = cockpit?.getBoundingClientRect();
+        return {
+          shellWidth: shellRect.width,
+          viewport: window.innerWidth,
+          leftWidth: leftRect?.width ?? 0,
+          centerWidth: centerRect?.width ?? 0,
+          rightWidth: rightRect?.width ?? 0,
+          cockpitWidth: cockpitRect?.width ?? 0,
+        };
+      });
 
-    expect(layout.maxWidth).toBe("none");
     expect(layout.viewport).toBeGreaterThanOrEqual(1900);
-    expect(layout.width).toBeGreaterThanOrEqual(1780);
+    expect(layout.shellWidth).toBeGreaterThanOrEqual(1800);
+    expect(layout.leftWidth).toBeGreaterThanOrEqual(120);
+    expect(layout.rightWidth).toBeGreaterThanOrEqual(120);
+    expect(layout.centerWidth).toBeGreaterThan(layout.leftWidth * 4);
+    expect(layout.centerWidth).toBeGreaterThan(layout.rightWidth * 4);
+    expect(layout.cockpitWidth).toBeGreaterThanOrEqual(layout.centerWidth - 20);
   });
 
   test("ANL-21: comparative table shows effective time percentage", async ({

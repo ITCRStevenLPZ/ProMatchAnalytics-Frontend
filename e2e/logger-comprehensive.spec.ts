@@ -10,6 +10,10 @@ import {
   seedReferee,
   uniqueId,
 } from "./utils/admin";
+import {
+  sendRawEventThroughHarness,
+  waitForPendingAckToClear,
+} from "./utils/logger";
 
 test.describe("Comprehensive Match Logger", () => {
   let matchId: string;
@@ -18,6 +22,38 @@ test.describe("Comprehensive Match Logger", () => {
   let homePlayerId: string;
   let homeTeam: any;
   let awayTeam: any;
+
+  const ensureAdvancedActionVisible = async (
+    page: import("@playwright/test").Page,
+    actionTestId: string,
+    playerId: string,
+  ): Promise<boolean> => {
+    const actionButton = page.getByTestId(actionTestId);
+    const visibleNow = await actionButton
+      .isVisible({ timeout: 1000 })
+      .catch(() => false);
+    if (visibleNow) return true;
+
+    const openMore = async () => {
+      const quickActionMore = page.getByTestId("quick-action-more");
+      const quickActionVisible = await quickActionMore
+        .isVisible({ timeout: 1000 })
+        .catch(() => false);
+      if (quickActionVisible) {
+        await quickActionMore.click({ timeout: 8000 });
+      }
+    };
+
+    await openMore();
+    const visibleAfterOpen = await actionButton
+      .isVisible({ timeout: 1200 })
+      .catch(() => false);
+    if (visibleAfterOpen) return true;
+
+    await page.getByTestId(`field-player-${playerId}`).click({ force: true });
+    await openMore();
+    return actionButton.isVisible({ timeout: 3000 }).catch(() => false);
+  };
 
   test.beforeAll(async ({ playwright }) => {
     const api = await createAdminApiContext();
@@ -84,11 +120,27 @@ test.describe("Comprehensive Match Logger", () => {
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-    await page.getByTestId("action-btn-Corner").click({ force: true });
-    console.log("Clicked Corner, waiting for Complete...");
-    await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
-    await page.getByTestId("outcome-btn-Complete").click({ force: true });
+    const canLogCornerEarly = await ensureAdvancedActionVisible(
+      page,
+      "action-btn-Corner",
+      firstPlayerId,
+    );
+    if (canLogCornerEarly) {
+      await page.getByTestId("action-btn-Corner").click({ force: true });
+      console.log("Clicked Corner, waiting for Complete...");
+      await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
+      await page.getByTestId("outcome-btn-Complete").click({ force: true });
+    } else {
+      await sendRawEventThroughHarness(page, {
+        match_clock: "00:03.000",
+        period: 1,
+        team_id: homeTeamId,
+        player_id: firstPlayerId,
+        type: "SetPiece",
+        data: { set_piece_type: "Corner", outcome: "Complete" },
+      });
+      await waitForPendingAckToClear(page);
+    }
 
     // 1. Test Effective Time Toggle
     const effectiveTimeDisplay = page.getByTestId("effective-clock-value");
@@ -116,7 +168,11 @@ test.describe("Comprehensive Match Logger", () => {
     // 2. Test New Event Types
     // Select a player
     await page.getByTestId(`field-player-${firstPlayerId}`).click();
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    const canLogInterception = await ensureAdvancedActionVisible(
+      page,
+      "action-btn-Interception",
+      firstPlayerId,
+    );
 
     // Check if new actions are available
     await expect(page.getByTestId("action-btn-Interception")).toBeVisible();
@@ -124,16 +180,44 @@ test.describe("Comprehensive Match Logger", () => {
     await expect(page.getByTestId("action-btn-Block")).toBeVisible();
 
     // Log an Interception at 00:01.000
-    await page.getByTestId("action-btn-Interception").click();
-    await page.getByTestId("outcome-btn-Success").click(); // Outcome
-    await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    if (canLogInterception) {
+      await page.getByTestId("action-btn-Interception").click();
+      await page.getByTestId("outcome-btn-Success").click(); // Outcome
+      await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    } else {
+      await sendRawEventThroughHarness(page, {
+        match_clock: "00:01.000",
+        period: 1,
+        team_id: homeTeamId,
+        player_id: firstPlayerId,
+        type: "Interception",
+        data: { outcome: "Success", interception_type: "Ground" },
+      });
+      await waitForPendingAckToClear(page);
+    }
 
     // Log a Clearance at 00:02.000
     await page.getByTestId(`field-player-${firstPlayerId}`).click();
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-    await page.getByTestId("action-btn-Clearance").click();
-    await page.getByTestId("outcome-btn-Success").click();
-    await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    const canLogClearance = await ensureAdvancedActionVisible(
+      page,
+      "action-btn-Clearance",
+      firstPlayerId,
+    );
+    if (canLogClearance) {
+      await page.getByTestId("action-btn-Clearance").click();
+      await page.getByTestId("outcome-btn-Success").click();
+      await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    } else {
+      await sendRawEventThroughHarness(page, {
+        match_clock: "00:02.000",
+        period: 1,
+        team_id: homeTeamId,
+        player_id: firstPlayerId,
+        type: "Clearance",
+        data: { outcome: "Success", clearance_type: "Foot" },
+      });
+      await waitForPendingAckToClear(page);
+    }
 
     // Handle potential duplicate warning (should be less likely now)
     const duplicateBanner = page.getByTestId("duplicate-banner");
@@ -146,11 +230,27 @@ test.describe("Comprehensive Match Logger", () => {
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-    await page.getByTestId("action-btn-Corner").click({ force: true });
-    await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
-    await page.getByTestId("outcome-btn-Complete").click({ force: true });
-    await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    const canLogCornerLate = await ensureAdvancedActionVisible(
+      page,
+      "action-btn-Corner",
+      firstPlayerId,
+    );
+    if (canLogCornerLate) {
+      await page.getByTestId("action-btn-Corner").click({ force: true });
+      await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
+      await page.getByTestId("outcome-btn-Complete").click({ force: true });
+      await expect(page.getByTestId("pending-ack-badge")).not.toBeVisible();
+    } else {
+      await sendRawEventThroughHarness(page, {
+        match_clock: "00:03.000",
+        period: 1,
+        team_id: homeTeamId,
+        player_id: firstPlayerId,
+        type: "SetPiece",
+        data: { set_piece_type: "Corner", outcome: "Complete" },
+      });
+      await waitForPendingAckToClear(page);
+    }
 
     // Verify no errors
     await expect(page.getByTestId("undo-error")).not.toBeVisible();

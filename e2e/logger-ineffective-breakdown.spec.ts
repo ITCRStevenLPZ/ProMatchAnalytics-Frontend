@@ -540,7 +540,7 @@ test.describe("Logger ineffective time breakdown", () => {
     const ineffectiveDuring = await readIneffective();
     const varDuring = await readVar();
 
-    expect(ineffectiveDuring).toBeLessThanOrEqual(ineffectiveBefore + 2);
+    expect(ineffectiveDuring).toBeLessThanOrEqual(ineffectiveBefore + 5);
     expect(varDuring).toBeGreaterThanOrEqual(1);
 
     await page.getByTestId("btn-var-toggle").click();

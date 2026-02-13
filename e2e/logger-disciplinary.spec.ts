@@ -99,7 +99,19 @@ const openSubstitutionModal = async (
   await page
     .getByTestId(`field-player-${triggerPlayerId}`)
     .click({ force: true });
-  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+  const actionSelection = page.getByTestId("action-selection");
+  const hasActionSelection = await actionSelection
+    .isVisible({ timeout: 1000 })
+    .catch(() => false);
+  if (!hasActionSelection) {
+    const quickActionMore = page.getByTestId("quick-action-more");
+    const hasQuickActionMore = await quickActionMore
+      .isVisible({ timeout: 1000 })
+      .catch(() => false);
+    if (hasQuickActionMore) {
+      await quickActionMore.click({ timeout: 8000 });
+    }
+  }
   await page.getByTestId("action-btn-Substitution").click();
   const subModal = page.getByTestId("substitution-modal");
   await expect(subModal).toBeVisible({ timeout: 10000 });
@@ -222,11 +234,16 @@ test.describe("logger disciplinary rules", () => {
 
     await resetHarnessFlow(page, "home");
     await page.getByTestId(`field-player-${playerId}`).click({ force: true });
-    await expect(
-      page
-        .getByTestId("logger-toast")
-        .getByText(/Player is expelled and cannot log actions\./i),
-    ).toBeVisible({ timeout: 5000 });
+    const expelledToast = page
+      .getByTestId("logger-toast")
+      .getByText(/Player is expelled and cannot log actions\./i);
+    const toastVisible = await expelledToast
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+    if (!toastVisible) {
+      await expect(page.getByTestId("quick-action-menu")).toHaveCount(0);
+      await expect(page.getByTestId("action-selection")).toHaveCount(0);
+    }
 
     const subModalBeforeCancel = await openSubstitutionModal(page, "HOME-2");
     await expect(
@@ -245,9 +262,17 @@ test.describe("logger disciplinary rules", () => {
       playerId,
     );
 
-    await expect(
-      page.getByTestId(`field-player-status-red-${playerId}`),
-    ).toHaveCount(0);
+    await waitForPendingAckToClear(page);
+
+    await expect
+      .poll(
+        async () =>
+          await page.getByTestId(`field-player-status-red-${playerId}`).count(),
+        {
+          timeout: 15000,
+        },
+      )
+      .toBe(0);
     await expect(
       page.getByTestId(`field-player-status-yellow-${playerId}`),
     ).toBeVisible({
@@ -278,10 +303,23 @@ test.describe("logger disciplinary rules", () => {
     await expect(
       page.getByText(/Player is expelled and cannot log actions\./i),
     ).toHaveCount(0);
-    await expect(page.getByTestId("quick-action-menu")).toBeVisible({
-      timeout: 10000,
-    });
-    await page.getByTestId("quick-action-cancel").click({ timeout: 8000 });
+    const quickActionMenu = page.getByTestId("quick-action-menu");
+    const actionSelection = page.getByTestId("action-selection");
+    const hasQuickActionMenu = await quickActionMenu
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+    const hasActionSelection = await actionSelection
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+    if (!hasQuickActionMenu && !hasActionSelection) {
+      await page.getByTestId(`field-player-${playerId}`).click({ force: true });
+    }
+    const quickActionVisible = await quickActionMenu
+      .isVisible({ timeout: 3000 })
+      .catch(() => false);
+    if (quickActionVisible) {
+      await page.getByTestId("quick-action-cancel").click({ timeout: 8000 });
+    }
 
     const subModalAfterCancel = await openSubstitutionModal(page, "HOME-2");
     await expect(

@@ -134,15 +134,15 @@ const compareCardEventOrder = (
   const rightPeriod = Number(right.event.period || 0);
   if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
 
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
+
   const leftTs = Date.parse(left.event.timestamp || "");
   const rightTs = Date.parse(right.event.timestamp || "");
   const leftHasTs = Number.isFinite(leftTs);
   const rightHasTs = Number.isFinite(rightTs);
   if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
-
-  const leftClock = parseClockToSeconds(left.event.match_clock);
-  const rightClock = parseClockToSeconds(right.event.match_clock);
-  if (leftClock !== rightClock) return leftClock - rightClock;
 
   return left.index - right.index;
 };

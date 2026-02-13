@@ -86,21 +86,21 @@ const ActionComboPanel: React.FC<ActionComboPanelProps> = ({
 }) => {
   return (
     <div
-      className="bg-gray-900 rounded-lg p-3 mb-4"
+      className="bg-gray-900 rounded-lg p-[clamp(0.7rem,0.55rem+0.35vw,1.2rem)] mb-4"
       data-testid="action-combo-panel"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <Zap size={14} className="text-yellow-400" />
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+      <div className="flex items-center gap-[clamp(0.35rem,0.28rem+0.12vw,0.6rem)] mb-[clamp(0.4rem,0.32rem+0.16vw,0.7rem)]">
+        <Zap size={16} className="text-yellow-400" />
+        <span className="text-[clamp(0.68rem,0.6rem+0.2vw,0.92rem)] font-medium text-gray-400 uppercase tracking-wide">
           {t("combos", "Quick Combos")}
         </span>
         {activeCombo && (
-          <span className="text-xs text-yellow-400 ml-auto">
+          <span className="text-[clamp(0.68rem,0.6rem+0.2vw,0.92rem)] text-yellow-400 ml-auto">
             Step {comboProgress + 1}/{activeCombo.actions.length}
           </span>
         )}
       </div>
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-[clamp(0.35rem,0.28rem+0.12vw,0.6rem)] overflow-x-auto pb-1">
         {PRESET_COMBOS.map((combo) => {
           const isActive = activeCombo?.id === combo.id;
           return (
@@ -110,7 +110,7 @@ const ActionComboPanel: React.FC<ActionComboPanelProps> = ({
               disabled={disabled || (activeCombo !== null && !isActive)}
               title={combo.description}
               className={`
-                flex items-center gap-1.5 px-3 py-2 rounded-md text-white text-sm font-medium
+                flex items-center gap-[clamp(0.3rem,0.24rem+0.1vw,0.5rem)] px-[clamp(0.65rem,0.54rem+0.2vw,0.95rem)] py-[clamp(0.44rem,0.36rem+0.16vw,0.7rem)] rounded-md text-white text-[clamp(0.74rem,0.66rem+0.2vw,1rem)] font-medium
                 transition-all duration-150 whitespace-nowrap
                 ${
                   isActive
@@ -127,7 +127,7 @@ const ActionComboPanel: React.FC<ActionComboPanelProps> = ({
               {combo.icon}
               <span>{combo.name}</span>
               {combo.hotkey && (
-                <kbd className="ml-1 text-xs bg-black/30 px-1.5 py-0.5 rounded">
+                <kbd className="ml-1 text-[clamp(0.62rem,0.56rem+0.14vw,0.82rem)] bg-black/30 px-[clamp(0.28rem,0.24rem+0.08vw,0.45rem)] py-[clamp(0.1rem,0.09rem+0.04vw,0.18rem)] rounded">
                   {combo.hotkey}
                 </kbd>
               )}

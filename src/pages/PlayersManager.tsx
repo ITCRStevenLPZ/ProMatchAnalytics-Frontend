@@ -59,6 +59,7 @@ export default function PlayersManager() {
   const user = useAuthStore((state) => state.user);
   const [players, setPlayers] = useState<PlayerData[]>([]);
   const { loading, withLoading } = useLoading(true);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] = useState<PlayerPosition | "">("");
@@ -135,6 +136,8 @@ export default function PlayersManager() {
         setTotalPages(response.total_pages);
       } catch (err: any) {
         setError(err.response?.data?.detail || t("errorFetchingData"));
+      } finally {
+        setHasInitialLoadCompleted(true);
       }
     });
   };
@@ -410,7 +413,7 @@ export default function PlayersManager() {
     return "bg-gray-100 text-gray-800";
   };
 
-  if (loading) {
+  if (loading && !hasInitialLoadCompleted) {
     return <LoadingSpinner size="lg" />;
   }
 

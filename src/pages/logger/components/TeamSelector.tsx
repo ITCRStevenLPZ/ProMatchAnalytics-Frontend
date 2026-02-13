@@ -18,14 +18,14 @@ const TeamSelector = ({
   disabled = false,
   t,
 }: TeamSelectorProps) => (
-  <div className="bg-slate-800 rounded-lg shadow p-4 border border-slate-700">
+  <div className="bg-slate-800 rounded-lg shadow p-5 border border-slate-700">
     <div className="flex gap-3">
       <button
         type="button"
         onClick={onFlip}
         disabled={disabled}
         data-testid="toggle-field-flip"
-        className={`flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 rounded-lg text-base font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           disabled
             ? "text-slate-600 border border-slate-700"
             : isFlipped
@@ -33,7 +33,7 @@ const TeamSelector = ({
               : "text-slate-300 border border-slate-600 bg-slate-700 hover:bg-slate-600"
         }`}
       >
-        <ArrowLeftRight size={16} />
+        <ArrowLeftRight size={20} />
         {t("flipField", "Flip field")}
       </button>
       <button
@@ -41,13 +41,13 @@ const TeamSelector = ({
         onClick={onUndo}
         disabled={undoDisabled}
         data-testid="undo-button"
-        className={`flex-1 inline-flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 rounded-lg text-base font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
           undoDisabled
             ? "text-slate-600 border border-slate-700"
             : "text-slate-300 border border-slate-600 bg-slate-700 hover:bg-slate-600"
         }`}
       >
-        <CornerUpLeft size={16} />
+        <CornerUpLeft size={20} />
         {t("undoLast", "Undo last")}
       </button>
     </div>
