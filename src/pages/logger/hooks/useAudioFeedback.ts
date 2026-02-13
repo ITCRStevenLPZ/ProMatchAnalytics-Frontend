@@ -1,6 +1,6 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from "react";
 
-type SoundType = 'success' | 'error' | 'goal' | 'card' | 'whistle' | 'click';
+type SoundType = "success" | "error" | "goal" | "card" | "whistle" | "click";
 
 interface AudioFeedbackConfig {
   enabled?: boolean;
@@ -13,58 +13,61 @@ const createAudioContext = () => {
 };
 
 const playTone = (
-  ctx: AudioContext, 
-  frequency: number, 
-  duration: number, 
-  type: OscillatorType = 'sine',
-  volume: number = 0.3
+  ctx: AudioContext,
+  frequency: number,
+  duration: number,
+  type: OscillatorType = "sine",
+  volume: number = 0.3,
 ) => {
   const oscillator = ctx.createOscillator();
   const gainNode = ctx.createGain();
-  
+
   oscillator.connect(gainNode);
   gainNode.connect(ctx.destination);
-  
+
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-  
+
   gainNode.gain.setValueAtTime(volume, ctx.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-  
+
   oscillator.start(ctx.currentTime);
   oscillator.stop(ctx.currentTime + duration);
 };
 
-const SOUND_CONFIGS: Record<SoundType, { frequencies: number[]; duration: number; type: OscillatorType }> = {
-  success: { 
+const SOUND_CONFIGS: Record<
+  SoundType,
+  { frequencies: number[]; duration: number; type: OscillatorType }
+> = {
+  success: {
     frequencies: [523, 659], // C5, E5 - pleasant ascending
     duration: 0.1,
-    type: 'sine',
+    type: "sine",
   },
   error: {
     frequencies: [200, 150], // Low descending - warning
     duration: 0.15,
-    type: 'square',
+    type: "square",
   },
   goal: {
     frequencies: [523, 659, 784, 1047], // C5, E5, G5, C6 - celebratory
     duration: 0.2,
-    type: 'sine',
+    type: "sine",
   },
   card: {
     frequencies: [440, 440], // A4 repeated - alert
     duration: 0.1,
-    type: 'triangle',
+    type: "triangle",
   },
   whistle: {
     frequencies: [880, 880, 880], // High A repeated - whistle-like
     duration: 0.05,
-    type: 'sine',
+    type: "sine",
   },
   click: {
     frequencies: [1000], // Quick high click
     duration: 0.02,
-    type: 'square',
+    type: "square",
   },
 };
 
@@ -78,28 +81,31 @@ export const useAudioFeedback = (config: AudioFeedbackConfig = {}) => {
       audioContextRef.current = createAudioContext();
     }
     // Resume if suspended (browser autoplay policy)
-    if (audioContextRef.current.state === 'suspended') {
+    if (audioContextRef.current.state === "suspended") {
       audioContextRef.current.resume();
     }
     return audioContextRef.current;
   }, []);
 
-  const playSound = useCallback((type: SoundType) => {
-    if (!enabled) return;
-    
-    try {
-      const ctx = ensureAudioContext();
-      const config = SOUND_CONFIGS[type];
-      
-      config.frequencies.forEach((freq, index) => {
-        setTimeout(() => {
-          playTone(ctx, freq, config.duration, config.type, volume);
-        }, index * 80); // Slight delay between notes for sequences
-      });
-    } catch (error) {
-      console.warn('Audio feedback failed:', error);
-    }
-  }, [enabled, volume, ensureAudioContext]);
+  const playSound = useCallback(
+    (type: SoundType) => {
+      if (!enabled) return;
+
+      try {
+        const ctx = ensureAudioContext();
+        const config = SOUND_CONFIGS[type];
+
+        config.frequencies.forEach((freq, index) => {
+          setTimeout(() => {
+            playTone(ctx, freq, config.duration, config.type, volume);
+          }, index * 80); // Slight delay between notes for sequences
+        });
+      } catch (error) {
+        console.warn("Audio feedback failed:", error);
+      }
+    },
+    [enabled, volume, ensureAudioContext],
+  );
 
   // Cleanup on unmount
   useEffect(() => {
@@ -112,34 +118,39 @@ export const useAudioFeedback = (config: AudioFeedbackConfig = {}) => {
 
   return {
     playSound,
-    playSuccess: useCallback(() => playSound('success'), [playSound]),
-    playError: useCallback(() => playSound('error'), [playSound]),
-    playGoal: useCallback(() => playSound('goal'), [playSound]),
-    playCard: useCallback(() => playSound('card'), [playSound]),
-    playWhistle: useCallback(() => playSound('whistle'), [playSound]),
-    playClick: useCallback(() => playSound('click'), [playSound]),
+    playSuccess: useCallback(() => playSound("success"), [playSound]),
+    playError: useCallback(() => playSound("error"), [playSound]),
+    playGoal: useCallback(() => playSound("goal"), [playSound]),
+    playCard: useCallback(() => playSound("card"), [playSound]),
+    playWhistle: useCallback(() => playSound("whistle"), [playSound]),
+    playClick: useCallback(() => playSound("click"), [playSound]),
   };
 };
 
 // Helper to determine sound based on event type/outcome
-export const getSoundForEvent = (eventType: string, outcome?: string): SoundType => {
+export const getSoundForEvent = (
+  eventType: string,
+  outcome?: string,
+): SoundType => {
   // Goals get special treatment
-  if (outcome?.toLowerCase().includes('goal')) {
-    return 'goal';
+  if (outcome?.toLowerCase().includes("goal")) {
+    return "goal";
   }
-  
+
   // Cards
-  if (eventType === 'Card') {
-    return 'card';
+  if (eventType === "Card") {
+    return "card";
   }
-  
+
   // Failed/lost outcomes
-  if (outcome?.toLowerCase().includes('failed') || 
-      outcome?.toLowerCase().includes('lost') ||
-      outcome?.toLowerCase().includes('incomplete')) {
-    return 'error';
+  if (
+    outcome?.toLowerCase().includes("failed") ||
+    outcome?.toLowerCase().includes("lost") ||
+    outcome?.toLowerCase().includes("incomplete")
+  ) {
+    return "error";
   }
-  
+
   // Default success sound
-  return 'success';
+  return "success";
 };

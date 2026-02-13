@@ -126,6 +126,11 @@ interface PlayerSelectorPanelProps {
   flipSides?: boolean;
   selectedPlayer: Player | null;
   selectedTeam: "home" | "away" | "both";
+  disciplinaryStatusByPlayer?: Record<
+    string,
+    { yellowCount: number; red: boolean }
+  >;
+  onCardTeamSelect?: (team: "home" | "away") => void;
   onFieldIds: { home: Set<string>; away: Set<string> };
   onPlayerClick: (player: Player) => void;
   onFieldPlayerClick?: (
@@ -150,6 +155,8 @@ const PlayerSelectorPanel = ({
   flipSides = false,
   selectedPlayer,
   selectedTeam,
+  disciplinaryStatusByPlayer,
+  onCardTeamSelect,
   onFieldIds,
   onPlayerClick,
   onFieldPlayerClick,
@@ -228,11 +235,20 @@ const PlayerSelectorPanel = ({
     tone: "home" | "away",
     disabled = false,
   ) => (
-    <div className="grid grid-cols-1 gap-2">
+    <div
+      className={`grid gap-2 ${
+        cardSelectionActive
+          ? "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+          : "grid-cols-1"
+      }`}
+    >
       {sortPlayersByGroup(players).map((player) => {
         const group = getPositionGroup(player.position);
         const meta = getGroupMeta(group);
         const isSelected = selectedPlayer?.id === player.id;
+        const cardStatus = disciplinaryStatusByPlayer?.[player.id];
+        const hasYellow = (cardStatus?.yellowCount || 0) > 0;
+        const hasRed = Boolean(cardStatus?.red);
         return (
           <button
             key={player.id}
@@ -241,7 +257,9 @@ const PlayerSelectorPanel = ({
             data-position-group={group}
             onClick={() => !disabled && onPlayerClick(player)}
             disabled={disabled}
-            className={`w-full max-w-[420px] mx-auto px-3 py-2 rounded-lg border-l-4 text-left transition-all ${
+            className={`w-full ${
+              cardSelectionActive ? "max-w-none" : "max-w-[420px] mx-auto"
+            } px-3 py-2 rounded-lg border-l-4 text-left transition-all ${
               disabled
                 ? "bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed"
                 : isSelected
@@ -251,17 +269,19 @@ const PlayerSelectorPanel = ({
                     : "bg-blue-900/20 border-blue-900/50 hover:border-blue-500/50 hover:bg-blue-900/30"
             } ${meta.border}`}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
               <span
-                className={`text-xs font-bold min-w-[2.5rem] ${
+                data-testid={`player-number-${player.id}`}
+                className={`text-xs font-bold min-w-[2.25rem] ${
                   disabled ? "text-slate-600" : "text-slate-200"
                 }`}
               >
                 #{player.jersey_number}
               </span>
               <span
-                className={`flex-1 text-sm truncate ${
+                data-testid={`player-name-${player.id}`}
+                className={`flex-1 text-xs sm:text-sm truncate ${
                   disabled ? "text-slate-600" : "text-slate-100"
                 }`}
               >
@@ -269,10 +289,33 @@ const PlayerSelectorPanel = ({
               </span>
               <span
                 data-testid={`player-position-${player.id}`}
-                className={`text-[10px] uppercase tracking-wider border px-2 py-0.5 rounded-full ${meta.badge}`}
+                className={`text-[9px] uppercase tracking-wider border px-1.5 py-0.5 rounded-full ${meta.badge}`}
               >
                 {player.position || meta.label}
               </span>
+              {cardSelectionActive && hasYellow && (
+                <span
+                  data-testid={`player-card-status-yellow-${player.id}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-yellow-400/50 bg-yellow-500/20 px-1.5 py-1"
+                >
+                  {Array.from({
+                    length: Math.max(1, cardStatus?.yellowCount || 0),
+                  }).map((_, index) => (
+                    <span
+                      key={`${player.id}-yellow-${index}`}
+                      className="h-2.5 w-1.5 rounded-sm bg-yellow-300"
+                    />
+                  ))}
+                </span>
+              )}
+              {cardSelectionActive && hasRed && (
+                <span
+                  data-testid={`player-card-status-red-${player.id}`}
+                  className="inline-flex items-center rounded-md border border-red-400/60 bg-red-500/20 px-1.5 py-1"
+                >
+                  <span className="h-2.5 w-1.5 rounded-sm bg-red-400" />
+                </span>
+              )}
             </div>
           </button>
         );
@@ -346,6 +389,38 @@ const PlayerSelectorPanel = ({
         )}
       </div>
 
+      {cardSelectionActive && onCardTeamSelect && selectedTeam !== "both" && (
+        <div
+          className="mb-4 grid grid-cols-2 gap-2"
+          data-testid="card-team-compact-toggle"
+        >
+          <button
+            type="button"
+            data-testid="card-team-home"
+            onClick={() => onCardTeamSelect("home")}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors ${
+              selectedTeam !== "away"
+                ? "bg-slate-700 text-slate-100 border-slate-500"
+                : "bg-slate-900/40 text-slate-300 border-slate-700 hover:bg-slate-800"
+            }`}
+          >
+            {t("homeTeam", "Home")}
+          </button>
+          <button
+            type="button"
+            data-testid="card-team-away"
+            onClick={() => onCardTeamSelect("away")}
+            className={`px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors ${
+              selectedTeam === "away"
+                ? "bg-slate-700 text-slate-100 border-slate-500"
+                : "bg-slate-900/40 text-slate-300 border-slate-700 hover:bg-slate-800"
+            }`}
+          >
+            {t("awayTeam", "Away")}
+          </button>
+        </div>
+      )}
+
       {resolvedViewMode === "field" ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
           <SoccerField
@@ -357,6 +432,7 @@ const PlayerSelectorPanel = ({
             awayPlayers={match.away_team.players.filter((p) =>
               onFieldIds.away.has(p.id),
             )}
+            disciplinaryStatusByPlayer={disciplinaryStatusByPlayer}
             flipSides={flipSides}
             onPlayerClick={(player, anchor, location, side) => {
               if (selectionLocked) return;

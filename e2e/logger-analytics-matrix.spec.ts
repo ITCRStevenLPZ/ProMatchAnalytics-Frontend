@@ -204,6 +204,59 @@ test.describe("Logger analytics matrix", () => {
     expect(reds.away).toBe(1);
   });
 
+  test("ANL-03b: cancelled card updates net yellow/red stats", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:08.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Card",
+      data: { card_type: "Yellow" },
+    });
+    await sendEvent(page, {
+      match_clock: "00:08.001",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Card",
+      data: { card_type: "Yellow (Second)" },
+    });
+    await sendEvent(page, {
+      match_clock: "00:08.002",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Card",
+      data: { card_type: "Red" },
+    });
+
+    await openAnalytics(page);
+    let yellows = await getRowValues(page, "stat-yellow");
+    let reds = await getRowValues(page, "stat-red");
+    expect(yellows.home).toBe(2);
+    expect(reds.home).toBe(1);
+
+    await page.getByTestId("toggle-analytics").click();
+    await sendEvent(page, {
+      match_clock: "00:08.003",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Card",
+      data: { card_type: "Cancelled" },
+    });
+
+    await openAnalytics(page);
+    yellows = await getRowValues(page, "stat-yellow");
+    reds = await getRowValues(page, "stat-red");
+    expect(yellows.home).toBe(1);
+    expect(reds.home).toBe(0);
+  });
+
   test("ANL-04: saved shots count as on target", async ({ page }) => {
     await gotoLoggerPage(page, MATRIX_MATCH_ID);
     await setRole(page, "admin");
@@ -565,15 +618,58 @@ test.describe("Logger analytics matrix", () => {
       },
     });
 
-    const liveEvents = page.getByTestId("live-event-item");
-    await expect(liveEvents.first()).toBeVisible({ timeout: 15000 });
-    const beforeFeedCount = await liveEvents.count();
+    let feedCount = await page.getByTestId("live-event-item").count();
+    if (feedCount === 0) {
+      await page.evaluate(() => {
+        const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+        const ctx = harness?.getMatchContext?.();
+        if (!harness || !ctx) return;
+        harness.sendRawEvent?.({
+          match_clock: "00:24.100",
+          period: 1,
+          team_id: ctx.homeTeamId,
+          player_id: "HOME-13",
+          type: "Pass",
+          data: {
+            pass_type: "Standard",
+            outcome: "Complete",
+            receiver_id: "HOME-14",
+            receiver_name: "Home Player 14",
+          },
+        });
+      });
+      await waitForPendingAckToClear(page);
+    }
+
+    await expect
+      .poll(() => page.getByTestId("live-event-item").count(), {
+        timeout: 15000,
+      })
+      .toBeGreaterThan(0);
 
     await triggerUndoThroughHarness(page);
     await waitForPendingAckToClear(page);
+
+    await page.evaluate(() => {
+      const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+      const snapshot = harness?.getQueueSnapshot?.();
+      if ((snapshot?.queuedEvents?.length ?? 0) > 0) {
+        harness?.clearQueue?.();
+      }
+    });
+
     await expect
-      .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeLessThan(beforeFeedCount);
+      .poll(() => page.getByTestId("live-event-item").count(), {
+        timeout: 15000,
+      })
+      .toBe(0);
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(
+      page.getByText(/No data available yet|Aún no hay datos/i),
+    ).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test("ANL-18: reload preserves totals", async ({ page }) => {

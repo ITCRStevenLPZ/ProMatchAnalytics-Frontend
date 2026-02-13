@@ -76,11 +76,11 @@ const QuickActionMenu = ({
   return (
     <div
       ref={menuRef}
-      className="absolute z-20 flex flex-col gap-2 bg-slate-900/95 border border-slate-700 rounded-lg p-3 shadow-xl pointer-events-auto"
+      className="absolute z-20 flex flex-col gap-2 xl:gap-2.5 2xl:gap-3 bg-slate-900/95 border border-slate-700 rounded-lg p-3 xl:p-4 2xl:p-5 shadow-xl pointer-events-auto"
       data-testid="quick-action-menu"
       style={{ left, top, transform: translate }}
     >
-      <div className="text-xs uppercase tracking-wide text-slate-400">
+      <div className="text-xs xl:text-sm 2xl:text-base uppercase tracking-wide text-slate-400">
         {t("quickActionTitle", "Quick actions")}
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -89,7 +89,7 @@ const QuickActionMenu = ({
             key={action}
             data-testid={`quick-action-${action}`}
             onClick={() => onActionSelect(action)}
-            className="px-3 py-2 rounded-md bg-blue-700/80 hover:bg-blue-600 text-white text-xs font-semibold"
+            className="px-3 py-2 xl:px-4 xl:py-2.5 2xl:px-5 2xl:py-3 rounded-md bg-blue-700/80 hover:bg-blue-600 text-white text-xs xl:text-sm 2xl:text-base font-semibold"
           >
             {t(`action${action}`, action)}
           </button>
@@ -99,14 +99,14 @@ const QuickActionMenu = ({
         <button
           data-testid="quick-action-more"
           onClick={onMoreActions}
-          className="flex-1 px-3 py-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+          className="flex-1 px-3 py-2 xl:px-4 xl:py-2.5 2xl:px-5 2xl:py-3 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs xl:text-sm 2xl:text-base font-semibold"
         >
           {t("quickActionMore", "More actions")}
         </button>
         <button
           data-testid="quick-action-cancel"
           onClick={onCancel}
-          className="px-3 py-2 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+          className="px-3 py-2 xl:px-4 xl:py-2.5 2xl:px-5 2xl:py-3 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs xl:text-sm 2xl:text-base font-semibold"
         >
           {t("quickActionCancel", "Cancel")}
         </button>

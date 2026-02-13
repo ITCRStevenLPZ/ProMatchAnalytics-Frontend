@@ -1,15 +1,15 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === 'true';
+const IS_E2E_TEST_MODE = import.meta.env.VITE_E2E_TEST_MODE === "true";
 
 const E2E_USER = IS_E2E_TEST_MODE
   ? {
-      uid: 'e2e-user',
-      email: 'e2e@example.com',
-      displayName: 'E2E Analyst',
-      photoURL: '',
-      role: 'analyst' as const,
+      uid: "e2e-user",
+      email: "e2e@example.com",
+      displayName: "E2E Analyst",
+      photoURL: "",
+      role: "analyst" as const,
     }
   : null;
 
@@ -18,7 +18,7 @@ interface User {
   email: string;
   displayName: string;
   photoURL: string;
-  role?: 'admin' | 'analyst' | 'guest';
+  role?: "admin" | "analyst" | "guest";
 }
 
 interface AuthState {
@@ -39,10 +39,10 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ user: null }),
     }),
     {
-      name: 'auth-storage',
+      name: "auth-storage",
       partialize: (state) => ({ user: state.user }),
-    }
-  )
+    },
+  ),
 );
 
 declare global {
@@ -51,6 +51,6 @@ declare global {
   }
 }
 
-if (IS_E2E_TEST_MODE && typeof window !== 'undefined') {
+if (IS_E2E_TEST_MODE && typeof window !== "undefined") {
   window.__PROMATCH_AUTH_STORE__ = useAuthStore;
 }

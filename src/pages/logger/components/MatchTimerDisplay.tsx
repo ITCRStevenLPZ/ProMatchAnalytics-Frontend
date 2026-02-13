@@ -83,6 +83,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
           )}
         </div>
         <span
+          data-testid="global-clock-value"
           className={`text-3xl font-mono font-bold tracking-wider ${
             isClockRunning ? "text-green-400" : "text-slate-100"
           }`}

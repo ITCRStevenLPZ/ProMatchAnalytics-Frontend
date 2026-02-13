@@ -1,4 +1,4 @@
-import { apiClient } from './api';
+import { apiClient } from "./api";
 
 export interface DashboardStats {
   total_counts: {
@@ -33,5 +33,5 @@ export interface DashboardStats {
 }
 
 export const getDashboardStats = (): Promise<DashboardStats> => {
-  return apiClient.get<DashboardStats>('/dashboard/stats');
+  return apiClient.get<DashboardStats>("/dashboard/stats");
 };

@@ -97,20 +97,13 @@ export default function TeamsManager() {
   const { loading, withLoading } = useLoading(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [genderFilter, setGenderFilter] = useState<"male" | "female" | "">("");
   const [showForm, setShowForm] = useState(false);
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Team | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [teamRoster, setTeamRoster] = useState<TeamPlayer[]>([]);
-  const [rosterLoading, setRosterLoading] = useState(false);
   const [availablePlayers, setAvailablePlayers] = useState<PlayerData[]>([]);
-  const [rosterSearch, setRosterSearch] = useState("");
-  const [availableSearch, setAvailableSearch] = useState("");
-  const [availablePositionFilter, setAvailablePositionFilter] = useState<
-    PlayerPosition | ""
-  >("");
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [showSimilarRecords, setShowSimilarRecords] = useState(false);
@@ -134,63 +127,44 @@ export default function TeamsManager() {
   const formatDeleteGuardError = (detail: unknown): string | null => {
     if (typeof detail !== "string") return null;
     const match = detail.match(/Cannot delete team with (\d+) match(?:es)?/i);
-    if (match) return detail;
-    return null;
+    if (!match) return null;
+    const count = Number(match[1]);
+    return t("deleteGuards.teamMatches", { count });
   };
 
-  const [formData, setFormData] = useState<Partial<Team>>(
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  // Roster pagination
+  const [rosterPage, setRosterPage] = useState(1);
+  const [rosterPageSize, setRosterPageSize] = useState(10);
+  const [rosterTotalItems, setRosterTotalItems] = useState(0);
+  const [rosterTotalPages, setRosterTotalPages] = useState(0);
+
+  const [formData, setFormData] = useState<Partial<Team>>(() =>
     withTeamFormDefaults(),
   );
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
 
-  const [rosterPage, setRosterPage] = useState(1);
-  const [rosterPageSize, setRosterPageSize] = useState(20);
-  const [rosterTotalItems, setRosterTotalItems] = useState(0);
-  const [rosterTotalPages, setRosterTotalPages] = useState(1);
-  const [rosterFormData, setRosterFormData] = useState<{
-    player_id: string;
-    jersey_number: number;
-    position: PlayerPosition;
-    is_starter: boolean;
-  }>({
+  const getManagerDraft = () =>
+    formData.manager ?? {
+      name: "",
+      country_name: "",
+      start_date: null,
+    };
+
+  const [rosterFormData, setRosterFormData] = useState({
     player_id: "",
     jersey_number: 1,
-    position: "CM",
-    is_starter: false,
+    position: "CM" as PlayerPosition,
+    is_active: true,
   });
   const [rosterFormError, setRosterFormError] = useState<string | null>(null);
   const [rosterFieldErrors, setRosterFieldErrors] = useState<
     Record<string, string>
   >({});
-  const [rosterEdits, setRosterEdits] = useState<
-    Record<string, Partial<TeamPlayer>>
-  >({});
-  const [selectedRosterIds, setSelectedRosterIds] = useState<string[]>([]);
-  const [rosterBulkSaving, setRosterBulkSaving] = useState(false);
-  const [rosterOriginals, setRosterOriginals] = useState<
-    Record<string, TeamPlayer>
-  >({});
-
-  const asErrorMessage = (detail: any): string => {
-    if (!detail) return t("errorFetchingData");
-    if (typeof detail === "string") return detail;
-    if (
-      Array.isArray(detail) &&
-      detail.length > 0 &&
-      typeof detail[0]?.msg === "string"
-    ) {
-      return detail.map((d) => d.msg).join("; ");
-    }
-    if (typeof detail === "object" && detail.msg) return String(detail.msg);
-    try {
-      return JSON.stringify(detail);
-    } catch {
-      return t("errorFetchingData");
-    }
-  };
 
   const clearRosterFieldErrors = () => setRosterFieldErrors({});
   const setRosterFieldError = (field: string, message: string) => {
@@ -204,8 +178,6 @@ export default function TeamsManager() {
       return next;
     });
   };
-  const getManagerDraft = () =>
-    formData.manager ?? { name: "", country_name: "", start_date: null };
   const handleRosterStringError = (detail?: string): boolean => {
     if (!detail) {
       return false;
@@ -226,25 +198,9 @@ export default function TeamsManager() {
   };
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm.trim());
-      setCurrentPage(1);
-    }, 300);
-
-    return () => window.clearTimeout(timeout);
-  }, [searchTerm]);
-
-  useEffect(() => {
     fetchTeams();
     fetchAllPlayers();
-  }, [currentPage, pageSize, genderFilter, debouncedSearchTerm]);
-
-  useEffect(() => {
-    if (!showRosterModal || !selectedTeam) return;
-    const rosterIds = new Set(teamRoster.map((tp) => tp.player_id));
-    const filtered = players.filter((p) => !rosterIds.has(p.player_id));
-    setAvailablePlayers(filtered);
-  }, [players, teamRoster, selectedTeam, showRosterModal]);
+  }, [currentPage, pageSize, genderFilter, searchTerm]);
 
   const fetchTeams = async () => {
     await withLoading(async () => {
@@ -259,8 +215,8 @@ export default function TeamsManager() {
           params.gender = genderFilter;
         }
 
-        if (debouncedSearchTerm) {
-          params.search = debouncedSearchTerm;
+        if (searchTerm) {
+          params.search = searchTerm;
         }
 
         const response = await apiClient.get<
@@ -277,87 +233,40 @@ export default function TeamsManager() {
 
   const fetchAllPlayers = async () => {
     try {
-      const pageSize = 100;
-      let page = 1;
-      const all: PlayerData[] = [];
-      let hasMore = true;
-
-      while (hasMore) {
-        const response = await apiClient.get<
-          PaginatedResponse<PlayerApiResponse>
-        >("/players/", {
-          params: { page, page_size: pageSize },
-        });
-        all.push(...normalizePlayers(response.items));
-        hasMore = response.items.length === pageSize;
-        page += 1;
-      }
-
-      setPlayers(all);
+      const response = await apiClient.get<
+        PaginatedResponse<PlayerApiResponse>
+      >("/players/", {
+        params: { page: 1, page_size: 100 },
+      });
+      setPlayers(normalizePlayers(response.items));
     } catch (err: any) {
       console.error("Error fetching players:", err);
     }
   };
 
-  const fetchTeamRoster = async (
-    teamId: string,
-    pageOverride: number = rosterPage,
-    pageSizeOverride: number = rosterPageSize,
-  ) => {
-    setRosterLoading(true);
+  const fetchTeamRoster = async (teamId: string) => {
     try {
       const params: any = {
-        page: pageOverride,
-        page_size: pageSizeOverride,
+        page: rosterPage,
+        page_size: rosterPageSize,
       };
 
       const response = await apiClient.get<PaginatedResponse<TeamPlayer>>(
         `/teams/${teamId}/players`,
         { params },
       );
-      const normalizedItems = response.items.map((tp) => ({
-        ...tp,
-        is_starter: tp.is_starter ?? false,
-      }));
-      setTeamRoster(normalizedItems);
-      setRosterOriginals(
-        normalizedItems.reduce<Record<string, TeamPlayer>>((acc, tp) => {
-          acc[tp.player_id] = tp;
-          return acc;
-        }, {}),
-      );
+      setTeamRoster(response.items);
       setRosterTotalItems(response.total);
       setRosterTotalPages(response.total_pages);
 
-      // Fetch full roster list in pages (backend may cap page_size)
-      const rosterPlayerIds: string[] = [];
-      let page = 1;
-      const pageSize = 100; // backend caps page_size at 100
-      let hasMore = true;
-      while (hasMore) {
-        const pageResp = await apiClient.get<PaginatedResponse<TeamPlayer>>(
-          `/teams/${teamId}/players`,
-          {
-            params: { page, page_size: pageSize },
-          },
-        );
-        rosterPlayerIds.push(...pageResp.items.map((tp) => tp.player_id));
-        hasMore = pageResp.items.length === pageSize;
-        page += 1;
-      }
-
+      // Filter available players (not in current roster and matching team gender)
+      const rosterPlayerIds = response.items.map((tp) => tp.player_id);
       const filtered = players.filter(
         (p) => !rosterPlayerIds.includes(p.player_id),
       );
       setAvailablePlayers(filtered);
-      setRosterEdits({});
-      setSelectedRosterIds([]);
-      setRosterOriginals((prev) => prev);
     } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(asErrorMessage(detail));
-    } finally {
-      setRosterLoading(false);
+      setError(err.response?.data?.detail || t("errorFetchingData"));
     }
   };
 
@@ -627,77 +536,10 @@ export default function TeamsManager() {
 
   const handleManageRoster = async (team: Team) => {
     setSelectedTeam(team);
-    setRosterPage(1);
     clearRosterFieldErrors();
     setRosterFormError(null);
+    await fetchTeamRoster(team.team_id);
     setShowRosterModal(true);
-    fetchTeamRoster(team.team_id, 1, rosterPageSize);
-  };
-
-  const handleRosterFieldChange = (
-    playerId: string,
-    field: "jersey_number" | "is_starter" | "position",
-    value: any,
-  ) => {
-    setTeamRoster((prev) =>
-      prev.map((tp) =>
-        tp.player_id === playerId ? { ...tp, [field]: value } : tp,
-      ),
-    );
-    setRosterEdits((prev) => {
-      const original = rosterOriginals[playerId];
-      const next = { ...(prev[playerId] ?? {}), [field]: value };
-      if (original && (original as any)[field] === value) {
-        delete next[field];
-      }
-      if (original) {
-        // Remove keys that match original to avoid stale diffs
-        Object.keys(next).forEach((k) => {
-          if ((original as any)[k] === (next as any)[k])
-            delete (next as any)[k];
-        });
-      }
-      const updatedEdits = { ...prev };
-      if (Object.keys(next).length === 0) {
-        delete updatedEdits[playerId];
-      } else {
-        updatedEdits[playerId] = next;
-      }
-      // Auto-select when edited; deselect if no changes remain
-      setSelectedRosterIds((sel) => {
-        if (Object.keys(next).length === 0)
-          return sel.filter((id) => id !== playerId);
-        return sel.includes(playerId) ? sel : [...sel, playerId];
-      });
-      return updatedEdits;
-    });
-  };
-
-  const handleSaveSelectedRoster = async () => {
-    if (!selectedTeam) return;
-    const targets = selectedRosterIds.filter((id) => rosterEdits[id]);
-    if (targets.length === 0) return;
-    try {
-      setRosterFormError(null);
-      setRosterBulkSaving(true);
-      for (const playerId of targets) {
-        const payload = rosterEdits[playerId];
-        if (!payload || Object.keys(payload).length === 0) continue;
-        await apiClient.put(
-          `/teams/${selectedTeam.team_id}/players/${playerId}`,
-          payload,
-        );
-      }
-      await fetchTeamRoster(selectedTeam.team_id);
-      setSelectedRosterIds([]);
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setRosterFormError(
-        typeof detail === "string" ? detail : t("errorSavingData"),
-      );
-    } finally {
-      setRosterBulkSaving(false);
-    }
   };
 
   const handleAddPlayerToRoster = async (e: React.FormEvent) => {
@@ -717,7 +559,7 @@ export default function TeamsManager() {
         player_id: "",
         jersey_number: 1,
         position: "CM",
-        is_starter: false,
+        is_active: true,
       });
       clearRosterFieldErrors();
       setRosterFormError(null);
@@ -738,7 +580,7 @@ export default function TeamsManager() {
         }
         setRosterFormError(detail);
       } else {
-        setRosterFormError(asErrorMessage(detail));
+        setRosterFormError(t("errorSavingData"));
       }
     }
   };
@@ -767,11 +609,6 @@ export default function TeamsManager() {
     setSelectedTeam(null);
     setTeamRoster([]);
     setAvailablePlayers([]);
-    setRosterSearch("");
-    setAvailableSearch("");
-    setAvailablePositionFilter("");
-    setRosterEdits({});
-    setSelectedRosterIds([]);
     clearRosterFieldErrors();
     setRosterFormError(null);
   };
@@ -798,24 +635,6 @@ export default function TeamsManager() {
     }
     return "bg-gray-100 text-gray-800";
   };
-
-  const filteredRoster = teamRoster.filter((tp) => {
-    const query = rosterSearch.trim().toLowerCase();
-    if (!query) return true;
-    const name = getPlayerName(tp.player_id).toLowerCase();
-    return name.includes(query) || tp.player_id.toLowerCase().includes(query);
-  });
-
-  const filteredAvailablePlayers = availablePlayers.filter((player) => {
-    const query = availableSearch.trim().toLowerCase();
-    const matchesQuery =
-      !query ||
-      player.name.toLowerCase().includes(query) ||
-      player.player_id.toLowerCase().includes(query);
-    const matchesPosition =
-      !availablePositionFilter || player.position === availablePositionFilter;
-    return matchesQuery && matchesPosition;
-  });
 
   const filteredTeams = teams.filter((item) => {
     const matchesSearch =
@@ -1443,7 +1262,7 @@ export default function TeamsManager() {
           <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-2xl font-bold">
-                {t("roster")} - {selectedTeam.name}
+                {t("admin.roster")} - {selectedTeam.name}
               </h2>
               <button
                 onClick={handleCloseRosterModal}
@@ -1453,140 +1272,55 @@ export default function TeamsManager() {
               </button>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-                <div className="lg:col-span-2 bg-gradient-to-r from-indigo-600 to-blue-500 text-white rounded-2xl p-5 shadow-lg flex items-center justify-between">
-                  <div>
-                    <p className="text-sm opacity-90">{t("roster")}</p>
-                    <p className="text-3xl font-semibold">
-                      {rosterTotalItems} {t("players")}
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-                  <p className="text-sm text-gray-700 font-semibold flex items-center gap-2">
-                    <Search className="h-4 w-4 text-gray-400" />{" "}
-                    {t("common:common.search")}
-                  </p>
-                  <div className="flex items-center mt-2 space-x-2">
-                    <input
-                      type="text"
-                      data-testid="roster-search-input"
-                      value={rosterSearch}
-                      onChange={(e) => setRosterSearch(e.target.value)}
-                      placeholder={t("common:common.search")}
-                      className="input w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Current Roster */}
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">
-                      {t("starters")} ({filteredRoster.length})
-                    </h3>
-                    {rosterSearch && (
-                      <span className="text-sm text-gray-500">
-                        {filteredRoster.length} {t("common:common.matches")}
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="btn btn-xs btn-primary"
-                        onClick={handleSaveSelectedRoster}
-                        disabled={
-                          selectedRosterIds.length === 0 || rosterBulkSaving
-                        }
-                      >
-                        {rosterBulkSaving
-                          ? t("common:common.saving")
-                          : t("common:common.save")}{" "}
-                        ({selectedRosterIds.length})
-                      </button>
-                    </div>
-                  </div>
-                  {rosterLoading ? (
-                    <div className="flex justify-center py-8">
-                      <LoadingSpinner size="md" />
-                    </div>
-                  ) : filteredRoster.length === 0 ? (
+                  <h3 className="text-lg font-semibold mb-4">
+                    {t("starters")} ({rosterTotalItems})
+                  </h3>
+                  {teamRoster.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                       {t("noPlayers")}
                     </div>
                   ) : (
                     <>
-                      <div className="space-y-3">
-                        {filteredRoster.map((tp) => (
+                      <div className="space-y-2">
+                        {teamRoster.map((tp) => (
                           <div
                             key={tp.player_id}
-                            data-testid={`roster-row-${tp.player_id}`}
-                            className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl shadow-sm"
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                           >
-                            <div className="flex-1 space-y-2">
+                            <div className="flex-1">
                               <div className="flex items-center space-x-3">
-                                <input
-                                  type="number"
-                                  data-testid={`roster-jersey-${tp.player_id}`}
-                                  className="w-20 input"
-                                  min={1}
-                                  max={99}
-                                  value={tp.jersey_number}
-                                  onChange={(e) =>
-                                    handleRosterFieldChange(
-                                      tp.player_id,
-                                      "jersey_number",
-                                      parseInt(e.target.value, 10),
-                                    )
-                                  }
-                                />
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-gray-900">
-                                    {getPlayerName(tp.player_id)}
+                                <span className="font-semibold text-lg">
+                                  #{tp.jersey_number}
+                                </span>
+                                <span className="font-medium">
+                                  {getPlayerName(tp.player_id)}
+                                </span>
+                                <span
+                                  className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(
+                                    tp.position,
+                                  )}`}
+                                >
+                                  {t(`positions.${tp.position}`)}
+                                </span>
+                                {!tp.is_active && (
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-300 text-gray-700">
+                                    {t("inactive")}
                                   </span>
-                                  <div className="flex items-center space-x-2">
-                                    <span
-                                      className={`px-2 py-1 rounded text-xs font-medium ${getPositionBadgeColor(
-                                        tp.position,
-                                      )}`}
-                                    >
-                                      {t(`positions.${tp.position}`)}
-                                    </span>
-                                    <label className="inline-flex items-center space-x-2 text-xs font-medium text-gray-700">
-                                      <input
-                                        type="checkbox"
-                                        data-testid={`roster-starter-${tp.player_id}`}
-                                        checked={tp.is_starter ?? false}
-                                        onChange={(e) =>
-                                          handleRosterFieldChange(
-                                            tp.player_id,
-                                            "is_starter",
-                                            e.target.checked,
-                                          )
-                                        }
-                                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                      />
-                                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                                        Titular
-                                      </span>
-                                    </label>
-                                  </div>
-                                </div>
+                                )}
                               </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() =>
-                                  handleRemovePlayerFromRoster(tp.player_id)
-                                }
-                                className="text-red-500 hover:text-red-700"
-                                title={t("removeFromRoster")}
-                                data-testid={`roster-remove-${tp.player_id}`}
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </button>
-                            </div>
+                            <button
+                              onClick={() =>
+                                handleRemovePlayerFromRoster(tp.player_id)
+                              }
+                              className="text-red-600 hover:text-red-900"
+                              title={t("removeFromRoster")}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -1599,22 +1333,14 @@ export default function TeamsManager() {
                           onPageChange={(page) => {
                             setRosterPage(page);
                             if (selectedTeam) {
-                              fetchTeamRoster(
-                                selectedTeam.team_id,
-                                page,
-                                rosterPageSize,
-                              );
+                              fetchTeamRoster(selectedTeam.team_id);
                             }
                           }}
                           onPageSizeChange={(newPageSize) => {
                             setRosterPageSize(newPageSize);
                             setRosterPage(1);
                             if (selectedTeam) {
-                              fetchTeamRoster(
-                                selectedTeam.team_id,
-                                1,
-                                newPageSize,
-                              );
+                              fetchTeamRoster(selectedTeam.team_id);
                             }
                           }}
                         />
@@ -1625,55 +1351,9 @@ export default function TeamsManager() {
 
                 {/* Add Player Form */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">
+                  <h3 className="text-lg font-semibold mb-4">
                     {t("addToRoster")}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="text"
-                        data-testid="roster-available-search-input"
-                        value={availableSearch}
-                        onChange={(e) => setAvailableSearch(e.target.value)}
-                        placeholder={t("common:common.search")}
-                        className="input w-full pl-9"
-                      />
-                    </div>
-                    <select
-                      data-testid="roster-available-position-filter"
-                      value={availablePositionFilter}
-                      onChange={(e) =>
-                        setAvailablePositionFilter(
-                          e.target.value as PlayerPosition | "",
-                        )
-                      }
-                      className="input w-full"
-                    >
-                      <option value="">
-                        {t("position")} — {t("common:common.filter")}
-                      </option>
-                      <option value="GK">{t("positions.GK")}</option>
-                      <option value="CB">{t("positions.CB")}</option>
-                      <option value="LB">{t("positions.LB")}</option>
-                      <option value="RB">{t("positions.RB")}</option>
-                      <option value="LWB">{t("positions.LWB")}</option>
-                      <option value="RWB">{t("positions.RWB")}</option>
-                      <option value="SW">{t("positions.SW")}</option>
-                      <option value="CDM">{t("positions.CDM")}</option>
-                      <option value="CM">{t("positions.CM")}</option>
-                      <option value="CAM">{t("positions.CAM")}</option>
-                      <option value="LM">{t("positions.LM")}</option>
-                      <option value="RM">{t("positions.RM")}</option>
-                      <option value="LW">{t("positions.LW")}</option>
-                      <option value="RW">{t("positions.RW")}</option>
-                      <option value="CF">{t("positions.CF")}</option>
-                      <option value="ST">{t("positions.ST")}</option>
-                      <option value="LF">{t("positions.LF")}</option>
-                      <option value="RF">{t("positions.RF")}</option>
-                      <option value="SS">{t("positions.SS")}</option>
-                    </select>
-                  </div>
                   <form
                     onSubmit={handleAddPlayerToRoster}
                     className="space-y-4"
@@ -1689,20 +1369,12 @@ export default function TeamsManager() {
                       </label>
                       <select
                         required
-                        data-testid="roster-available-player-select"
                         value={rosterFormData.player_id}
                         onChange={(e) => {
                           clearRosterFieldError("player_id");
-                          const nextPlayerId = e.target.value;
-                          const selectedPlayer = availablePlayers.find(
-                            (p) => p.player_id === nextPlayerId,
-                          );
                           setRosterFormData({
                             ...rosterFormData,
-                            player_id: nextPlayerId,
-                            position:
-                              (selectedPlayer?.position as PlayerPosition) ||
-                              rosterFormData.position,
+                            player_id: e.target.value,
                           });
                         }}
                         className={`input w-full ${
@@ -1710,7 +1382,7 @@ export default function TeamsManager() {
                         }`}
                       >
                         <option value="">{t("selectPlayers")}</option>
-                        {filteredAvailablePlayers.map((player) => (
+                        {availablePlayers.map((player) => (
                           <option
                             key={player.player_id}
                             value={player.player_id}
@@ -1738,10 +1410,9 @@ export default function TeamsManager() {
                           value={rosterFormData.jersey_number}
                           onChange={(e) => {
                             clearRosterFieldError("jersey_number");
-                            const nextNumber = parseInt(e.target.value);
                             setRosterFormData({
                               ...rosterFormData,
-                              jersey_number: nextNumber,
+                              jersey_number: parseInt(e.target.value),
                             });
                           }}
                           className={`input w-full ${
@@ -1812,21 +1483,21 @@ export default function TeamsManager() {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="is_starter"
-                        checked={rosterFormData.is_starter}
+                        id="is_active"
+                        checked={rosterFormData.is_active}
                         onChange={(e) =>
                           setRosterFormData({
                             ...rosterFormData,
-                            is_starter: e.target.checked,
+                            is_active: e.target.checked,
                           })
                         }
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
                       <label
-                        htmlFor="is_starter"
+                        htmlFor="is_active"
                         className="ml-2 block text-sm text-gray-900"
                       >
-                        Titular
+                        {t("active")}
                       </label>
                     </div>
                     <button type="submit" className="btn btn-primary w-full">
@@ -1854,5 +1525,3 @@ export default function TeamsManager() {
     </div>
   );
 }
-
-// End of TeamsManager component

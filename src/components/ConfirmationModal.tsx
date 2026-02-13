@@ -1,6 +1,6 @@
-import { createPortal } from 'react-dom';
-import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useId, type ReactNode } from 'react';
+import { createPortal } from "react-dom";
+import { AlertTriangle, X } from "lucide-react";
+import { useEffect, useId, type ReactNode } from "react";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface ConfirmationModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   closeLabel?: string;
-  confirmVariant?: 'primary' | 'danger';
+  confirmVariant?: "primary" | "danger";
   isConfirming?: boolean;
   icon?: ReactNode;
   onConfirm: () => void | Promise<void>;
@@ -20,10 +20,10 @@ export function ConfirmationModal({
   isOpen,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
-  closeLabel = 'Close dialog',
-  confirmVariant = 'primary',
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  closeLabel = "Close dialog",
+  confirmVariant = "primary",
   isConfirming = false,
   icon,
   onConfirm,
@@ -37,13 +37,13 @@ export function ConfirmationModal({
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         onCancel();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onCancel]);
 
   if (!isOpen) {
@@ -51,14 +51,18 @@ export function ConfirmationModal({
   }
 
   const confirmClasses =
-    confirmVariant === 'danger'
-      ? 'inline-flex justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70'
-      : 'inline-flex justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70';
+    confirmVariant === "danger"
+      ? "inline-flex justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+      : "inline-flex justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70";
 
   const cancelClasses =
-    'inline-flex justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2';
+    "inline-flex justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2";
 
-  const Icon = icon ?? (confirmVariant === 'danger' ? <AlertTriangle className="text-red-600" size={24} /> : null);
+  const Icon =
+    icon ??
+    (confirmVariant === "danger" ? (
+      <AlertTriangle className="text-red-600" size={24} />
+    ) : null);
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -95,13 +99,17 @@ export function ConfirmationModal({
             <button onClick={onCancel} className={cancelClasses}>
               {cancelLabel}
             </button>
-            <button onClick={onConfirm} disabled={isConfirming} className={confirmClasses}>
+            <button
+              onClick={onConfirm}
+              disabled={isConfirming}
+              className={confirmClasses}
+            >
               {isConfirming ? `${confirmLabel}...` : confirmLabel}
             </button>
           </div>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
