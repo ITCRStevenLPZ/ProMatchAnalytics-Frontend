@@ -34,7 +34,7 @@ export type MatchStatus =
   | "Live_Extra_Second"
   | "Penalties";
 
-export type ClockMode = "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF";
+export type ClockMode = "EFFECTIVE" | "INEFFECTIVE";
 
 export type IneffectiveAction =
   | "Goal"
@@ -68,6 +68,10 @@ export interface IneffectiveAggregates {
     period: number;
     start_timestamp: string;
   } | null;
+  var_active?: {
+    start_timestamp: string;
+    period: number;
+  } | null;
 }
 
 export interface Match {
@@ -83,7 +87,6 @@ export interface Match {
     { start?: string; end?: string; global_start_seconds?: number }
   >;
   ineffective_time_seconds?: number;
-  time_off_seconds?: number;
   ineffective_aggregates?: IneffectiveAggregates | null;
   clock_mode?: ClockMode;
   last_mode_change_timestamp?: string;

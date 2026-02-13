@@ -147,8 +147,6 @@ export const ensureClockRunning = async (page: Page): Promise<void> => {
   const startEnabled = await startClockButton.isEnabled().catch(() => false);
   if (startEnabled) {
     await startClockButton.click({ timeout: 15000 });
-  } else {
-    await page.getByTestId("effective-time-toggle").click({ timeout: 15000 });
   }
 
   await expect(ballStateLabel).toHaveText(/Ball In Play|Bal[oó]n en Juego/i, {

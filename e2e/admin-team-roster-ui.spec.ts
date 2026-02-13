@@ -60,13 +60,18 @@ test.describe("Admin Teams roster UI flows", () => {
   test("supports roster search, bulk edit, remove, and available filters", async ({
     page,
   }) => {
+    const extendedRosterTemplate = [
+      { position: "GK" },
+      { position: "CB" },
+      { position: "ST" },
+      ...Array.from({ length: 21 }, (_, idx) => ({
+        position: idx % 2 === 0 ? "CM" : "RB",
+      })),
+    ];
+
     const team = await seedTeam(api, {
       name: `Roster UI ${uniqueId("TEAM")}`,
-      rosterTemplate: [
-        { position: "GK" },
-        { position: "CB" },
-        { position: "ST" },
-      ],
+      rosterTemplate: extendedRosterTemplate,
     });
 
     const rosterNames = team.roster.map((entry) => entry.player_name);
@@ -84,13 +89,27 @@ test.describe("Admin Teams roster UI flows", () => {
     });
 
     try {
+      const teamListRequests: string[] = [];
+      page.on("request", (request) => {
+        if (
+          request.method() === "GET" &&
+          /\/api\/v1\/teams\/\?/.test(request.url())
+        ) {
+          teamListRequests.push(request.url());
+        }
+      });
+
       await primeAdminStorage(page);
       await page.goto("/teams");
       await promoteToAdmin(page);
       await page.waitForLoadState("networkidle");
 
       const searchInput = page.getByPlaceholder(/Search|Buscar/i).first();
+      const baselineTeamRequests = teamListRequests.length;
       await searchInput.fill(team.name);
+      await page.waitForTimeout(450);
+      const searchRequests = teamListRequests.length - baselineTeamRequests;
+      expect(searchRequests).toBeLessThanOrEqual(2);
       await expect(
         page.getByRole("cell", { name: team.name, exact: true }),
       ).toBeVisible();
@@ -111,6 +130,8 @@ test.describe("Admin Teams roster UI flows", () => {
       await rosterSearch.fill(firstRoster.player_name);
       const rosterRow = (playerId: string) =>
         rosterModal.getByTestId(`roster-row-${playerId}`);
+
+      await expect(rosterRow(firstRoster.player_id)).toBeVisible();
 
       await expect(rosterSearch).toHaveValue(firstRoster.player_name);
       await expect(rosterRow(firstRoster.player_id)).toBeVisible();
@@ -196,6 +217,12 @@ test.describe("Admin Teams roster UI flows", () => {
       await expect(
         addPlayerSelect.locator("option", { hasText: extraStriker.name }),
       ).toHaveCount(0);
+
+      await rosterModal
+        .locator('button[title="Page 2"], button[title="Página 2"]')
+        .last()
+        .click();
+      await expect(rosterRow(firstRoster.player_id)).toHaveCount(0);
     } finally {
       for (const entry of team.roster) {
         await cleanupResource(

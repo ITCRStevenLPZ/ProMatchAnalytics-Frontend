@@ -1,20 +1,12 @@
-import React from 'react';
-import { Coffee, Play, Clock } from 'lucide-react';
+import React from "react";
+import { Coffee, Play } from "lucide-react";
 
 interface HalftimePanelProps {
-  timeOffSeconds: number;
   onStartSecondHalf: () => void;
   t: any;
 }
 
-const formatTime = (seconds: number): string => {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-};
-
 export const HalftimePanel: React.FC<HalftimePanelProps> = ({
-  timeOffSeconds,
   onStartSecondHalf,
   t,
 }) => {
@@ -25,28 +17,17 @@ export const HalftimePanel: React.FC<HalftimePanelProps> = ({
           <Coffee size={32} className="text-blue-600" />
         </div>
       </div>
-      
+
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-blue-900 mb-2">
-          {t('halftime.title', 'Halftime Break')}
+          {t("halftime.title", "Halftime Break")}
         </h2>
         <p className="text-sm text-blue-700">
-          {t('halftime.description', 'Time-off clock is running. Start second half when ready.')}
+          {t(
+            "halftime.description",
+            "Halftime break. Start the second half when ready.",
+          )}
         </p>
-      </div>
-
-      <div className="bg-white rounded-lg p-4 mb-6 border border-blue-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock size={20} className="text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">
-              {t('halftime.restTime', 'Rest Time')}
-            </span>
-          </div>
-          <span className="text-2xl font-mono font-bold text-blue-900">
-            {formatTime(timeOffSeconds)}
-          </span>
-        </div>
       </div>
 
       <button
@@ -54,11 +35,14 @@ export const HalftimePanel: React.FC<HalftimePanelProps> = ({
         className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-base font-bold rounded-lg transition-all shadow-md hover:shadow-lg transform hover:scale-[1.02]"
       >
         <Play size={20} />
-        {t('halftime.startSecondHalf', 'Start Second Half')}
+        {t("halftime.startSecondHalf", "Start Second Half")}
       </button>
 
       <p className="text-xs text-center text-gray-600 mt-4">
-        {t('halftime.hint', 'This will switch to effective time and resume the match clock')}
+        {t(
+          "halftime.hint",
+          "This will resume effective time and restart the match clock.",
+        )}
       </p>
     </div>
   );

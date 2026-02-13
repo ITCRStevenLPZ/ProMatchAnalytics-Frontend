@@ -18,7 +18,6 @@ import {
 } from "./utils/logger";
 
 const SUB_MATCH_ID = "E2E-MATCH-SUB";
-const TURBO_MATCH_ID = "E2E-MATCH-TURBO";
 const ANALYTICS_MATCH_ID = "E2E-MATCH-ANALYTICS";
 const TIMER_MATCH_ID = "E2E-MATCH-TIMER";
 
@@ -129,92 +128,6 @@ test.describe("Logger substitutions", () => {
       .filter({ hasText: /Substitution/i })
       .first();
     await expect(substitutionEvent).toBeVisible({ timeout: 10000 });
-  });
-});
-
-test.describe("Logger turbo mode & audio", () => {
-  test.beforeEach(async ({ page }) => {
-    await resetMatch(TURBO_MATCH_ID);
-    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
-  });
-
-  test("logs turbo pass with recipient and records audio trigger", async ({
-    page,
-  }) => {
-    test.setTimeout(120000);
-
-    await page.addInitScript(() => {
-      class StubOscillator {
-        context: any;
-        type: OscillatorType;
-        frequency: { setValueAtTime: () => void };
-        constructor(ctx: any) {
-          this.context = ctx;
-          this.type = "sine";
-          this.frequency = { setValueAtTime: () => {} };
-        }
-        connect() {}
-        start() {
-          (window as any).__AUDIO_EVENTS__ =
-            ((window as any).__AUDIO_EVENTS__ || 0) + 1;
-        }
-        stop() {}
-      }
-      class StubGain {
-        connect() {}
-        gain = {
-          setValueAtTime: () => {},
-          exponentialRampToValueAtTime: () => {},
-        };
-      }
-      class StubAudioContext {
-        state = "running";
-        destination = {};
-        createOscillator() {
-          return new StubOscillator(this);
-        }
-        createGain() {
-          return new StubGain();
-        }
-        resume() {
-          return Promise.resolve();
-        }
-        close() {
-          return Promise.resolve();
-        }
-      }
-      (window as any).AudioContext = StubAudioContext as any;
-      (window as any).webkitAudioContext = StubAudioContext as any;
-      (window as any).__AUDIO_EVENTS__ = 0;
-    });
-
-    await gotoLoggerPage(page, TURBO_MATCH_ID);
-    await promoteToAdmin(page);
-    await resetHarnessFlow(page);
-
-    await page.getByText("Turbo").click();
-    const turboPanel = page.getByTestId("turbo-mode-input");
-    await expect(turboPanel).toBeVisible();
-
-    const turboInput = turboPanel.getByRole("textbox");
-    await turboInput.fill("h1p1");
-    await expect(
-      turboPanel.getByText(/Pass needs a recipient/i).first(),
-    ).toBeVisible();
-
-    await turboInput.fill("h1p1>2");
-    await turboPanel.getByRole("button", { name: /LOG/i }).click();
-
-    await waitForPendingAckToClear(page);
-    await expectLiveEventCount(page, 1);
-    await expect(page.getByTestId("live-event-item").first()).toContainText(
-      "Pass",
-    );
-
-    const audioCount = await page.evaluate(
-      () => (window as any).__AUDIO_EVENTS__,
-    );
-    expect(audioCount).toBeGreaterThan(0);
   });
 });
 

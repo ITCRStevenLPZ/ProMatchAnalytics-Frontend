@@ -7,6 +7,8 @@ interface QuickCardPanelProps {
   activeCard: CardSelection | null;
   onSelectCard: (card: CardSelection) => void;
   onCancelSelection: () => void;
+  selectedTeam?: "home" | "away" | "both";
+  onSelectTeam?: (team: "home" | "away") => void;
   disabled?: boolean;
   t: TFunction<"logger">;
 }
@@ -15,6 +17,8 @@ const QuickCardPanel = ({
   activeCard,
   onSelectCard,
   onCancelSelection,
+  selectedTeam = "home",
+  onSelectTeam,
   disabled = false,
   t,
 }: QuickCardPanelProps) => {
@@ -37,6 +41,34 @@ const QuickCardPanel = ({
             {t("cancel", "Cancel")}
           </button>
         )}
+      </div>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          data-testid="card-team-home"
+          onClick={() => onSelectTeam?.("home")}
+          className={`px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            selectedTeam !== "away"
+              ? "bg-slate-700 text-slate-100 border-slate-500"
+              : "bg-slate-900/40 text-slate-300 border-slate-700 hover:bg-slate-800"
+          }`}
+        >
+          {t("homeTeam", "Home")}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          data-testid="card-team-away"
+          onClick={() => onSelectTeam?.("away")}
+          className={`px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            selectedTeam === "away"
+              ? "bg-slate-700 text-slate-100 border-slate-500"
+              : "bg-slate-900/40 text-slate-300 border-slate-700 hover:bg-slate-800"
+          }`}
+        >
+          {t("awayTeam", "Away")}
+        </button>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <button

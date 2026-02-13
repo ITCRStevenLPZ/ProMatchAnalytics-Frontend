@@ -8,6 +8,118 @@ interface Player {
   position: string;
 }
 
+type PositionGroup = "goalkeeper" | "defense" | "midfield" | "attack" | "other";
+
+const POSITION_GROUP_ORDER: PositionGroup[] = [
+  "goalkeeper",
+  "defense",
+  "midfield",
+  "attack",
+  "other",
+];
+
+const normalizePosition = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .trim();
+
+const getPositionGroup = (raw?: string | null): PositionGroup => {
+  const normalized = normalizePosition(raw || "");
+  if (!normalized) return "other";
+  if (
+    normalized.includes("gk") ||
+    normalized.includes("goalkeeper") ||
+    normalized.includes("portero") ||
+    normalized.includes("keeper")
+  ) {
+    return "goalkeeper";
+  }
+  if (
+    normalized.includes("def") ||
+    normalized.includes("back") ||
+    normalized.includes("lateral") ||
+    normalized.includes("carrilero") ||
+    normalized.includes("libero") ||
+    normalized.includes("cb") ||
+    normalized.includes("lb") ||
+    normalized.includes("rb")
+  ) {
+    return "defense";
+  }
+  if (
+    normalized.includes("mid") ||
+    normalized.includes("centro") ||
+    normalized.includes("medio") ||
+    normalized.includes("volante") ||
+    normalized.includes("cm") ||
+    normalized.includes("dm") ||
+    normalized.includes("am")
+  ) {
+    return "midfield";
+  }
+  if (
+    normalized.includes("fwd") ||
+    normalized.includes("forward") ||
+    normalized.includes("att") ||
+    normalized.includes("striker") ||
+    normalized.includes("delantero") ||
+    normalized.includes("extremo") ||
+    normalized.includes("wing") ||
+    normalized.includes("st") ||
+    normalized.includes("cf")
+  ) {
+    return "attack";
+  }
+  return "other";
+};
+
+const getGroupMeta = (group: PositionGroup) => {
+  switch (group) {
+    case "goalkeeper":
+      return {
+        dot: "bg-cyan-500",
+        border: "border-cyan-500/70",
+        badge: "bg-cyan-500/10 text-cyan-800 border-cyan-500/40",
+      };
+    case "defense":
+      return {
+        dot: "bg-emerald-500",
+        border: "border-emerald-500/70",
+        badge: "bg-emerald-500/10 text-emerald-800 border-emerald-500/40",
+      };
+    case "midfield":
+      return {
+        dot: "bg-amber-500",
+        border: "border-amber-500/70",
+        badge: "bg-amber-500/10 text-amber-800 border-amber-500/40",
+      };
+    case "attack":
+      return {
+        dot: "bg-rose-500",
+        border: "border-rose-500/70",
+        badge: "bg-rose-500/10 text-rose-800 border-rose-500/40",
+      };
+    default:
+      return {
+        dot: "bg-slate-500",
+        border: "border-slate-400/70",
+        badge: "bg-slate-500/10 text-slate-800 border-slate-400/40",
+      };
+  }
+};
+
+const sortPlayersByGroup = (players: Player[]) =>
+  [...players].sort((a, b) => {
+    const groupA = getPositionGroup(a.position);
+    const groupB = getPositionGroup(b.position);
+    const groupDelta =
+      POSITION_GROUP_ORDER.indexOf(groupA) -
+      POSITION_GROUP_ORDER.indexOf(groupB);
+    if (groupDelta !== 0) return groupDelta;
+    return a.jersey_number - b.jersey_number;
+  });
+
 interface SoccerFieldProps {
   homeTeamName: string;
   awayTeamName: string;
@@ -152,6 +264,8 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     const anchor = { xPercent: x, yPercent: y } satisfies FieldAnchor;
     const location = resolveStatsbombLocation(x, y);
     const isHome = side === "home";
+    const group = getPositionGroup(player.position);
+    const meta = getGroupMeta(group);
 
     return (
       <button
@@ -162,17 +276,28 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
           onPlayerClick(player, anchor, location, side);
         }}
         data-testid={`field-player-${player.id}`}
-        className={`pointer-events-auto w-full rounded-md border px-2 py-1 text-left text-xs font-semibold shadow-sm transition-colors ${
+        data-player-row="true"
+        data-position-group={group}
+        className={`pointer-events-auto w-full max-w-[320px] rounded-md border-l-4 px-2 py-1 text-left text-xs font-semibold shadow-sm transition-colors ${
           isHome
             ? "border-red-300 bg-white/95 text-slate-900"
             : "border-blue-300 bg-white/95 text-slate-900"
-        }`}
+        } ${meta.border}`}
         title={`${player.full_name} (${player.position})`}
       >
-        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] px-1.5 py-0.5 mr-2">
-          {player.jersey_number}
-        </span>
-        {player.full_name}
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] px-1.5 py-0.5">
+            {player.jersey_number}
+          </span>
+          <span className="flex-1 truncate">{player.full_name}</span>
+          <span
+            data-testid={`field-player-position-${player.id}`}
+            className={`text-[10px] uppercase tracking-wider border px-1.5 py-0.5 rounded-full ${meta.badge}`}
+          >
+            {player.position}
+          </span>
+        </div>
       </button>
     );
   };
@@ -236,14 +361,16 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
 
           {/* Players (list layout) */}
           <div className="absolute inset-0 flex items-center justify-between px-6 py-10 pointer-events-none">
-            <div className="w-[44%] space-y-2">
-              {(flipSides ? awayPlayers : homePlayers).map((p, i) =>
-                renderPlayerListItem(p, i, flipSides ? "away" : "home"),
+            <div className="w-[40%] space-y-2">
+              {sortPlayersByGroup(flipSides ? awayPlayers : homePlayers).map(
+                (p, i) =>
+                  renderPlayerListItem(p, i, flipSides ? "away" : "home"),
               )}
             </div>
-            <div className="w-[44%] space-y-2">
-              {(flipSides ? homePlayers : awayPlayers).map((p, i) =>
-                renderPlayerListItem(p, i, flipSides ? "home" : "away"),
+            <div className="w-[40%] space-y-2 flex flex-col items-end">
+              {sortPlayersByGroup(flipSides ? homePlayers : awayPlayers).map(
+                (p, i) =>
+                  renderPlayerListItem(p, i, flipSides ? "home" : "away"),
               )}
             </div>
           </div>

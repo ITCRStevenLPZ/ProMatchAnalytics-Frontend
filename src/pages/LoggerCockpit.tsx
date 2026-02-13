@@ -26,7 +26,6 @@ import {
 import {
   normalizeMatchPayload,
   formatMatchClock,
-  normalizeMatchClock,
   buildIneffectiveBreakdownFromAggregates,
   computeIneffectiveBreakdown,
 } from "./logger/utils";
@@ -127,7 +126,6 @@ export default function LoggerCockpit() {
     duplicateHighlight,
     duplicateStats,
     operatorClock,
-    setOperatorClock,
     operatorPeriod,
     isBallInPlay,
     setIsBallInPlay,
@@ -184,9 +182,6 @@ export default function LoggerCockpit() {
   const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
     null,
   );
-  const [turboOpen, setTurboOpen] = useState(false);
-  const [turboInput, setTurboInput] = useState("");
-  const [turboError, setTurboError] = useState<string | null>(null);
 
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [ineffectiveNoteOpen, setIneffectiveNoteOpen] = useState(false);
@@ -194,20 +189,20 @@ export default function LoggerCockpit() {
   const [ineffectiveActionType, setIneffectiveActionType] =
     useState<IneffectiveAction>("Other");
   const [hasActiveIneffective, setHasActiveIneffective] = useState(false);
-  const [neutralIneffectiveStartMs, setNeutralIneffectiveStartMs] = useState<
-    number | null
-  >(null);
+  const [isVarActiveLocal, setIsVarActiveLocal] = useState(false);
+  const [varStartMs, setVarStartMs] = useState<number | null>(null);
+  const [varPauseStartMs, setVarPauseStartMs] = useState<number | null>(null);
+  const [varPausedSeconds, setVarPausedSeconds] = useState(0);
+  const [varTick, setVarTick] = useState(0);
   const [pendingIneffectiveContext, setPendingIneffectiveContext] = useState<{
     teamId?: string | null;
     playerId?: string | null;
     actionType?: IneffectiveAction | null;
-    neutral?: boolean;
   } | null>(null);
   const activeIneffectiveContextRef = useRef<{
     teamId?: string | null;
     playerId?: string | null;
     actionType?: IneffectiveAction | null;
-    neutral?: boolean;
     startedAtMs?: number;
   } | null>(null);
   const [toast, setToast] = useState<{
@@ -271,7 +266,6 @@ export default function LoggerCockpit() {
       match.status === "Pending" &&
       (match.match_time_seconds || 0) === 0 &&
       (match.ineffective_time_seconds || 0) === 0 &&
-      (match.time_off_seconds || 0) === 0 &&
       !match.current_period_start_timestamp &&
       (!match.period_timestamps ||
         Object.keys(match.period_timestamps).length === 0);
@@ -287,7 +281,6 @@ export default function LoggerCockpit() {
     match?.status,
     match?.match_time_seconds,
     match?.ineffective_time_seconds,
-    match?.time_off_seconds,
     match?.current_period_start_timestamp,
     match?.period_timestamps,
   ]);
@@ -336,36 +329,43 @@ export default function LoggerCockpit() {
   }, [fetchMatch]);
 
   useEffect(() => {
+    if (!match) return;
+    const hasVarActive = Boolean(
+      match.ineffective_aggregates?.var_active?.start_timestamp,
+    );
+    if (!hasVarActive && !isVarActiveLocal) return;
+    const interval = setInterval(() => {
+      setVarTick(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [match, isVarActiveLocal]);
+
+  useEffect(() => {
     setPriorityPlayerId(null);
   }, [matchId]);
 
-  const {
-    globalClock,
-    effectiveClock,
-    effectiveTime,
-    ineffectiveClock,
-    timeOffClock,
-    clockMode,
-    isClockRunning: isGlobalClockRunning,
-    handleGlobalClockStart,
-    handleGlobalClockStop,
-    handleModeSwitch,
-  } = useMatchTimer(match, fetchMatch);
-
   const [ineffectiveTick, setIneffectiveTick] = useState(0);
 
-  useEffect(() => {
-    if (!match || (!hasActiveIneffective && clockMode !== "INEFFECTIVE")) {
-      return undefined;
-    }
-    const interval = setInterval(() => {
-      setIneffectiveTick(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [clockMode, hasActiveIneffective, match]);
+  const hasVarStoppage = useMemo(() => {
+    const combinedEvents = [...liveEvents, ...queuedEvents];
+    return combinedEvents.some(
+      (event) =>
+        event.type === "GameStoppage" &&
+        (event.data?.stoppage_type === "VARStart" ||
+          event.data?.stoppage_type === "VARStop"),
+    );
+  }, [liveEvents, queuedEvents]);
 
   const ineffectiveBreakdown = useMemo(() => {
     if (!match) return null;
+    if (hasVarStoppage) {
+      return computeIneffectiveBreakdown(
+        [...liveEvents, ...queuedEvents],
+        match.home_team.id,
+        match.away_team.id,
+        Date.now(),
+      );
+    }
     if (match.ineffective_aggregates) {
       return buildIneffectiveBreakdownFromAggregates(
         match.ineffective_aggregates,
@@ -378,45 +378,68 @@ export default function LoggerCockpit() {
       match.away_team.id,
       Date.now(),
     );
-  }, [match, liveEvents, queuedEvents, ineffectiveTick]);
+  }, [match, liveEvents, queuedEvents, ineffectiveTick, hasVarStoppage]);
 
-  const neutralIneffectiveSeconds = useMemo(() => {
-    const baseNeutral = ineffectiveBreakdown?.totals.neutral ?? 0;
-    const activeBreakdown = ineffectiveBreakdown?.active;
-    if (activeBreakdown?.teamKey === "neutral" && activeBreakdown.startMs) {
-      const deltaSeconds = Math.max(
-        0,
-        (Date.now() - activeBreakdown.startMs) / 1000,
-      );
-      return baseNeutral + deltaSeconds;
-    }
-    if (neutralIneffectiveStartMs) {
-      const deltaSeconds = Math.max(
-        0,
-        (Date.now() - neutralIneffectiveStartMs) / 1000,
-      );
-      return baseNeutral + deltaSeconds;
-    }
-    const activeContext = activeIneffectiveContextRef.current;
-    if (!activeContext?.neutral || !activeContext.startedAtMs) {
-      return baseNeutral;
-    }
-    const deltaSeconds = Math.max(
-      0,
-      (Date.now() - activeContext.startedAtMs) / 1000,
-    );
-    return baseNeutral + deltaSeconds;
-  }, [ineffectiveBreakdown, ineffectiveTick, neutralIneffectiveStartMs]);
+  const breakdownVarActive = Boolean(ineffectiveBreakdown?.varActive);
 
-  const neutralIneffectiveClock = useMemo(() => {
-    if (selectedTeam === "both" && clockMode === "INEFFECTIVE") {
-      return ineffectiveClock;
+  const varTimeSeconds = useMemo(() => {
+    const baseVar = ineffectiveBreakdown?.totals.neutral ?? 0;
+    if (breakdownVarActive) return baseVar;
+    if (isVarActiveLocal && varStartMs) {
+      const deltaSeconds = Math.max(0, (Date.now() - varStartMs) / 1000);
+      return baseVar + deltaSeconds;
     }
-    if (activeIneffectiveContextRef.current?.neutral) {
-      return ineffectiveClock;
+    return baseVar;
+  }, [
+    ineffectiveBreakdown,
+    breakdownVarActive,
+    isVarActiveLocal,
+    varStartMs,
+    varTick,
+  ]);
+
+  const varTimeClock = useMemo(
+    () => formatSecondsAsClock(varTimeSeconds),
+    [varTimeSeconds, varTick],
+  );
+  const isVarActive = breakdownVarActive || isVarActiveLocal;
+
+  const {
+    globalClock,
+    effectiveClock,
+    effectiveTime,
+    ineffectiveClock,
+    clockMode,
+    isClockRunning: isGlobalClockRunning,
+    handleGlobalClockStart,
+    handleGlobalClockStop,
+    handleModeSwitch,
+  } = useMatchTimer(match, fetchMatch, {
+    varTimeSeconds,
+    isVarActive,
+    varPauseStartMs,
+    varPausedSeconds,
+  });
+
+  useEffect(() => {
+    if (
+      !match ||
+      (!hasActiveIneffective &&
+        clockMode !== "INEFFECTIVE" &&
+        !isVarActiveLocal)
+    ) {
+      return undefined;
     }
-    return formatSecondsAsClock(neutralIneffectiveSeconds);
-  }, [clockMode, ineffectiveClock, neutralIneffectiveSeconds, selectedTeam]);
+    const interval = setInterval(() => {
+      setIneffectiveTick(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockMode, hasActiveIneffective, isVarActiveLocal, match]);
+
+  useEffect(() => {
+    setVarPausedSeconds(0);
+    setVarPauseStartMs(isVarActiveLocal ? Date.now() : null);
+  }, [clockMode]);
 
   const getStoppageTeamId = useCallback(() => {
     if (!match) return null;
@@ -432,11 +455,11 @@ export default function LoggerCockpit() {
         teamId?: string | null;
         playerId?: string | null;
         actionType?: IneffectiveAction | null;
-        neutral?: boolean;
       } | null,
     ) => {
       if (!match) return;
-      const resolvedTeamId = context?.neutral
+      const isVarAction = context?.actionType === "VAR";
+      const resolvedTeamId = isVarAction
         ? "NEUTRAL"
         : context?.teamId || getStoppageTeamId();
       if (!resolvedTeamId) return;
@@ -456,9 +479,8 @@ export default function LoggerCockpit() {
           stoppage_type: stoppageType,
           reason: context?.actionType || "Other",
           trigger_action: context?.actionType || null,
-          trigger_team_id: context?.neutral ? null : context?.teamId || null,
+          trigger_team_id: isVarAction ? null : context?.teamId || null,
           trigger_player_id: context?.playerId || null,
-          neutral: Boolean(context?.neutral),
         },
         ...(notes ? { notes } : {}),
       });
@@ -466,8 +488,34 @@ export default function LoggerCockpit() {
     [getStoppageTeamId, globalClock, match, operatorPeriod, sendEvent],
   );
 
+  const logVarTimerEvent = useCallback(
+    (stoppageType: "VARStart" | "VARStop") => {
+      if (!match) return;
+      const baseClock = globalClock || "00:00.000";
+      const adjustedClock =
+        lastStoppageClockRef.current === baseClock
+          ? formatSecondsAsClockWithMs(parseClockToSeconds(baseClock) + 0.001)
+          : baseClock;
+      lastStoppageClockRef.current = adjustedClock;
+      sendEvent({
+        match_clock: adjustedClock,
+        period: operatorPeriod,
+        team_id: "NEUTRAL",
+        type: "GameStoppage",
+        data: {
+          stoppage_type: stoppageType,
+          reason: "VAR",
+          trigger_action: "VAR",
+          trigger_team_id: null,
+          trigger_player_id: null,
+        },
+      });
+    },
+    [globalClock, match, operatorPeriod, sendEvent],
+  );
+
   const optimisticModeChange = useCallback(
-    (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => {
+    (mode: "EFFECTIVE" | "INEFFECTIVE") => {
       const now = new Date().toISOString();
       setMatch((prev) => {
         if (!prev) return prev;
@@ -490,7 +538,6 @@ export default function LoggerCockpit() {
         teamId?: string | null;
         playerId?: string | null;
         actionType?: IneffectiveAction | null;
-        neutral?: boolean;
       } | null,
     ) => {
       if (clockMode === "INEFFECTIVE") return;
@@ -502,26 +549,11 @@ export default function LoggerCockpit() {
           : selectedTeam === "home"
             ? match?.home_team.id ?? null
             : null;
-      const fallbackNeutral = selectedTeam === "both";
       const resolvedContext = {
         teamId: context?.teamId ?? fallbackTeamId,
         playerId: context?.playerId ?? null,
         actionType: context?.actionType ?? ineffectiveActionType,
-        neutral:
-          context?.neutral ??
-          (context?.teamId || fallbackTeamId ? false : fallbackNeutral),
       };
-      if (context?.neutral === undefined && selectedTeam === "both") {
-        resolvedContext.teamId = null;
-        resolvedContext.neutral = true;
-      }
-      if (
-        context?.neutral === undefined &&
-        ["Injury", "VAR"].includes(resolvedContext.actionType || "")
-      ) {
-        resolvedContext.teamId = null;
-        resolvedContext.neutral = true;
-      }
       if (!trimmed) {
         setIneffectiveNoteText("");
         setPendingIneffectiveContext(resolvedContext);
@@ -533,7 +565,6 @@ export default function LoggerCockpit() {
         ...resolvedContext,
         startedAtMs: Date.now(),
       };
-      setNeutralIneffectiveStartMs(resolvedContext.neutral ? Date.now() : null);
       setHasActiveIneffective(true);
       optimisticModeChange("INEFFECTIVE");
       handleModeSwitch("INEFFECTIVE");
@@ -552,7 +583,7 @@ export default function LoggerCockpit() {
   );
 
   const endIneffectiveIfNeeded = useCallback(
-    (nextMode: "EFFECTIVE" | "TIMEOFF") => {
+    (nextMode: "EFFECTIVE") => {
       if (clockMode === "INEFFECTIVE" || activeIneffectiveContextRef.current) {
         logClockStoppage(
           "ClockStart",
@@ -561,7 +592,6 @@ export default function LoggerCockpit() {
         );
         activeIneffectiveContextRef.current = null;
         setHasActiveIneffective(false);
-        setNeutralIneffectiveStartMs(null);
       }
       optimisticModeChange(nextMode);
       handleModeSwitch(nextMode);
@@ -587,38 +617,17 @@ export default function LoggerCockpit() {
         : selectedTeam === "home"
           ? match?.home_team.id ?? null
           : null;
-    const fallbackNeutral = selectedTeam === "both";
     const resolvedContext = {
       teamId: pendingIneffectiveContext?.teamId ?? fallbackTeamId,
       playerId: pendingIneffectiveContext?.playerId ?? null,
       actionType:
         pendingIneffectiveContext?.actionType ?? ineffectiveActionType,
-      neutral:
-        pendingIneffectiveContext?.neutral ??
-        (pendingIneffectiveContext?.teamId || fallbackTeamId
-          ? false
-          : fallbackNeutral),
     };
-    if (
-      pendingIneffectiveContext?.neutral === undefined &&
-      selectedTeam === "both"
-    ) {
-      resolvedContext.teamId = null;
-      resolvedContext.neutral = true;
-    }
-    if (
-      pendingIneffectiveContext?.neutral === undefined &&
-      ["Injury", "VAR"].includes(resolvedContext.actionType || "")
-    ) {
-      resolvedContext.teamId = null;
-      resolvedContext.neutral = true;
-    }
     logClockStoppage("ClockStop", trimmed, resolvedContext);
     activeIneffectiveContextRef.current = {
       ...resolvedContext,
       startedAtMs: Date.now(),
     };
-    setNeutralIneffectiveStartMs(resolvedContext.neutral ? Date.now() : null);
     setHasActiveIneffective(true);
     optimisticModeChange("INEFFECTIVE");
     handleModeSwitch("INEFFECTIVE");
@@ -712,7 +721,6 @@ export default function LoggerCockpit() {
     return (
       (match.match_time_seconds || 0) === 0 &&
       (match.ineffective_time_seconds || 0) === 0 &&
-      (match.time_off_seconds || 0) === 0 &&
       !match.current_period_start_timestamp
     );
   }, [match]);
@@ -735,15 +743,24 @@ export default function LoggerCockpit() {
 
   const serverSeconds = useMemo(() => {
     if (!match) return 0;
+    const isStatusStopped =
+      match.status === "Halftime" ||
+      match.status === "Extra_Halftime" ||
+      match.status === "Fulltime" ||
+      match.status === "Completed" ||
+      match.status === "Abandoned";
     const base =
       (match.match_time_seconds || 0) +
       (match.ineffective_time_seconds || 0) +
-      (match.time_off_seconds || 0);
-    if (!match.current_period_start_timestamp) return base;
+      varTimeSeconds;
+    if (!match.current_period_start_timestamp || isStatusStopped) return base;
     const start = parseTimestampSafe(match.current_period_start_timestamp);
     const elapsed = Math.max(0, (Date.now() - start) / 1000);
-    return base + elapsed;
-  }, [match, globalClock]);
+    const pauseSeconds = varPauseStartMs
+      ? Math.max(0, (Date.now() - varPauseStartMs) / 1000) + varPausedSeconds
+      : varPausedSeconds;
+    return base + Math.max(0, elapsed - pauseSeconds);
+  }, [match, globalClock, varTimeSeconds, varPauseStartMs, varPausedSeconds]);
 
   const localSeconds = useMemo(
     () => parseClockToSeconds(globalClock),
@@ -841,6 +858,10 @@ export default function LoggerCockpit() {
       // Reflect backend truth locally
       setMatch(normalizeMatchPayload(refreshed as any));
       resetOperatorControls({ clock: "00:00.000", period: 1 });
+      setIsVarActiveLocal(false);
+      setVarStartMs(null);
+      setVarPauseStartMs(null);
+      setVarPausedSeconds(0);
 
       // Rehydrate events/timeline to reflect cleared state
       await hydrateEvents();
@@ -950,7 +971,6 @@ export default function LoggerCockpit() {
         teamId: payload.teamId,
         playerId: payload.playerId,
         actionType: payload.actionType,
-        neutral: false,
       });
     },
     sendEvent,
@@ -1204,10 +1224,13 @@ export default function LoggerCockpit() {
   const handleCardSelection = useCallback(
     (cardType: CardSelection) => {
       if (cockpitLocked) return;
+      if (selectedTeam === "both") {
+        setSelectedTeam("home");
+      }
       setPendingCardType((prev) => (prev === cardType ? null : cardType));
       resetFlow();
     },
-    [cockpitLocked, resetFlow],
+    [cockpitLocked, resetFlow, selectedTeam, setSelectedTeam],
   );
 
   const cancelCardSelection = useCallback(() => {
@@ -1220,7 +1243,6 @@ export default function LoggerCockpit() {
       const playerTeam = determinePlayerTeam(player);
       if (!playerTeam) return;
       const team = playerTeam === "home" ? match.home_team : match.away_team;
-      const recentEvents = [...liveEvents, ...queuedEvents];
 
       let resolvedCard: string = cardType;
       if (cardType === "Yellow") {
@@ -1232,12 +1254,6 @@ export default function LoggerCockpit() {
         resolvedCard === "Yellow" ||
         resolvedCard === "Yellow (Second)" ||
         resolvedCard === "Red";
-      const hasRecentFoul = recentEvents.some(
-        (event) =>
-          event.type === "FoulCommitted" &&
-          event.match_clock === globalClock &&
-          event.period === operatorPeriod,
-      );
 
       const buildCardPayload = (cardValue: string) => ({
         match_clock: globalClock,
@@ -1252,21 +1268,6 @@ export default function LoggerCockpit() {
         ...(location ? { location } : {}),
       });
 
-      if (isDisciplinary && !hasRecentFoul) {
-        sendEvent({
-          match_clock: globalClock,
-          period: operatorPeriod,
-          team_id: team.id,
-          player_id: player.id,
-          type: "FoulCommitted",
-          data: {
-            foul_type: "Standard",
-            outcome: "Standard",
-          },
-          ...(location ? { location } : {}),
-        });
-      }
-
       sendEvent(buildCardPayload(resolvedCard));
 
       if (resolvedCard === "Yellow (Second)") {
@@ -1278,7 +1279,6 @@ export default function LoggerCockpit() {
           teamId: team.id,
           playerId: player.id,
           actionType: "Card",
-          neutral: false,
         });
       }
 
@@ -1376,7 +1376,6 @@ export default function LoggerCockpit() {
                   teamId: result.triggerContext.teamId,
                   playerId: result.triggerContext.playerId,
                   actionType: result.triggerContext.actionType,
-                  neutral: false,
                 }
               : null,
           );
@@ -1430,7 +1429,6 @@ export default function LoggerCockpit() {
                 teamId: result.triggerContext.teamId,
                 playerId: result.triggerContext.playerId,
                 actionType: result.triggerContext.actionType,
-                neutral: false,
               }
             : null,
         );
@@ -1623,7 +1621,7 @@ export default function LoggerCockpit() {
   }, [cockpitLocked, handleGlobalClockStop, setIsBallInPlay]);
 
   const handleModeSwitchGuarded = useCallback(
-    (mode: "EFFECTIVE" | "INEFFECTIVE" | "TIMEOFF") => {
+    (mode: "EFFECTIVE" | "INEFFECTIVE") => {
       if (cockpitLocked) return;
       if (mode === "INEFFECTIVE") {
         beginIneffective();
@@ -1634,24 +1632,28 @@ export default function LoggerCockpit() {
     [beginIneffective, cockpitLocked, endIneffectiveIfNeeded],
   );
 
-  const handleClockBlur = useCallback(() => {
-    if (!operatorClock || operatorClock === "00:00.000") return;
-    const normalized = normalizeMatchClock(operatorClock);
-    if (normalized) {
-      setOperatorClock(normalized);
-    } else {
-      // Invalid input; revert to global clock or show error toast?
-      // For now, let's just revert to global clock (safe state)
-      setOperatorClock(globalClock);
-      setToast({
-        message: t(
-          "invalidClockFormat",
-          "Invalid clock format. Reverted to system time.",
-        ),
-      });
-      setTimeout(() => setToast(null), 3000);
+  const handleVarToggle = useCallback(() => {
+    if (cockpitLocked) return;
+    const nextActive = !isVarActiveLocal;
+    logVarTimerEvent(nextActive ? "VARStart" : "VARStop");
+    setIsVarActiveLocal(nextActive);
+    setVarStartMs(nextActive ? Date.now() : null);
+    if (nextActive) {
+      if (match?.current_period_start_timestamp) {
+        setVarPauseStartMs(Date.now());
+      }
+    } else if (varPauseStartMs) {
+      const deltaSeconds = Math.max(0, (Date.now() - varPauseStartMs) / 1000);
+      setVarPausedSeconds((prev) => prev + deltaSeconds);
+      setVarPauseStartMs(null);
     }
-  }, [operatorClock, globalClock, setOperatorClock, t]);
+  }, [
+    cockpitLocked,
+    isVarActiveLocal,
+    logVarTimerEvent,
+    match?.current_period_start_timestamp,
+    varPauseStartMs,
+  ]);
 
   useEffect(() => {
     if (cockpitLocked) {
@@ -1740,116 +1742,8 @@ export default function LoggerCockpit() {
       teamId: latest.team_id,
       playerId: latest.player_id,
       actionType: "Goal",
-      neutral: false,
     });
   }, [beginIneffective, liveEvents, t]);
-
-  const parseTurboInput = useCallback(() => {
-    if (!match) return { error: t("turbo.invalidCode", "Enter a turbo code") };
-    const raw = turboInput.trim().toLowerCase();
-    if (!raw) return { error: t("turbo.invalidCode", "Enter a turbo code") };
-
-    const parsed = raw.match(
-      /^(?<team>[ha])?(?<jersey>\d+)p(?<outcome>[123])(?:>(?<recipient>\d+))?$/i,
-    );
-    const groups = parsed?.groups;
-    if (!groups) return { error: t("turbo.invalidCode", "Enter a turbo code") };
-
-    const teamFromPrefix =
-      groups.team === "a" ? "away" : groups.team === "h" ? "home" : null;
-    const teamSide: "home" | "away" =
-      teamFromPrefix || (selectedTeam === "away" ? "away" : "home");
-    const passerJersey = Number(groups.jersey);
-    const recipientJersey = groups.recipient ? Number(groups.recipient) : null;
-    if (!recipientJersey) {
-      return { error: "Pass needs a recipient" };
-    }
-
-    const outcomeMap: Record<string, "Complete" | "Incomplete" | "KeyPass"> = {
-      "1": "Complete",
-      "2": "Incomplete",
-      "3": "KeyPass",
-    };
-    const outcome = outcomeMap[groups.outcome] || "Complete";
-
-    const team = teamSide === "away" ? match.away_team : match.home_team;
-    const passer =
-      team.players?.find((p) => p.jersey_number === passerJersey) || null;
-    const recipient =
-      team.players?.find((p) => p.jersey_number === recipientJersey) || null;
-
-    if (!passer || !recipient) {
-      return {
-        error: t("turbo.invalidCode", "Player not found for turbo code"),
-      };
-    }
-
-    return { team, passer, recipient, outcome };
-  }, [match, selectedTeam, turboInput, t]);
-
-  useEffect(() => {
-    if (!turboInput.trim()) {
-      setTurboError(null);
-      return;
-    }
-    const parsed = parseTurboInput();
-    if (!parsed || "error" in parsed) {
-      setTurboError(parsed?.error ?? "Pass needs a recipient");
-    } else {
-      setTurboError(null);
-    }
-  }, [parseTurboInput, turboInput]);
-
-  const triggerTurboAudio = useCallback(() => {
-    try {
-      const AudioCtor =
-        (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtor) return;
-      const ctx = new AudioCtor();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.05);
-      if (ctx.close) {
-        ctx.close();
-      }
-    } catch (err) {
-      console.warn("turbo audio failed", err);
-    }
-  }, []);
-
-  const handleTurboLog = useCallback(() => {
-    const parsed = parseTurboInput();
-    if (!parsed || "error" in parsed) {
-      setTurboError(parsed?.error ?? "Pass needs a recipient");
-      return;
-    }
-
-    sendEvent({
-      match_clock: globalClock,
-      period: operatorPeriod,
-      team_id: parsed.team.id,
-      player_id: parsed.passer.id,
-      type: "Pass",
-      data: {
-        pass_type: "Standard",
-        outcome: parsed.outcome,
-        receiver_id: parsed.recipient.id,
-        receiver_name: parsed.recipient.full_name,
-      },
-    });
-    triggerTurboAudio();
-    setTurboError(null);
-    setTurboInput("");
-  }, [
-    parseTurboInput,
-    sendEvent,
-    globalClock,
-    operatorPeriod,
-    triggerTurboAudio,
-  ]);
 
   // Note: WebSocket connection is automatically managed by useMatchSocket hook
 
@@ -2143,7 +2037,7 @@ export default function LoggerCockpit() {
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* Header */}
       <header className="bg-slate-900 shadow-sm border-b border-slate-700">
-        <div className="max-w-screen-2xl mx-auto px-6 py-4">
+        <div className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-slate-100">
@@ -2421,10 +2315,10 @@ export default function LoggerCockpit() {
               </div>
               {/* Stadium Score Display */}
               <div className="mt-3 w-full flex justify-center">
-                <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 shadow-lg bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-3 flex items-center gap-4 min-w-[260px]">
+                <div className="relative overflow-hidden rounded-2xl border border-slate-700/60 shadow-lg bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 sm:px-6 py-3 grid grid-cols-[minmax(120px,0.9fr)_minmax(190px,1.5fr)_minmax(120px,0.9fr)] sm:grid-cols-[minmax(150px,0.85fr)_minmax(260px,1.6fr)_minmax(150px,0.85fr)] items-center gap-2 sm:gap-4 min-w-[260px]">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_30%)]" />
-                  <div className="flex flex-col items-center z-10">
-                    <span className="text-xs uppercase tracking-wide text-slate-300">
+                  <div className="flex flex-col items-center z-10 min-w-0">
+                    <span className="text-xs uppercase tracking-wide text-slate-300 truncate max-w-full text-center">
                       {match.home_team.name}
                     </span>
                     <span
@@ -2434,7 +2328,7 @@ export default function LoggerCockpit() {
                       {liveScore.home || match.home_team.score || 0}
                     </span>
                   </div>
-                  <div className="z-10 flex flex-col items-center px-4">
+                  <div className="z-10 flex flex-col items-center px-2 sm:px-4">
                     <span className="text-xs font-semibold text-slate-400">
                       {t("statusLabel", "Status")}
                     </span>
@@ -2442,8 +2336,8 @@ export default function LoggerCockpit() {
                       {t("vs", "VS")}
                     </span>
                   </div>
-                  <div className="flex flex-col items-center z-10">
-                    <span className="text-xs uppercase tracking-wide text-slate-300 text-right">
+                  <div className="flex flex-col items-center z-10 min-w-0">
+                    <span className="text-xs uppercase tracking-wide text-slate-300 text-center truncate max-w-full">
                       {match.away_team.name}
                     </span>
                     <span
@@ -2769,7 +2663,7 @@ export default function LoggerCockpit() {
 
       {duplicateHighlight && (
         <div
-          className="max-w-screen-2xl mx-auto px-6 pt-4"
+          className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 pt-4"
           data-testid="duplicate-banner"
         >
           <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2853,7 +2747,10 @@ export default function LoggerCockpit() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-screen-2xl mx-auto px-6 py-6">
+      <main
+        className="w-full max-w-none px-4 sm:px-6 xl:px-8 2xl:px-10 py-6"
+        data-testid="cockpit-main"
+      >
         {buffer && (
           <div
             data-testid="keyboard-buffer"
@@ -2874,11 +2771,7 @@ export default function LoggerCockpit() {
         {/* Halftime Panel */}
         {currentPhase === "HALFTIME" && (
           <div className="mb-6">
-            <HalftimePanel
-              timeOffSeconds={match?.time_off_seconds || 0}
-              onStartSecondHalf={transitionToSecondHalf}
-              t={t}
-            />
+            <HalftimePanel onStartSecondHalf={transitionToSecondHalf} t={t} />
           </div>
         )}
 
@@ -2908,7 +2801,7 @@ export default function LoggerCockpit() {
               match={match}
               events={[...liveEvents, ...queuedEvents]}
               effectiveTime={effectiveTime}
-              timeOffSeconds={match?.time_off_seconds || 0}
+              varTimeSeconds={varTimeSeconds}
               ineffectiveSeconds={match?.ineffective_time_seconds || 0}
               ineffectiveBreakdown={ineffectiveBreakdown}
               t={t}
@@ -2918,29 +2811,13 @@ export default function LoggerCockpit() {
           <div className="flex flex-col gap-4 pb-20">
             {/* 1. CLOCK (Full Width) */}
             <div className="flex-none space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {t("operatorClock", "Operator Clock")}
-                </label>
-                <input
-                  data-testid="operator-clock-input"
-                  className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="00:00.000"
-                  value={operatorClock || ""}
-                  onChange={(e) => setOperatorClock(e.target.value)}
-                  onBlur={handleClockBlur}
-                  disabled={cockpitLocked}
-                />
-              </div>
-
               <MatchTimerDisplay
                 match={match}
                 operatorPeriod={operatorPeriod}
                 globalClock={globalClock}
                 effectiveClock={effectiveClock}
                 ineffectiveClock={ineffectiveClock}
-                neutralIneffectiveClock={neutralIneffectiveClock}
-                timeOffClock={timeOffClock}
+                varClock={varTimeClock}
                 clockMode={clockMode}
                 isClockRunning={isGlobalClockRunning}
                 isBallInPlay={isBallInPlay}
@@ -2949,6 +2826,8 @@ export default function LoggerCockpit() {
                 onGlobalStart={handleGlobalClockStartGuarded}
                 onGlobalStop={handleGlobalClockStopGuarded}
                 onModeSwitch={handleModeSwitchGuarded}
+                onVarToggle={handleVarToggle}
+                isVarActive={isVarActive}
                 hideResumeButton={showFieldResume}
                 t={t}
               />
@@ -2983,58 +2862,6 @@ export default function LoggerCockpit() {
                     : null
                 }
               />
-            </div>
-
-            <div className="flex-none">
-              <button
-                type="button"
-                data-testid="turbo-mode-toggle"
-                onClick={() => setTurboOpen((open) => !open)}
-                className="px-3 py-2 rounded-md bg-indigo-900/30 text-indigo-200 border border-indigo-500/40 hover:bg-indigo-900/50 text-xs font-semibold"
-              >
-                {t("turbo.label", "Turbo")}
-              </button>
-              {turboOpen && (
-                <div
-                  className="mt-2 bg-slate-900 border border-slate-700 rounded-md p-3 shadow-lg max-w-md"
-                  data-testid="turbo-mode-input"
-                >
-                  <p className="text-xs text-slate-400 mb-2">
-                    {t("turbo.enableTitle", "Enable Turbo Mode [`]")}
-                  </p>
-                  <input
-                    value={turboInput}
-                    onChange={(e) => {
-                      setTurboInput(e.target.value);
-                      setTurboError(null);
-                    }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-100"
-                    placeholder={t(
-                      "turbo.formatCode",
-                      "[team][jersey][action][outcome][>recipient]",
-                    )}
-                  />
-                  {turboError && (
-                    <p className="text-xs text-amber-400 mt-1">{turboError}</p>
-                  )}
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-blue-800 text-blue-100 rounded text-xs font-semibold border border-blue-500/50"
-                      onClick={handleTurboLog}
-                    >
-                      {t("log", "Log")}
-                    </button>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-slate-800 text-slate-200 rounded text-xs border border-slate-600"
-                      onClick={() => setTurboOpen(false)}
-                    >
-                      {t("dismiss", "Dismiss")}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {showFieldResume && pendingCardType && (
@@ -3134,6 +2961,8 @@ export default function LoggerCockpit() {
                     activeCard={pendingCardType}
                     onSelectCard={handleCardSelection}
                     onCancelSelection={cancelCardSelection}
+                    selectedTeam={selectedTeam}
+                    onSelectTeam={(team) => setSelectedTeam(team)}
                     disabled={cockpitLocked}
                     t={t}
                   />
@@ -3243,7 +3072,6 @@ export default function LoggerCockpit() {
                   teamId: team.id,
                   playerId: playerOffId || playerOnId || null,
                   actionType: "Substitution",
-                  neutral: false,
                 },
               );
             }

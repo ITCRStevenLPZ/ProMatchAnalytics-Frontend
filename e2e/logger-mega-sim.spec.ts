@@ -279,7 +279,6 @@ test.describe("Logger mega simulation", () => {
 
     const logUiCorner = async (playerId: string) => {
       await selectTeamSide("home");
-      await page.getByPlaceholder("00:00.000").fill("00:10.000");
       await clickFieldPlayer(playerId);
       await openMoreActions();
       await page.getByTestId("action-btn-Corner").click({ force: true });

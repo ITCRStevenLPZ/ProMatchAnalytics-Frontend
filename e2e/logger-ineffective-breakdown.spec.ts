@@ -81,9 +81,7 @@ test.beforeEach(async () => {
 test.describe("Logger ineffective time breakdown", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("aggregates ineffective time by team, action, and neutral", async ({
-    page,
-  }) => {
+  test("aggregates ineffective time by team and VAR time", async ({ page }) => {
     test.setTimeout(120000);
     await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
 
@@ -154,25 +152,23 @@ test.describe("Logger ineffective time breakdown", () => {
       match_clock: "00:30.000",
       team_id: "NEUTRAL",
       data: {
-        stoppage_type: "ClockStop",
-        reason: "Other",
-        trigger_action: "Injury",
+        stoppage_type: "VARStart",
+        reason: "VAR",
+        trigger_action: "VAR",
         trigger_team_id: null,
         trigger_player_id: null,
-        neutral: true,
       },
     });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(3200);
     await sendStoppage(page, {
       match_clock: "00:31.000",
       team_id: "NEUTRAL",
       data: {
-        stoppage_type: "ClockStart",
-        reason: "Other",
-        trigger_action: "Injury",
+        stoppage_type: "VARStop",
+        reason: "VAR",
+        trigger_action: "VAR",
         trigger_team_id: null,
         trigger_player_id: null,
-        neutral: true,
       },
     });
 
@@ -183,15 +179,84 @@ test.describe("Logger ineffective time breakdown", () => {
 
     const outRow = page.getByTestId("stat-ineffective-outofbounds");
     const goalRow = page.getByTestId("stat-ineffective-goal");
-    const injuryRow = page.getByTestId("stat-ineffective-injury");
+    const teamTotalsRow = page.getByTestId("stat-ineffective-time");
+    const varStat = page.getByTestId("analytics-var-time");
 
     await expect(outRow).toBeVisible();
     await expect(goalRow).toBeVisible();
-    await expect(injuryRow).toBeVisible();
+    await expect(teamTotalsRow).toBeVisible();
+    await expect(varStat).toBeVisible();
 
     await expect(outRow).toContainText(/00:0[1-9]/);
     await expect(goalRow).toContainText(/00:0[1-9]/);
-    await expect(injuryRow).toContainText(/00:0[1-9]/);
+    await expect(varStat).toContainText(/00:0[1-9]/);
+
+    const parseClock = (value: string) => {
+      const [mm, ss] = value.trim().split(":");
+      return Number(mm) * 60 + Number(ss || 0);
+    };
+
+    const totalText = (await teamTotalsRow.textContent()) || "";
+    const totals = totalText.match(/\d{2}:\d{2}/g) || [];
+    expect(totals.length).toBeGreaterThanOrEqual(2);
+    const homeTotal = parseClock(totals[0]);
+    const awayTotal = parseClock(totals[1]);
+    const varSeconds = parseClock((await varStat.textContent()) || "00:00");
+
+    expect(varSeconds).toBeGreaterThanOrEqual(2);
+    expect(homeTotal).toBeGreaterThanOrEqual(1);
+    expect(awayTotal).toBeGreaterThanOrEqual(1);
+  });
+
+  test("pauses effective/ineffective clocks during VAR and resumes after", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    await ensureClockRunning(page);
+
+    const parseClock = (value: string) => {
+      const [mm, ss] = value.trim().split(":");
+      return Number(mm) * 60 + Number(ss || 0);
+    };
+
+    const readEffective = async () => {
+      const text =
+        (await page.getByTestId("effective-clock-value").textContent()) ||
+        "00:00";
+      return parseClock(text);
+    };
+
+    const readVar = async () => {
+      const text =
+        (await page
+          .getByTestId("var-time-card")
+          .locator(".font-mono")
+          .textContent()) || "00:00";
+      return parseClock(text);
+    };
+
+    await page.waitForTimeout(1200);
+    const effectiveBefore = await readEffective();
+
+    await page.getByTestId("btn-var-toggle").click();
+    await page.waitForTimeout(1500);
+
+    const effectiveDuring = await readEffective();
+    const varDuring = await readVar();
+    expect(effectiveDuring).toBeLessThanOrEqual(effectiveBefore + 1);
+    expect(varDuring).toBeGreaterThanOrEqual(1);
+
+    await page.getByTestId("btn-var-toggle").click();
+    await page.waitForTimeout(1200);
+
+    const effectiveAfter = await readEffective();
+    expect(effectiveAfter).toBeGreaterThan(effectiveBefore);
   });
 
   test("persists aggregates by team, action, and period", async ({ page }) => {
@@ -289,6 +354,33 @@ test.describe("Logger ineffective time breakdown", () => {
     expect(sumActions("away")).toBeCloseTo(aggregates.totals.away, 1);
   });
 
+  test("tracks VAR time from the timer toggle", async ({ page }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    await ensureClockRunning(page);
+
+    const varToggle = page.getByTestId("btn-var-toggle");
+    await expect(varToggle).toBeVisible();
+
+    await varToggle.click();
+    await page.waitForTimeout(1200);
+    await varToggle.click();
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    await expect(page.getByTestId("analytics-var-time")).toContainText(
+      /00:0[1-9]/,
+    );
+  });
+
   test("logs ineffective stoppage for selected team", async ({ page }) => {
     test.setTimeout(120000);
     await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
@@ -336,8 +428,8 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(otherRow).toBeVisible();
 
     const cells = otherRow.locator("div");
-    await expect(cells.nth(2)).toHaveText(/00:00/);
-    await expect(cells.nth(3)).not.toHaveText("00:00");
+    await expect(cells.nth(1)).toHaveText(/00:00/);
+    await expect(cells.nth(2)).not.toHaveText("00:00");
   });
 
   test("shows offside offender on stoppage feed", async ({ page }) => {
@@ -372,7 +464,32 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(stoppageEvent).toContainText("#1");
   });
 
-  test("shows neutral ineffective timer and avoids stoppage spam", async ({
+  test("shows VAR timer and avoids stoppage spam", async ({ page }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    await ensureClockRunning(page);
+
+    const varToggle = page.getByTestId("btn-var-toggle");
+    await expect(varToggle).toBeVisible({ timeout: 10000 });
+
+    await varToggle.click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(1200);
+    await varToggle.click();
+    await waitForPendingAckToClear(page);
+
+    const stoppages = page
+      .getByTestId("live-event-item")
+      .filter({ hasText: "GameStoppage" });
+    await expect(stoppages).toHaveCount(2);
+  });
+
+  test("does not add VAR overlap to team ineffective totals", async ({
     page,
   }) => {
     test.setTimeout(120000);
@@ -384,31 +501,54 @@ test.describe("Logger ineffective time breakdown", () => {
 
     await ensureClockRunning(page);
 
-    await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
-    const modal = page.getByTestId("ineffective-note-modal");
-    await expect(modal).toBeVisible({ timeout: 10000 });
+    const parseClock = (value: string) => {
+      const [mm, ss] = value.trim().split(":");
+      return Number(mm) * 60 + Number(ss || 0);
+    };
 
-    await page.getByTestId("ineffective-note-action").selectOption("Injury");
-    await page.getByTestId("ineffective-note-input").fill("Injury stoppage");
+    const readIneffective = async () => {
+      const text =
+        (await page.getByTestId("ineffective-clock-value").textContent()) ||
+        "00:00";
+      return parseClock(text);
+    };
+
+    const readVar = async () => {
+      const text =
+        (await page
+          .getByTestId("var-time-card")
+          .locator(".font-mono")
+          .textContent()) || "00:00";
+      return parseClock(text);
+    };
+
+    await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
+    await expect(page.getByTestId("ineffective-note-modal")).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByTestId("ineffective-note-input").fill("Overlap check");
     await page.getByTestId("ineffective-note-save").click();
-    await expect(modal).toBeHidden({ timeout: 10000 });
     await waitForPendingAckToClear(page);
 
     await page.waitForTimeout(1200);
+    const ineffectiveBefore = await readIneffective();
 
-    const neutralCard = page.getByTestId("neutral-ineffective-card");
-    await expect(neutralCard).toBeVisible({ timeout: 10000 });
-    await expect(page.getByTestId("neutral-ineffective-clock")).toBeVisible();
-
-    const resumeBtn = page.getByTestId("btn-resume-effective");
-    await expect(resumeBtn).toBeVisible({ timeout: 10000 });
-    await resumeBtn.click();
+    await page.getByTestId("btn-var-toggle").click();
     await waitForPendingAckToClear(page);
+    await page.waitForTimeout(1500);
 
-    const stoppages = page
-      .getByTestId("live-event-item")
-      .filter({ hasText: "GameStoppage" });
-    await expect(stoppages).toHaveCount(2);
+    const ineffectiveDuring = await readIneffective();
+    const varDuring = await readVar();
+
+    expect(ineffectiveDuring).toBeLessThanOrEqual(ineffectiveBefore + 1);
+    expect(varDuring).toBeGreaterThanOrEqual(1);
+
+    await page.getByTestId("btn-var-toggle").click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(1200);
+
+    const ineffectiveAfter = await readIneffective();
+    expect(ineffectiveAfter).toBeGreaterThan(ineffectiveBefore);
   });
 
   test("analytics splits ineffective time by team and action", async ({
@@ -482,12 +622,11 @@ test.describe("Logger ineffective time breakdown", () => {
       match_clock: "01:30.000",
       team_id: "NEUTRAL",
       data: {
-        stoppage_type: "ClockStop",
-        reason: "Other",
-        trigger_action: "Injury",
+        stoppage_type: "VARStart",
+        reason: "VAR",
+        trigger_action: "VAR",
         trigger_team_id: null,
         trigger_player_id: null,
-        neutral: true,
       },
     });
     await page.waitForTimeout(1200);
@@ -495,12 +634,11 @@ test.describe("Logger ineffective time breakdown", () => {
       match_clock: "01:31.000",
       team_id: "NEUTRAL",
       data: {
-        stoppage_type: "ClockStart",
-        reason: "Other",
-        trigger_action: "Injury",
+        stoppage_type: "VARStop",
+        reason: "VAR",
+        trigger_action: "VAR",
         trigger_team_id: null,
         trigger_player_id: null,
-        neutral: true,
       },
     });
 
@@ -511,18 +649,17 @@ test.describe("Logger ineffective time breakdown", () => {
 
     const outRow = page.getByTestId("stat-ineffective-outofbounds");
     const goalRow = page.getByTestId("stat-ineffective-goal");
-    const injuryRow = page.getByTestId("stat-ineffective-injury");
+    const varStat = page.getByTestId("analytics-var-time");
 
     const outCells = outRow.locator("div");
     const goalCells = goalRow.locator("div");
-    const injuryCells = injuryRow.locator("div");
+    await expect(varStat).toBeVisible();
 
     // Home column should show time for OutOfBounds
     await expect(outCells.nth(1)).not.toHaveText("00:00");
     // Away column should show time for Goal
-    await expect(goalCells.nth(3)).not.toHaveText("00:00");
-    // Neutral column should show time for injury
-    await expect(injuryCells.nth(2)).not.toHaveText("00:00");
+    await expect(goalCells.nth(2)).not.toHaveText("00:00");
+    await expect(varStat).toContainText(/00:0[1-9]/);
   });
 
   test("reset restores period status and clocks", async ({ page }) => {
@@ -553,9 +690,5 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(page.getByTestId("period-status-halftime")).toBeHidden({
       timeout: 15000,
     });
-
-    await expect(page.getByTestId("operator-clock-input")).toHaveValue(
-      "00:00.000",
-    );
   });
 });

@@ -396,7 +396,7 @@ export const useActionFlow = ({
       }
       setSelectedPlayer(player);
       setSelectedPlayerLocation(location ?? null);
-      setFieldAnchor(anchor ?? null);
+      setFieldAnchor(anchor ? { xPercent: 50, yPercent: 50 } : null);
       setCurrentStep(anchor ? "selectQuickAction" : "selectAction");
     },
     [expelledPlayerIds],
@@ -408,6 +408,17 @@ export const useActionFlow = ({
       setPendingOutcome(null);
       if (action === "Card") {
         setCurrentStep("selectOutcome");
+        return;
+      }
+      if (action === "DirectShot") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent("Shot", "OnTarget", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            resetFlow();
+          }
+        }
         return;
       }
       if (action === "Goal") {

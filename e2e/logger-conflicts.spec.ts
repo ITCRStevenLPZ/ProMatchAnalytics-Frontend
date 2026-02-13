@@ -70,8 +70,17 @@ test.describe("Logger conflicts and deduplication", () => {
     expect(context).not.toBeNull();
     const homeTeamId = context?.homeTeamId as string;
 
-    const operatorClock = page.getByTestId("operator-clock-input");
-    await operatorClock.fill("00:15.000");
+    const clockSeed = await backendRequest.patch(
+      `/api/v1/logger/matches/${CONFLICT_MATCH_ID}/clock-mode`,
+      {
+        data: {
+          match_time_seconds: 15,
+          clock_seconds_at_period_start: 15,
+          current_period_start_timestamp: null,
+        },
+      },
+    );
+    expect(clockSeed.ok()).toBeTruthy();
 
     // Seed an ingestion-like event (server-created) before the operator logs anything
     await sendRawEventThroughHarness(page, {
@@ -96,12 +105,10 @@ test.describe("Logger conflicts and deduplication", () => {
 
     // Operator attempts to log the same event from the cockpit (twice to force the duplicate response path)
     await resetHarnessFlow(page);
-    await operatorClock.fill("00:15.000");
     await submitStandardPass(page);
     await waitForPendingAckToClear(page);
 
     await resetHarnessFlow(page);
-    await operatorClock.fill("00:15.000");
     await submitStandardPass(page);
     await waitForPendingAckToClear(page);
 
