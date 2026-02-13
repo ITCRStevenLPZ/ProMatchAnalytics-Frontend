@@ -1,11 +1,11 @@
 # ProMatchAnalytics Frontend
 
+<!-- markdownlint-disable MD013 MD024 MD036 MD040 MD029 -->
+
 React + TypeScript frontend application for real-time soccer match logging and analytics.
 
 ## 🚀 Features
 
-- **Logger Cockpit** for rapid match event logging
-- **Keyboard Shortcuts** for high-speed data entry
 - **Real-time Match Logging** via WebSocket
 - **Offline-First Architecture** with IndexedDB
 - **Firebase Authentication** integration
@@ -17,7 +17,7 @@ React + TypeScript frontend application for real-time soccer match logging and a
 
 ## 📋 Requirements
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Firebase project credentials
 - Backend API running
@@ -64,7 +64,7 @@ npm run dev
 yarn dev
 ```
 
-Application will be available at: http://localhost:5173
+Application will be available at: <http://localhost:5173>
 
 ### 5. Build for Production
 
@@ -144,15 +144,15 @@ npm run test:coverage    # Run tests with coverage
 
 ## 🌐 Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `VITE_API_URL` | Backend API URL | Yes | - |
-| `VITE_FIREBASE_API_KEY` | Firebase API key | Yes | - |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain | Yes | - |
-| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID | Yes | - |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket | Yes | - |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID | Yes | - |
-| `VITE_FIREBASE_APP_ID` | Firebase app ID | Yes | - |
+| Variable                            | Description                  | Required | Default |
+| ----------------------------------- | ---------------------------- | -------- | ------- |
+| `VITE_API_URL`                      | Backend API URL              | Yes      | -       |
+| `VITE_FIREBASE_API_KEY`             | Firebase API key             | Yes      | -       |
+| `VITE_FIREBASE_AUTH_DOMAIN`         | Firebase auth domain         | Yes      | -       |
+| `VITE_FIREBASE_PROJECT_ID`          | Firebase project ID          | Yes      | -       |
+| `VITE_FIREBASE_STORAGE_BUCKET`      | Firebase storage bucket      | Yes      | -       |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID | Yes      | -       |
+| `VITE_FIREBASE_APP_ID`              | Firebase app ID              | Yes      | -       |
 
 ## 🔌 Key Technologies
 
@@ -171,57 +171,35 @@ npm run test:coverage    # Run tests with coverage
 ## 🎯 Features
 
 ### Authentication
+
 - Firebase email/password authentication
 - Protected routes based on user roles
 - Persistent authentication state
 
 ### Offline Support
+
 - IndexedDB for local data storage
 - Automatic sync when back online
 - Queue for offline operations
 - Visual indicators for connection status
 
 ### Real-time Updates
+
 - WebSocket connection for live match data
 - Automatic reconnection handling
 - Real-time event streaming
 
 ### Internationalization
+
 - Support for multiple languages (EN, ES)
 - Language switcher
 - RTL support ready
 
 ### Responsive Design
+
 - Mobile-first approach
 - Tablet and desktop optimized
 - Touch-friendly UI for match logging
-
-## 🎮 Logger Cockpit Guide
-
-The Logger Cockpit is designed for high-speed data entry using a keyboard-first approach.
-
-### Workflow
-1. **Select Player**: Type jersey number (e.g., `10`) + `Enter`.
-2. **Select Action**: Press hotkey (e.g., `P` for Pass).
-3. **Select Outcome**: Type outcome number (e.g., `1`) + `Enter`.
-
-### Keyboard Shortcuts
-
-| Key | Function |
-|---|---|
-| `0-9` | Type jersey number / outcome index |
-| `Enter` | Confirm selection |
-| `Esc` | Cancel / Reset flow |
-| `Space` | Toggle Match Clock |
-| `Ctrl + Z` | Undo last event |
-| `P` | Pass |
-| `S` | Shot |
-| `F` | Foul |
-| `C` | Cross |
-| `T` | Tackle |
-| `I` | Interception |
-
-Visual hints (e.g., `[P]`) are displayed on action buttons.
 
 ## 🚀 Deployment
 
@@ -284,6 +262,7 @@ docker run -p 80:80 promatch-frontend
 ### Static Hosting
 
 Build and upload `dist/` folder to:
+
 - AWS S3 + CloudFront
 - Google Cloud Storage
 - Azure Static Web Apps
@@ -294,6 +273,7 @@ Build and upload `dist/` folder to:
 ### API URL
 
 Update API URL in `.env`:
+
 ```env
 VITE_API_URL=https://your-backend-api.com
 ```
@@ -305,6 +285,7 @@ Get Firebase config from Firebase Console → Project Settings → General → Y
 ### Tailwind CSS
 
 Customize in `tailwind.config.js`:
+
 ```js
 export default {
   theme: {
@@ -321,6 +302,7 @@ export default {
 ### Routing
 
 Add new routes in `src/App.tsx`:
+
 ```tsx
 <Route path="/new-page" element={<NewPage />} />
 ```
@@ -338,19 +320,13 @@ npm test -- --watch
 npm test -- --coverage
 ```
 
-### Playwright E2E
+### Playwright E2E (admin CRUD + ingestion)
 
-Run the comprehensive E2E test suite:
+End-to-end API coverage for admin models and ingestion lives under `e2e/admin-models-crud.spec.ts`.
 
 ```bash
-# Run all E2E tests (including Logger flows)
-./run_matches_e2e.sh
-
-# Run specific Logger Keyboard test
-./run_matches_e2e.sh e2e/logger-keyboard.spec.ts
+PROMATCH_E2E_BACKEND_URL=http://127.0.0.1:8000 npx playwright test e2e/admin-models-crud.spec.ts
 ```
-
-The `run_matches_e2e.sh` script handles the backend setup, database seeding, and cleanup automatically.
 
 The spec expects the backend e2e server to be running (see runbook in `frontend_backend_change_log.md`).
 
@@ -376,6 +352,7 @@ Customize in `tailwind.config.js` and `src/index.css`.
 
 1. Create translation file in `public/locales/{lang}/translation.json`
 2. Add language to `src/i18n.ts`:
+
 ```ts
 resources: {
   en: { translation: enTranslation },
@@ -413,12 +390,14 @@ resources: {
 ## 🐛 Common Issues
 
 ### Port already in use
+
 ```bash
 # Kill process on port 5173
 lsof -ti:5173 | xargs kill -9
 ```
 
 ### Build fails
+
 ```bash
 # Clear cache and reinstall
 rm -rf node_modules package-lock.json
@@ -426,6 +405,7 @@ npm install
 ```
 
 ### TypeScript errors
+
 ```bash
 # Restart TS server in VS Code
 Cmd+Shift+P → "TypeScript: Restart TS Server"

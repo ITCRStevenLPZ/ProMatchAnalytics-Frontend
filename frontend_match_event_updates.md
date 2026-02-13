@@ -1,15 +1,17 @@
 # Frontend Guidance: Match Event Deduplication Guard
 
+<!-- markdownlint-disable MD013 MD024 MD036 MD040 MD029 -->
+
 _Last updated: 2025-11-16_
 
 This note summarizes the backend changes to the real-time match-event ingest API so frontend agents can validate whether UI or client logic needs adjustments. The backend now enforces a strict uniqueness constraint on `(match_id, match_clock, period, team_id)` combinations and returns richer status responses when a duplicate is detected.
 
 ## Affected Endpoints & Workflows
 
-| Flow | Endpoint | Change |
-| --- | --- | --- |
-| Live match logging | WebSocket `ConnectionManager.handle_event` (same URI) | Events are validated via shared `MatchEvent` schema and rejected if the `(match_id, match_clock, period, team_id)` tuple already exists. |
-| Admin dashboards / match logs | Any view that relies on `match_events` collection | Data reads are unchanged, but newly inserted documents are guaranteed unique by the above tuple. |
+| Flow                          | Endpoint                                              | Change                                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Live match logging            | WebSocket `ConnectionManager.handle_event` (same URI) | Events are validated via shared `MatchEvent` schema and rejected if the `(match_id, match_clock, period, team_id)` tuple already exists. |
+| Admin dashboards / match logs | Any view that relies on `match_events` collection     | Data reads are unchanged, but newly inserted documents are guaranteed unique by the above tuple.                                         |
 
 _No REST routes changed shape or URL. Only WebSocket payload validation/response semantics have evolved._
 
@@ -32,17 +34,18 @@ Frontends should continue to send the existing `MatchEvent` payload. All keys al
 ```
 
 ### Client-side hints
+
 - Keep the local notion of `match_clock` precise (string `MM:SS.mmm`) because duplicate detection hinges on it.
 - Period should follow existing numeric mapping (1=First half, 2=Second half, etc.).
 - Team IDs must align with backend canonical values (already required today).
 
 ## Response Contract
 
-| Status | When returned | Client impact |
-| --- | --- | --- |
-| `{"status": "success", "event_id": "<mongo_id>"}` | New event persisted | Same as before; show confirmation, append to timeline. |
+| Status                                                                                        | When returned                                                         | Client impact                                                                          |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `{"status": "success", "event_id": "<mongo_id>"}`                                             | New event persisted                                                   | Same as before; show confirmation, append to timeline.                                 |
 | `{"status": "duplicate", "message": "Event already recorded at this match clock and period"}` | Backend detected `(match_id, match_clock, period, team_id)` collision | UI should treat this as a no-op, optionally notify user that the event already exists. |
-| `{"status": "error", "message": "..."}` | Validation failures or unexpected exceptions | Existing error handling logic applies. |
+| `{"status": "error", "message": "..."}`                                                       | Validation failures or unexpected exceptions                          | Existing error handling logic applies.                                                 |
 
 > **Note:** The `_confirmed` and `_saved_at` fields still appear on broadcasted payloads, so consumer code does not need changes there.
 
