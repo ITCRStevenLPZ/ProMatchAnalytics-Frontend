@@ -1,12 +1,12 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
-  onPageChange: (page: number) =>void;
+  onPageChange: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
 }
 
@@ -18,7 +18,7 @@ export default function Pagination({
   onPageChange,
   onPageSizeChange,
 }: PaginationProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
   const startItem = totalItems > 0 ? (currentPage - 1) * pageSize + 1 : 0;
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
@@ -35,7 +35,7 @@ export default function Pagination({
       pages.push(1);
 
       if (currentPage > 3) {
-        pages.push('...');
+        pages.push("...");
       }
 
       // Show pages around current page
@@ -47,7 +47,7 @@ export default function Pagination({
       }
 
       if (currentPage < totalPages - 2) {
-        pages.push('...');
+        pages.push("...");
       }
 
       // Always show last page
@@ -67,27 +67,30 @@ export default function Pagination({
           disabled={currentPage === 1}
           className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {t('pagination.previous')}
+          {t("pagination.previous")}
         </button>
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages || totalPages === 0}
           className="relative inline-flex items-center px-4 py-2 ml-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {t('pagination.next')}
+          {t("pagination.next")}
         </button>
       </div>
       <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <p className="text-sm text-gray-700">
-            {t('pagination.showing')} <span className="font-medium">{startItem}</span> {t('pagination.to')}{' '}
-            <span className="font-medium">{endItem}</span> {t('pagination.of')}{' '}
-            <span className="font-medium">{totalItems}</span> {t('pagination.items')}
+            {t("pagination.showing")}{" "}
+            <span className="font-medium">{startItem}</span>{" "}
+            {t("pagination.to")} <span className="font-medium">{endItem}</span>{" "}
+            {t("pagination.of")}{" "}
+            <span className="font-medium">{totalItems}</span>{" "}
+            {t("pagination.items")}
           </p>
           {onPageSizeChange && (
             <div className="flex items-center gap-2">
               <label htmlFor="pageSize" className="text-sm text-gray-700">
-                {t('pagination.itemsPerPage')}:
+                {t("pagination.itemsPerPage")}:
               </label>
               <select
                 id="pageSize"
@@ -104,46 +107,50 @@ export default function Pagination({
           )}
         </div>
         <div>
-          <nav className="relative z-0 inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+          <nav
+            className="relative z-0 inline-flex -space-x-px rounded-md shadow-sm"
+            aria-label="Pagination"
+          >
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
               className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={t('pagination.previous')}
+              title={t("pagination.previous")}
             >
-              <span className="sr-only">{t('pagination.previous')}</span>
+              <span className="sr-only">{t("pagination.previous")}</span>
               <ChevronLeft className="w-5 h-5" />
             </button>
-            {totalPages > 1 && getPageNumbers().map((page, index) => (
-              typeof page === 'number' ? (
-                <button
-                  key={index}
-                  onClick={() => onPageChange(page)}
-                  className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
-                    currentPage === page
-                      ? 'z-10 bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                  title={`${t('pagination.page')} ${page}`}
-                >
-                  {page}
-                </button>
-              ) : (
-                <span
-                  key={index}
-                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300"
-                >
-                  {page}
-                </span>
-              )
-            ))}
+            {totalPages > 1 &&
+              getPageNumbers().map((page, index) =>
+                typeof page === "number" ? (
+                  <button
+                    key={index}
+                    onClick={() => onPageChange(page)}
+                    className={`relative inline-flex items-center px-4 py-2 text-sm font-medium border ${
+                      currentPage === page
+                        ? "z-10 bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                    title={`${t("pagination.page")} ${page}`}
+                  >
+                    {page}
+                  </button>
+                ) : (
+                  <span
+                    key={index}
+                    className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300"
+                  >
+                    {page}
+                  </span>
+                ),
+              )}
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0}
               className="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={t('pagination.next')}
+              title={t("pagination.next")}
             >
-              <span className="sr-only">{t('pagination.next')}</span>
+              <span className="sr-only">{t("pagination.next")}</span>
               <ChevronRight className="w-5 h-5" />
             </button>
           </nav>

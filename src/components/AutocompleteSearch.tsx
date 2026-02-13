@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Search, X, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { Search, X, AlertCircle } from "lucide-react";
 
 interface AutocompleteSearchProps<T> {
   /** Field name for the input */
@@ -43,10 +43,10 @@ export default function AutocompleteSearch<T>({
   minChars = 3,
   debounceMs = 300,
   required = false,
-  className = '',
+  className = "",
   label,
 }: AutocompleteSearchProps<T>) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
   const [suggestions, setSuggestions] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -57,13 +57,16 @@ export default function AutocompleteSearch<T>({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Debounced search
@@ -87,8 +90,8 @@ export default function AutocompleteSearch<T>({
         setSuggestions(results);
         setShowDropdown(true);
       } catch (err: any) {
-        console.error('Error fetching suggestions:', err);
-        setError(t('autocomplete.searchError'));
+        console.error("Error fetching suggestions:", err);
+        setError(t("autocomplete.searchError"));
         setSuggestions([]);
       } finally {
         setLoading(false);
@@ -110,38 +113,42 @@ export default function AutocompleteSearch<T>({
   };
 
   const handleClear = () => {
-    onChange('');
+    onChange("");
     setSuggestions([]);
     setShowDropdown(false);
     setError(null);
   };
 
-  const showMinCharsMessage = value.trim().length > 0 && value.trim().length < minChars;
+  const showMinCharsMessage =
+    value.trim().length > 0 && value.trim().length < minChars;
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
       {label && (
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor={name}
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
-      
+
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-gray-400" />
         </div>
-        
+
         <input
           id={name}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder || t('autocomplete.searchPlaceholder')}
+          placeholder={placeholder || t("autocomplete.searchPlaceholder")}
           required={required}
           className="input pl-10 pr-10 w-full"
           autoComplete="off"
         />
-        
+
         {value && (
           <button
             type="button"
@@ -156,7 +163,7 @@ export default function AutocompleteSearch<T>({
       {/* Min chars message */}
       {showMinCharsMessage && (
         <p className="mt-1 text-xs text-gray-500">
-          {t('autocomplete.minCharsMessage', { count: minChars })}
+          {t("autocomplete.minCharsMessage", { count: minChars })}
         </p>
       )}
 
@@ -173,12 +180,14 @@ export default function AutocompleteSearch<T>({
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
           {loading ? (
             <div className="px-4 py-2 text-sm text-gray-500 text-center">
-              {t('autocomplete.searching')}
+              {t("autocomplete.searching")}
             </div>
           ) : suggestions.length > 0 ? (
             <>
               <div className="sticky top-0 px-3 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200 z-10">
-                {t('autocomplete.suggestionsFound', { count: suggestions.length })}
+                {t("autocomplete.suggestionsFound", {
+                  count: suggestions.length,
+                })}
               </div>
               <ul className="py-1">
                 {suggestions.map((item, index) => (
@@ -201,12 +210,12 @@ export default function AutocompleteSearch<T>({
                 ))}
               </ul>
               <div className="sticky bottom-0 px-3 py-1.5 text-xs text-gray-500 bg-gray-50 border-t border-gray-200 z-10">
-                {t('autocomplete.selectToEdit')}
+                {t("autocomplete.selectToEdit")}
               </div>
             </>
           ) : (
             <div className="px-4 py-2 text-sm text-gray-500 text-center">
-              {t('autocomplete.noMatches')}
+              {t("autocomplete.noMatches")}
             </div>
           )}
         </div>

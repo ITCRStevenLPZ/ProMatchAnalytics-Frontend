@@ -1,4 +1,4 @@
-import { useBatchStatus } from '../hooks/useIngestion';
+import { useBatchStatus } from "../hooks/useIngestion";
 
 interface BatchProgressProps {
   batchId: string;
@@ -22,7 +22,8 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="text-red-600">
-          Error loading batch: {error instanceof Error ? error.message : 'Unknown error'}
+          Error loading batch:{" "}
+          {error instanceof Error ? error.message : "Unknown error"}
         </div>
       </div>
     );
@@ -33,10 +34,14 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
   }
 
   const total = batch.total;
-  const processed = batch.inserted + batch.duplicates_discarded + batch.accepted + batch.rejected;
+  const processed =
+    batch.inserted +
+    batch.duplicates_discarded +
+    batch.accepted +
+    batch.rejected;
   const progress = total > 0 ? (processed / total) * 100 : 0;
 
-  const isProcessing = ['processing', 'pending'].includes(batch.status);
+  const isProcessing = ["processing", "pending"].includes(batch.status);
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -61,12 +66,14 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
       <div className="px-6 py-4">
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-gray-600">Progress</span>
-          <span className="font-medium text-gray-900">{progress.toFixed(1)}%</span>
+          <span className="font-medium text-gray-900">
+            {progress.toFixed(1)}%
+          </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
           <div
             className={`h-full transition-all duration-500 ${
-              isProcessing ? 'bg-blue-600' : 'bg-green-600'
+              isProcessing ? "bg-blue-600" : "bg-green-600"
             }`}
             style={{ width: `${progress}%` }}
           >
@@ -124,21 +131,29 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
       <div className="px-6 py-4 border-t bg-gray-50 text-sm">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <span className="text-gray-600">Model:</span>{' '}
-            <span className="font-medium text-gray-900">{batch.target_model}</span>
+            <span className="text-gray-600">Model:</span>{" "}
+            <span className="font-medium text-gray-900">
+              {batch.target_model}
+            </span>
           </div>
           <div>
-            <span className="text-gray-600">Batch ID:</span>{' '}
-            <span className="font-mono text-xs text-gray-700">{batch.ingestion_id}</span>
+            <span className="text-gray-600">Batch ID:</span>{" "}
+            <span className="font-mono text-xs text-gray-700">
+              {batch.ingestion_id}
+            </span>
           </div>
           <div>
-            <span className="text-gray-600">Created:</span>{' '}
-            <span className="text-gray-900">{new Date(batch.created_at).toLocaleString()}</span>
+            <span className="text-gray-600">Created:</span>{" "}
+            <span className="text-gray-900">
+              {new Date(batch.created_at).toLocaleString()}
+            </span>
           </div>
           {batch.finished_at && (
             <div>
-              <span className="text-gray-600">Finished:</span>{' '}
-              <span className="text-gray-900">{new Date(batch.finished_at).toLocaleString()}</span>
+              <span className="text-gray-600">Finished:</span>{" "}
+              <span className="text-gray-900">
+                {new Date(batch.finished_at).toLocaleString()}
+              </span>
             </div>
           )}
         </div>
@@ -156,7 +171,9 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
                   <div>
                     <div>{error.message}</div>
                     {error.row_ref && (
-                      <div className="text-xs text-red-600">Row: {error.row_ref}</div>
+                      <div className="text-xs text-red-600">
+                        Row: {error.row_ref}
+                      </div>
                     )}
                   </div>
                 </li>
@@ -176,15 +193,19 @@ export default function BatchProgress({ batchId }: BatchProgressProps) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    pending: 'bg-gray-100 text-gray-800',
-    processing: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    partial: 'bg-yellow-100 text-yellow-800',
+    pending: "bg-gray-100 text-gray-800",
+    processing: "bg-blue-100 text-blue-800",
+    completed: "bg-green-100 text-green-800",
+    failed: "bg-red-100 text-red-800",
+    partial: "bg-yellow-100 text-yellow-800",
   };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium ${colors[status] || colors.pending}`}>
+    <span
+      className={`px-3 py-1 rounded-full text-sm font-medium ${
+        colors[status] || colors.pending
+      }`}
+    >
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
@@ -193,23 +214,25 @@ function StatusBadge({ status }: { status: string }) {
 interface CounterCardProps {
   label: string;
   value: number;
-  color: 'green' | 'gray' | 'yellow' | 'blue' | 'red';
+  color: "green" | "gray" | "yellow" | "blue" | "red";
   icon: string;
 }
 
 function CounterCard({ label, value, color, icon }: CounterCardProps) {
   const colorClasses: Record<string, string> = {
-    green: 'bg-green-50 border-green-200 text-green-900',
-    gray: 'bg-gray-50 border-gray-200 text-gray-900',
-    yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-    blue: 'bg-blue-50 border-blue-200 text-blue-900',
-    red: 'bg-red-50 border-red-200 text-red-900',
+    green: "bg-green-50 border-green-200 text-green-900",
+    gray: "bg-gray-50 border-gray-200 text-gray-900",
+    yellow: "bg-yellow-50 border-yellow-200 text-yellow-900",
+    blue: "bg-blue-50 border-blue-200 text-blue-900",
+    red: "bg-red-50 border-red-200 text-red-900",
   };
 
   return (
     <div className={`border rounded-lg p-3 ${colorClasses[color]}`}>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+        <span className="text-xs font-medium uppercase tracking-wide">
+          {label}
+        </span>
         <span className="text-lg">{icon}</span>
       </div>
       <div className="text-2xl font-bold">{value.toLocaleString()}</div>

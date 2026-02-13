@@ -1,4 +1,4 @@
-import type { Team, ManagerInfo, TechnicalStaffMember } from '../types';
+import type { Team, ManagerInfo, TechnicalStaffMember } from "../types";
 
 export interface TeamManagerApi {
   name: string;
@@ -18,7 +18,7 @@ export interface TeamApiResponse {
   team_id: string;
   name: string;
   short_name?: string | null;
-  gender: 'male' | 'female';
+  gender: "male" | "female";
   country_name: string;
   logo_url?: string | null;
   founded_year?: number | null;
@@ -42,7 +42,9 @@ const mapStaffMember = (staff: TeamStaffApi): TechnicalStaffMember => ({
 
 export const normalizeTeam = (team: TeamApiResponse): Team => {
   const managers = (team.managers ?? []).filter(Boolean).map(mapManager);
-  const technicalStaff = (team.technical_staff ?? []).filter(Boolean).map(mapStaffMember);
+  const technicalStaff = (team.technical_staff ?? [])
+    .filter(Boolean)
+    .map(mapStaffMember);
   const primaryManager = managers[0];
 
   return {
@@ -62,7 +64,8 @@ export const normalizeTeam = (team: TeamApiResponse): Team => {
   };
 };
 
-export const normalizeTeams = (teams: TeamApiResponse[]): Team[] => teams.map(normalizeTeam);
+export const normalizeTeams = (teams: TeamApiResponse[]): Team[] =>
+  teams.map(normalizeTeam);
 
 const trimOrUndefined = (value?: string | null) => {
   const trimmed = value?.trim();
@@ -94,7 +97,9 @@ const sanitizeManagers = (
   primaryManager?: ManagerInfo | null,
   extraManagers?: ManagerInfo[] | null,
 ) => {
-  const sanitized: Array<{ name: string; country_name?: string; start_date?: string } | undefined> = [];
+  const sanitized: Array<
+    { name: string; country_name?: string; start_date?: string } | undefined
+  > = [];
   const primary = sanitizeManagerInput(primaryManager ?? null);
   if (primary) {
     sanitized.push(primary);
@@ -114,14 +119,16 @@ const sanitizeStaffMemberInput = (staff?: TechnicalStaffMember | null) => {
   if (!name) return undefined;
   return {
     name,
-    role: trimOrUndefined(staff.role) ?? 'Other',
+    role: trimOrUndefined(staff.role) ?? "Other",
     country_name: trimOrUndefined(staff.country_name),
     start_date: sanitizeDate(staff.start_date) ?? undefined,
   };
 };
 
 const sanitizeTechnicalStaff = (staff?: TechnicalStaffMember[] | null) => {
-  const sanitized = (staff ?? []).map(sanitizeStaffMemberInput).filter(Boolean) as Array<{
+  const sanitized = (staff ?? [])
+    .map(sanitizeStaffMemberInput)
+    .filter(Boolean) as Array<{
     name: string;
     role: string;
     country_name?: string;
@@ -148,6 +155,8 @@ export const buildTeamPayload = (data: Partial<Team>) => {
   } as Record<string, unknown>;
 
   return Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null),
+    Object.entries(payload).filter(
+      ([, value]) => value !== undefined && value !== null,
+    ),
   );
 };

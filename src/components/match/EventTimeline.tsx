@@ -1,23 +1,24 @@
-import React from 'react';
-import { useMatchLogStore, MatchEvent } from '../../store/useMatchLogStore';
-import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import React from "react";
+import { useMatchLogStore, MatchEvent } from "../../store/useMatchLogStore";
+import { Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 export const EventTimeline: React.FC = () => {
   const { liveEvents, pendingAcks } = useMatchLogStore();
 
   // Sort events by timestamp descending (newest first)
-  const sortedEvents = [...liveEvents].sort((a, b) => 
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  const sortedEvents = [...liveEvents].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
   const getStatusIcon = (event: MatchEvent) => {
     // Check if this event is pending ack (optimistic)
     const isPending = event.client_id && pendingAcks[event.client_id];
-    
+
     if (isPending) {
       return <Clock size={14} className="text-gray-400" />;
     }
-    if (event._id) { // If it has a server ID, it's confirmed
+    if (event._id) {
+      // If it has a server ID, it's confirmed
       return <CheckCircle2 size={14} className="text-green-500" />;
     }
     return <AlertCircle size={14} className="text-orange-400" />; // Fallback/Queue state
@@ -51,11 +52,14 @@ export const EventTimeline: React.FC = () => {
                 </div>
                 <div className="text-xs text-gray-500">
                   {event.team_id}
-                  {event.player_id ? ` · ${event.player_id}` : ''}
+                  {event.player_id ? ` · ${event.player_id}` : ""}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2" title={event._id ? 'Synced' : 'Pending'}>
+            <div
+              className="flex items-center gap-2"
+              title={event._id ? "Synced" : "Pending"}
+            >
               {getStatusIcon(event)}
             </div>
           </div>

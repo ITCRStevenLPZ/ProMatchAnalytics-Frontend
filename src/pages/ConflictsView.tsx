@@ -1,19 +1,25 @@
-import { useState } from 'react';
-import { useConflicts, useModelConfigs } from '../hooks/useIngestion';
-import ConflictDiffViewer from '../components/ConflictDiffViewer';
-import ConflictActions from '../components/ConflictActions';
-import { ConflictRecord } from '../lib/ingestion';
+import { useState } from "react";
+import { useConflicts, useModelConfigs } from "../hooks/useIngestion";
+import ConflictDiffViewer from "../components/ConflictDiffViewer";
+import ConflictActions from "../components/ConflictActions";
+import { ConflictRecord } from "../lib/ingestion";
 
 export default function ConflictsView() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [selectedConflict, setSelectedConflict] = useState<ConflictRecord | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedConflict, setSelectedConflict] =
+    useState<ConflictRecord | null>(null);
 
   const { data: configs } = useModelConfigs();
-  const { data: conflictsData, isLoading, error, refetch } = useConflicts({
+  const {
+    data: conflictsData,
+    isLoading,
+    error,
+    refetch,
+  } = useConflicts({
     target_model: selectedModel || undefined,
-    status: 'open',
+    status: "open",
     page,
     page_size: pageSize,
   });
@@ -22,7 +28,9 @@ export default function ConflictsView() {
   const total = conflictsData?.total || 0;
   const totalPages = Math.ceil(total / pageSize);
 
-  const modelOptions = configs ? Object.values(configs).map((c) => c.model_key) : [];
+  const modelOptions = configs
+    ? Object.values(configs).map((c) => c.model_key)
+    : [];
 
   const handleConflictSelect = (conflict: ConflictRecord) => {
     setSelectedConflict(conflict);
@@ -37,9 +45,12 @@ export default function ConflictsView() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Conflict Resolution</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Conflict Resolution
+        </h1>
         <p className="text-gray-600 mt-2">
-          Review and resolve ingestion conflicts where incoming data matches existing records
+          Review and resolve ingestion conflicts where incoming data matches
+          existing records
         </p>
       </div>
 
@@ -47,7 +58,9 @@ export default function ConflictsView() {
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex items-center space-x-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Model</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Filter by Model
+            </label>
             <select
               value={selectedModel}
               onChange={(e) => {
@@ -89,12 +102,15 @@ export default function ConflictsView() {
           </div>
 
           {isLoading && (
-            <div className="p-8 text-center text-gray-600">Loading conflicts...</div>
+            <div className="p-8 text-center text-gray-600">
+              Loading conflicts...
+            </div>
           )}
 
           {error && (
             <div className="p-8 text-center text-red-600">
-              Error loading conflicts: {error instanceof Error ? error.message : 'Unknown error'}
+              Error loading conflicts:{" "}
+              {error instanceof Error ? error.message : "Unknown error"}
             </div>
           )}
 
@@ -112,8 +128,8 @@ export default function ConflictsView() {
                   onClick={() => handleConflictSelect(conflict)}
                   className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
                     selectedConflict?.conflict_id === conflict.conflict_id
-                      ? 'bg-blue-50 border-l-4 border-blue-600'
-                      : ''
+                      ? "bg-blue-50 border-l-4 border-blue-600"
+                      : ""
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -173,7 +189,7 @@ export default function ConflictsView() {
               <ConflictDiffViewer conflict={selectedConflict} />
               <ConflictActions
                 conflict={selectedConflict}
-                ingestionId={selectedConflict.ingestion_item_id.split('_')[0]} // Extract batch ID from item ID
+                ingestionId={selectedConflict.ingestion_item_id.split("_")[0]} // Extract batch ID from item ID
                 modelConfig={
                   configs ? configs[selectedConflict.target_model] : undefined
                 }

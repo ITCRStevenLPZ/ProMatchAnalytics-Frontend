@@ -3,27 +3,27 @@
  * Based on Section 3.0: Authentication Framework
  * Uses react-i18next for internationalization (Section 6.3)
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from '../lib/firebase';
-import { Trophy } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { Trophy } from "lucide-react";
 
 export default function Login() {
-  const { t } = useTranslation('login');
+  const { t } = useTranslation("login");
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Redirect if already authenticated
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        navigate('/dashboard');
+        navigate("/dashboard");
       }
     });
-    
+
     return () => unsubscribe();
   }, [navigate]);
 
@@ -34,9 +34,9 @@ export default function Login() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      navigate('/dashboard');
+      navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message || t('login.errorGeneric'));
+      setError(err.message || t("login.errorGeneric"));
     } finally {
       setLoading(false);
     }
@@ -49,8 +49,10 @@ export default function Login() {
           <div className="flex justify-center mb-4">
             <Trophy className="text-primary-600" size={64} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('title')}</h1>
-          <p className="text-gray-600">{t('subtitle')}</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {t("title")}
+          </h1>
+          <p className="text-gray-600">{t("subtitle")}</p>
         </div>
 
         {error && (
@@ -82,7 +84,7 @@ export default function Login() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          {loading ? t('signingIn') : t('signInWithGoogle')}
+          {loading ? t("signingIn") : t("signInWithGoogle")}
         </button>
       </div>
     </div>
