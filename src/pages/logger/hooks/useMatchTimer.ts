@@ -44,7 +44,6 @@ export const useMatchTimer = (
   // Track current calculated values for mode switch calculations
   const currentEffectiveRef = useRef(0);
   const currentIneffectiveRef = useRef(0);
-  const varTimeSeconds = options?.varTimeSeconds ?? 0;
   const isVarActive = options?.isVarActive ?? false;
   const varPauseStartMs = options?.varPauseStartMs ?? null;
   const varPausedSeconds = options?.varPausedSeconds ?? 0;
@@ -127,9 +126,10 @@ export const useMatchTimer = (
         setClockRunning(false);
       }
 
-      // 2. Calculate Global Time (Sum of all)
-      const globalSeconds =
-        currentEffectiveSeconds + currentIneffectiveSeconds + varTimeSeconds;
+      // 2. Calculate Global Time (effective + ineffective only)
+      // VAR is displayed in its own timer card and should not double-count
+      // into the global clock while effective/ineffective accumulation is active.
+      const globalSeconds = currentEffectiveSeconds + currentIneffectiveSeconds;
 
       // Update refs for mode switch calculations
       currentEffectiveRef.current = currentEffectiveSeconds;
@@ -150,7 +150,6 @@ export const useMatchTimer = (
     match,
     clockMode,
     accumulatedIneffectiveTime,
-    varTimeSeconds,
     isVarActive,
     varPauseStartMs,
     varPausedSeconds,

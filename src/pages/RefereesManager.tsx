@@ -496,13 +496,19 @@ export default function RefereesManager() {
                 </label>
                 <input
                   type="text"
-                  readOnly
+                  maxLength={40}
                   value={formData.referee_id || ""}
-                  className={`input w-full bg-gray-100 cursor-not-allowed ${
+                  onChange={(e) => {
+                    setFormData({ ...formData, referee_id: e.target.value });
+                    validateAndSetFieldError("referee_id", e.target.value);
+                  }}
+                  onBlur={(e) =>
+                    validateAndSetFieldError("referee_id", e.target.value)
+                  }
+                  className={`input w-full ${
                     getFieldError("referee_id") ? "border-red-500" : ""
                   }`}
-                  placeholder={t("refereeIdHelper")}
-                  title={t("refereeIdHelper")}
+                  placeholder="referee_spain_fifa_01"
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   {t("refereeIdHelper")}

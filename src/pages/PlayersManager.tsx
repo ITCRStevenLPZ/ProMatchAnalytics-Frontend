@@ -676,13 +676,17 @@ export default function PlayersManager() {
                   type="text"
                   maxLength={40}
                   value={formData.player_id || ""}
-                  readOnly
-                  className={`input w-full bg-gray-100 cursor-not-allowed ${
+                  onChange={(e) => {
+                    setFormData({ ...formData, player_id: e.target.value });
+                    validateAndSetFieldError("player_id", e.target.value);
+                  }}
+                  onBlur={(e) =>
+                    validateAndSetFieldError("player_id", e.target.value)
+                  }
+                  className={`input w-full ${
                     getFieldError("player_id") ? "border-red-500" : ""
                   }`}
-                  placeholder={
-                    editingItem ? undefined : "Auto-generated on save"
-                  }
+                  placeholder="player_123"
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   {t("playerIdHelper")}

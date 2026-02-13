@@ -546,13 +546,19 @@ export default function VenuesManager() {
                 </label>
                 <input
                   type="text"
-                  readOnly
+                  maxLength={40}
                   value={formData.venue_id || ""}
-                  className={`input w-full bg-gray-100 cursor-not-allowed ${
+                  onChange={(e) => {
+                    setFormData({ ...formData, venue_id: e.target.value });
+                    validateAndSetFieldError("venue_id", e.target.value);
+                  }}
+                  onBlur={(e) =>
+                    validateAndSetFieldError("venue_id", e.target.value)
+                  }
+                  className={`input w-full ${
                     getFieldError("venue_id") ? "border-red-500" : ""
                   }`}
-                  placeholder={t("venueIdHelper")}
-                  title={t("venueIdHelper")}
+                  placeholder="venue_nyc_001"
                 />
                 <p className="mt-1 text-sm text-gray-500">
                   {t("venueIdHelper")}

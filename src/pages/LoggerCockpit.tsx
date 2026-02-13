@@ -90,6 +90,27 @@ const parseClockToSeconds = (clock?: string): number => {
   return Number(mm) * 60 + seconds;
 };
 
+const compareCardEventOrder = (
+  left: { event: MatchEvent; index: number },
+  right: { event: MatchEvent; index: number },
+) => {
+  const leftPeriod = Number(left.event.period || 0);
+  const rightPeriod = Number(right.event.period || 0);
+  if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
+
+  const leftTs = Date.parse(left.event.timestamp || "");
+  const rightTs = Date.parse(right.event.timestamp || "");
+  const leftHasTs = Number.isFinite(leftTs);
+  const rightHasTs = Number.isFinite(rightTs);
+  if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
+
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
+
+  return left.index - right.index;
+};
+
 const formatSecondsAsClock = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -105,6 +126,64 @@ const formatSecondsAsClockWithMs = (seconds: number): string => {
     2,
     "0",
   )}.${String(ms).padStart(3, "0")}`;
+};
+
+const addMillisecondsToClock = (clock: string, deltaMs: number): string => {
+  const match = clock.match(/^(\d+):(\d{2})\.(\d{3})$/);
+  if (!match) return clock;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  const milliseconds = Number(match[3]);
+  const totalMs = minutes * 60_000 + seconds * 1_000 + milliseconds + deltaMs;
+  const safeTotal = Math.max(0, totalMs);
+  const nextMinutes = Math.floor(safeTotal / 60_000);
+  const remainder = safeTotal % 60_000;
+  const nextSeconds = Math.floor(remainder / 1_000);
+  const nextMs = remainder % 1_000;
+  return `${String(nextMinutes).padStart(2, "0")}:${String(
+    nextSeconds,
+  ).padStart(2, "0")}.${String(nextMs).padStart(3, "0")}`;
+};
+
+const getActiveYellowCountForPlayer = (
+  events: MatchEvent[],
+  playerId: string,
+): number => {
+  let yellow = 0;
+  let red = 0;
+
+  events
+    .map((event, index) => ({ event, index }))
+    .filter(
+      ({ event }) => event.type === "Card" && event.player_id === playerId,
+    )
+    .sort(compareCardEventOrder)
+    .forEach(({ event }) => {
+      const cardType = String(event.data?.card_type || "").toLowerCase();
+
+      if (cardType.includes("cancel")) {
+        if (red > 0 && yellow >= 2) {
+          red -= 1;
+          yellow -= 1;
+        } else if (red > 0) {
+          red -= 1;
+        } else if (yellow > 0) {
+          yellow -= 1;
+        }
+        return;
+      }
+
+      if (cardType.includes("yellow")) {
+        yellow += 1;
+        return;
+      }
+
+      if (cardType.includes("red")) {
+        red += 1;
+      }
+    });
+
+  return yellow;
 };
 
 declare global {
@@ -191,6 +270,10 @@ export default function LoggerCockpit() {
   const [hasActiveIneffective, setHasActiveIneffective] = useState(false);
   const [isVarActiveLocal, setIsVarActiveLocal] = useState(false);
   const [varStartMs, setVarStartMs] = useState<number | null>(null);
+  const [varStartGlobalSeconds, setVarStartGlobalSeconds] = useState<
+    number | null
+  >(null);
+  const [varStartTotalSeconds, setVarStartTotalSeconds] = useState(0);
   const [varPauseStartMs, setVarPauseStartMs] = useState<number | null>(null);
   const [varPausedSeconds, setVarPausedSeconds] = useState(0);
   const [varTick, setVarTick] = useState(0);
@@ -381,27 +464,6 @@ export default function LoggerCockpit() {
   }, [match, liveEvents, queuedEvents, ineffectiveTick, hasVarStoppage]);
 
   const breakdownVarActive = Boolean(ineffectiveBreakdown?.varActive);
-
-  const varTimeSeconds = useMemo(() => {
-    const baseVar = ineffectiveBreakdown?.totals.neutral ?? 0;
-    if (breakdownVarActive) return baseVar;
-    if (isVarActiveLocal && varStartMs) {
-      const deltaSeconds = Math.max(0, (Date.now() - varStartMs) / 1000);
-      return baseVar + deltaSeconds;
-    }
-    return baseVar;
-  }, [
-    ineffectiveBreakdown,
-    breakdownVarActive,
-    isVarActiveLocal,
-    varStartMs,
-    varTick,
-  ]);
-
-  const varTimeClock = useMemo(
-    () => formatSecondsAsClock(varTimeSeconds),
-    [varTimeSeconds, varTick],
-  );
   const isVarActive = breakdownVarActive || isVarActiveLocal;
 
   const {
@@ -415,11 +477,59 @@ export default function LoggerCockpit() {
     handleGlobalClockStop,
     handleModeSwitch,
   } = useMatchTimer(match, fetchMatch, {
-    varTimeSeconds,
     isVarActive,
     varPauseStartMs,
     varPausedSeconds,
   });
+
+  const globalClockSeconds = useMemo(
+    () => parseClockToSeconds(globalClock),
+    [globalClock],
+  );
+
+  const varTimeSeconds = useMemo(() => {
+    const baseVar = ineffectiveBreakdown?.totals.neutral ?? 0;
+    if (isVarActiveLocal && varStartGlobalSeconds !== null) {
+      const syncedDeltaSeconds = Math.max(
+        0,
+        globalClockSeconds - varStartGlobalSeconds,
+      );
+      return Math.max(0, varStartTotalSeconds + syncedDeltaSeconds);
+    }
+    if (isVarActiveLocal && varStartMs) {
+      const pausedWhileActive =
+        varPausedSeconds +
+        (varPauseStartMs
+          ? Math.max(0, (Date.now() - varPauseStartMs) / 1000)
+          : 0);
+      if (breakdownVarActive) {
+        return Math.max(0, baseVar - pausedWhileActive);
+      }
+      const deltaSeconds = Math.max(
+        0,
+        (Date.now() - varStartMs) / 1000 - pausedWhileActive,
+      );
+      return baseVar + deltaSeconds;
+    }
+    if (breakdownVarActive) return baseVar;
+    return baseVar;
+  }, [
+    ineffectiveBreakdown,
+    breakdownVarActive,
+    isVarActiveLocal,
+    globalClockSeconds,
+    varStartGlobalSeconds,
+    varStartTotalSeconds,
+    varStartMs,
+    varPauseStartMs,
+    varPausedSeconds,
+    varTick,
+  ]);
+
+  const varTimeClock = useMemo(
+    () => formatSecondsAsClock(varTimeSeconds),
+    [varTimeSeconds, varTick],
+  );
 
   useEffect(() => {
     if (
@@ -440,6 +550,21 @@ export default function LoggerCockpit() {
     setVarPausedSeconds(0);
     setVarPauseStartMs(isVarActiveLocal ? Date.now() : null);
   }, [clockMode]);
+
+  useEffect(() => {
+    if (!isVarActiveLocal) return;
+    if (isGlobalClockRunning) {
+      if (varPauseStartMs) {
+        const paused = Math.max(0, (Date.now() - varPauseStartMs) / 1000);
+        setVarPausedSeconds((prev) => prev + paused);
+        setVarPauseStartMs(null);
+      }
+      return;
+    }
+    if (!varPauseStartMs) {
+      setVarPauseStartMs(Date.now());
+    }
+  }, [isGlobalClockRunning, isVarActiveLocal, varPauseStartMs]);
 
   const getStoppageTeamId = useCallback(() => {
     if (!match) return null;
@@ -672,45 +797,90 @@ export default function LoggerCockpit() {
     [t, updateEventNotes, upsertLiveEvent],
   );
 
+  const cardDisciplinaryStatus = useMemo(() => {
+    const byPlayer = new Map<
+      string,
+      { yellow: number; red: number; suppressNextRed: number }
+    >();
+    const combinedEvents = [...liveEvents, ...queuedEvents]
+      .filter((event) => event.type === "Card" && Boolean(event.player_id))
+      .map((event, index) => ({ event, index }))
+      .sort(compareCardEventOrder);
+
+    combinedEvents.forEach(({ event }) => {
+      const playerId = event.player_id;
+      if (!playerId) return;
+      const state = byPlayer.get(playerId) ?? {
+        yellow: 0,
+        red: 0,
+        suppressNextRed: 0,
+      };
+      const cardType = String(event.data?.card_type || "").toLowerCase();
+
+      if (cardType.includes("cancel")) {
+        if (state.red > 0 && state.yellow >= 2) {
+          state.red -= 1;
+          state.yellow -= 1;
+        } else if (state.red > 0) {
+          state.red -= 1;
+        } else if (state.yellow > 0) {
+          state.yellow -= 1;
+        }
+        byPlayer.set(playerId, state);
+        return;
+      }
+
+      if (cardType.includes("yellow (second)")) {
+        state.yellow += 1;
+        state.red += 1;
+        state.suppressNextRed += 1;
+        byPlayer.set(playerId, state);
+        return;
+      }
+
+      if (cardType.includes("yellow")) {
+        state.yellow += 1;
+        byPlayer.set(playerId, state);
+        return;
+      }
+
+      if (cardType.includes("red")) {
+        if (state.suppressNextRed > 0) {
+          state.suppressNextRed -= 1;
+        } else {
+          state.red += 1;
+        }
+        byPlayer.set(playerId, state);
+      }
+    });
+
+    const status: Record<string, { yellowCount: number; red: boolean }> = {};
+    byPlayer.forEach((value, playerId) => {
+      status[playerId] = {
+        yellowCount: Math.max(0, value.yellow),
+        red: value.red > 0,
+      };
+    });
+    return status;
+  }, [liveEvents, queuedEvents]);
+
   const cardYellowCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const combinedEvents = [...liveEvents, ...queuedEvents];
-    combinedEvents.forEach((event) => {
-      if (event.type !== "Card") return;
-      if (!event.player_id) return;
-      const cardType = String(event.data?.card_type || "").toLowerCase();
-      if (!cardType.startsWith("yellow")) return;
-      counts[event.player_id] = (counts[event.player_id] || 0) + 1;
+    Object.entries(cardDisciplinaryStatus).forEach(([playerId, value]) => {
+      counts[playerId] = value.yellowCount;
     });
     return counts;
-  }, [liveEvents, queuedEvents]);
+  }, [cardDisciplinaryStatus]);
 
   const expelledPlayerIds = useMemo(() => {
     const expelled = new Set<string>();
-    const yellowCounts: Record<string, number> = {};
-    const combinedEvents = [...liveEvents, ...queuedEvents];
-    combinedEvents.forEach((event) => {
-      if (event.type !== "Card") return;
-      if (!event.player_id) return;
-      const cardType = String(event.data?.card_type || "").toLowerCase();
-      if (cardType.includes("red")) {
-        expelled.add(event.player_id);
-        return;
-      }
-      if (cardType.includes("yellow (second)")) {
-        expelled.add(event.player_id);
-        return;
-      }
-      if (cardType.includes("yellow")) {
-        yellowCounts[event.player_id] =
-          (yellowCounts[event.player_id] || 0) + 1;
-        if (yellowCounts[event.player_id] >= 2) {
-          expelled.add(event.player_id);
-        }
+    Object.entries(cardDisciplinaryStatus).forEach(([playerId, status]) => {
+      if (status.red || status.yellowCount >= 2) {
+        expelled.add(playerId);
       }
     });
     return expelled;
-  }, [liveEvents, queuedEvents]);
+  }, [cardDisciplinaryStatus]);
 
   useEffect(() => {
     setIsBallInPlay(isGlobalClockRunning);
@@ -750,9 +920,7 @@ export default function LoggerCockpit() {
       match.status === "Completed" ||
       match.status === "Abandoned";
     const base =
-      (match.match_time_seconds || 0) +
-      (match.ineffective_time_seconds || 0) +
-      varTimeSeconds;
+      (match.match_time_seconds || 0) + (match.ineffective_time_seconds || 0);
     if (!match.current_period_start_timestamp || isStatusStopped) return base;
     const start = parseTimestampSafe(match.current_period_start_timestamp);
     const elapsed = Math.max(0, (Date.now() - start) / 1000);
@@ -860,6 +1028,8 @@ export default function LoggerCockpit() {
       resetOperatorControls({ clock: "00:00.000", period: 1 });
       setIsVarActiveLocal(false);
       setVarStartMs(null);
+      setVarStartGlobalSeconds(null);
+      setVarStartTotalSeconds(0);
       setVarPauseStartMs(null);
       setVarPausedSeconds(0);
 
@@ -1246,7 +1416,11 @@ export default function LoggerCockpit() {
 
       let resolvedCard: string = cardType;
       if (cardType === "Yellow") {
-        const previousYellows = cardYellowCounts[player.id] || 0;
+        const latestState = useMatchLogStore.getState();
+        const previousYellows = getActiveYellowCountForPlayer(
+          [...latestState.liveEvents, ...latestState.queuedEvents],
+          player.id,
+        );
         resolvedCard = previousYellows >= 1 ? "Yellow (Second)" : "Yellow";
       }
 
@@ -1255,8 +1429,11 @@ export default function LoggerCockpit() {
         resolvedCard === "Yellow (Second)" ||
         resolvedCard === "Red";
 
-      const buildCardPayload = (cardValue: string) => ({
-        match_clock: globalClock,
+      const buildCardPayload = (
+        cardValue: string,
+        matchClock = globalClock,
+      ) => ({
+        match_clock: matchClock,
         period: operatorPeriod,
         team_id: team.id,
         player_id: player.id,
@@ -1268,10 +1445,13 @@ export default function LoggerCockpit() {
         ...(location ? { location } : {}),
       });
 
-      sendEvent(buildCardPayload(resolvedCard));
-
       if (resolvedCard === "Yellow (Second)") {
-        sendEvent(buildCardPayload("Red"));
+        const secondYellowClock = addMillisecondsToClock(globalClock, 1);
+        const redClock = addMillisecondsToClock(globalClock, 2);
+        sendEvent(buildCardPayload(resolvedCard, secondYellowClock));
+        sendEvent(buildCardPayload("Red", redClock));
+      } else {
+        sendEvent(buildCardPayload(resolvedCard));
       }
 
       if (isDisciplinary) {
@@ -1306,7 +1486,7 @@ export default function LoggerCockpit() {
         logCardForPlayer(player, pendingCardType);
         return;
       }
-      if (expelledPlayerIds.has(player.id)) {
+      if (expelledPlayerIds.has(player.id) && pendingCardType !== "Cancelled") {
         setToast({
           message: t(
             "playerExpelled",
@@ -1344,6 +1524,17 @@ export default function LoggerCockpit() {
       side: "home" | "away",
     ) => {
       if (cockpitLocked) return;
+
+      if (isVarActive) {
+        setToast({
+          message: t(
+            "varBlocksFieldActions",
+            "Field actions are blocked while VAR is active.",
+          ),
+        });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
 
       if (expelledPlayerIds.has(player.id)) {
         setToast({
@@ -1395,6 +1586,7 @@ export default function LoggerCockpit() {
     },
     [
       cockpitLocked,
+      isVarActive,
       currentStep,
       pendingCardType,
       logCardForPlayer,
@@ -1418,6 +1610,16 @@ export default function LoggerCockpit() {
       isOutOfBounds: boolean;
     }) => {
       if (cockpitLocked || currentStep !== "selectDestination") return;
+      if (isVarActive) {
+        setToast({
+          message: t(
+            "varBlocksFieldActions",
+            "Field actions are blocked while VAR is active.",
+          ),
+        });
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
       const result = handleDestinationClick({ destination });
       if (result?.outOfBounds || result?.isGoal) {
         beginIneffective(
@@ -1434,7 +1636,14 @@ export default function LoggerCockpit() {
         );
       }
     },
-    [cockpitLocked, currentStep, handleDestinationClick, beginIneffective],
+    [
+      cockpitLocked,
+      currentStep,
+      isVarActive,
+      handleDestinationClick,
+      beginIneffective,
+      t,
+    ],
   );
 
   const handleQuickSubstitution = useCallback(
@@ -1610,15 +1819,35 @@ export default function LoggerCockpit() {
 
   const handleGlobalClockStartGuarded = useCallback(() => {
     if (cockpitLocked) return;
+    if (isVarActiveLocal && varPauseStartMs) {
+      const paused = Math.max(0, (Date.now() - varPauseStartMs) / 1000);
+      setVarPausedSeconds((prev) => prev + paused);
+      setVarPauseStartMs(null);
+    }
     setIsBallInPlay(true);
     handleGlobalClockStart();
-  }, [cockpitLocked, handleGlobalClockStart, setIsBallInPlay]);
+  }, [
+    cockpitLocked,
+    handleGlobalClockStart,
+    isVarActiveLocal,
+    setIsBallInPlay,
+    varPauseStartMs,
+  ]);
 
   const handleGlobalClockStopGuarded = useCallback(() => {
     if (cockpitLocked) return;
+    if (isVarActiveLocal && !varPauseStartMs) {
+      setVarPauseStartMs(Date.now());
+    }
     setIsBallInPlay(false);
     handleGlobalClockStop();
-  }, [cockpitLocked, handleGlobalClockStop, setIsBallInPlay]);
+  }, [
+    cockpitLocked,
+    handleGlobalClockStop,
+    isVarActiveLocal,
+    setIsBallInPlay,
+    varPauseStartMs,
+  ]);
 
   const handleModeSwitchGuarded = useCallback(
     (mode: "EFFECTIVE" | "INEFFECTIVE") => {
@@ -1635,13 +1864,16 @@ export default function LoggerCockpit() {
   const handleVarToggle = useCallback(() => {
     if (cockpitLocked) return;
     const nextActive = !isVarActiveLocal;
+    const currentVarSeconds = varTimeSeconds;
+    const currentGlobalSeconds = parseClockToSeconds(globalClock);
     logVarTimerEvent(nextActive ? "VARStart" : "VARStop");
     setIsVarActiveLocal(nextActive);
     setVarStartMs(nextActive ? Date.now() : null);
+    setVarStartGlobalSeconds(nextActive ? currentGlobalSeconds : null);
+    setVarStartTotalSeconds(nextActive ? currentVarSeconds : 0);
+    setVarPausedSeconds(0);
     if (nextActive) {
-      if (match?.current_period_start_timestamp) {
-        setVarPauseStartMs(Date.now());
-      }
+      setVarPauseStartMs(isGlobalClockRunning ? null : Date.now());
     } else if (varPauseStartMs) {
       const deltaSeconds = Math.max(0, (Date.now() - varPauseStartMs) / 1000);
       setVarPausedSeconds((prev) => prev + deltaSeconds);
@@ -1650,8 +1882,10 @@ export default function LoggerCockpit() {
   }, [
     cockpitLocked,
     isVarActiveLocal,
+    isGlobalClockRunning,
     logVarTimerEvent,
-    match?.current_period_start_timestamp,
+    globalClock,
+    varTimeSeconds,
     varPauseStartMs,
   ]);
 
@@ -1819,18 +2053,58 @@ export default function LoggerCockpit() {
 
     setUndoError(null);
 
-    const isOfflineQueued =
-      !pendingAcks[lastUndoClientId] && !lastUndoEvent._id;
+    const previousUndoClientId =
+      undoStack.length > 1 ? undoStack[undoStack.length - 2] : null;
+    const previousUndoEvent = previousUndoClientId
+      ? liveEvents.find((event) => event.client_id === previousUndoClientId) ||
+        queuedEvents.find((event) => event.client_id === previousUndoClientId)
+      : null;
 
-    if (isOfflineQueued || !undoRequiresConnection) {
-      removeLiveEventByClientId(lastUndoClientId);
-      removeQueuedEvent(lastUndoEvent);
-      removeUndoCandidate(lastUndoClientId);
+    const lastCardType = String(
+      lastUndoEvent.data?.card_type || "",
+    ).toLowerCase();
+    const previousCardType = String(
+      previousUndoEvent?.data?.card_type || "",
+    ).toLowerCase();
+    const shouldCascadeUndoSecondYellow =
+      Boolean(previousUndoClientId) &&
+      Boolean(previousUndoEvent) &&
+      lastUndoEvent.type === "Card" &&
+      previousUndoEvent?.type === "Card" &&
+      lastCardType.includes("red") &&
+      previousCardType.includes("yellow (second)") &&
+      lastUndoEvent.player_id === previousUndoEvent.player_id &&
+      lastUndoEvent.team_id === previousUndoEvent.team_id &&
+      lastUndoEvent.period === previousUndoEvent.period;
+
+    const eventsToUndo =
+      shouldCascadeUndoSecondYellow && previousUndoEvent
+        ? [lastUndoEvent, previousUndoEvent]
+        : [lastUndoEvent];
+
+    const removeLocally = (targetEvent: MatchEvent, targetClientId: string) => {
+      removeLiveEventByClientId(targetClientId);
+      removeQueuedEvent(targetEvent);
+      removeUndoCandidate(targetClientId);
+    };
+
+    const hasOfflineOnlyTargets = eventsToUndo.every((event) => {
+      if (!event.client_id) return false;
+      return !pendingAcks[event.client_id] && !event._id;
+    });
+
+    if (hasOfflineOnlyTargets || !undoRequiresConnection) {
+      eventsToUndo.forEach((event) => {
+        if (!event.client_id) return;
+        removeLocally(event, event.client_id);
+      });
       return;
     }
 
     try {
-      undoEvent(lastUndoEvent);
+      eventsToUndo.forEach((event) => {
+        undoEvent(event);
+      });
     } catch (error) {
       console.error("Undo failed", error);
       setUndoError(
@@ -1847,6 +2121,9 @@ export default function LoggerCockpit() {
     removeLiveEventByClientId,
     removeQueuedEvent,
     removeUndoCandidate,
+    undoStack,
+    liveEvents,
+    queuedEvents,
     t,
     undoEvent,
     cockpitLocked,
@@ -2886,6 +3163,12 @@ export default function LoggerCockpit() {
                   flipSides={manualFieldFlip}
                   selectedPlayer={selectedPlayer}
                   selectedTeam={selectedTeam}
+                  disciplinaryStatusByPlayer={cardDisciplinaryStatus}
+                  onCardTeamSelect={
+                    pendingCardType
+                      ? (team) => setSelectedTeam(team)
+                      : undefined
+                  }
                   onFieldIds={onFieldIds}
                   onPlayerClick={handlePlayerSelection}
                   onFieldPlayerClick={handleFieldPlayerSelection}
@@ -2942,7 +3225,9 @@ export default function LoggerCockpit() {
                   priorityPlayerId={priorityPlayerId}
                   isReadOnly={
                     !IS_E2E_TEST_MODE &&
-                    (!isGlobalClockRunning || clockMode !== "EFFECTIVE")
+                    (!isGlobalClockRunning ||
+                      clockMode !== "EFFECTIVE" ||
+                      isVarActive)
                   }
                   t={t}
                 />
@@ -2963,6 +3248,7 @@ export default function LoggerCockpit() {
                     onCancelSelection={cancelCardSelection}
                     selectedTeam={selectedTeam}
                     onSelectTeam={(team) => setSelectedTeam(team)}
+                    showTeamSelector={false}
                     disabled={cockpitLocked}
                     t={t}
                   />
@@ -3044,10 +3330,24 @@ export default function LoggerCockpit() {
           onField={
             substitutionTeam === "home" ? onFieldIds.home : onFieldIds.away
           }
+          expelledPlayerIds={expelledPlayerIds}
           period={operatorPeriod}
           globalClock={globalClock}
           onSubmit={(playerOffId, playerOnId, isConcussion) => {
             if (cockpitLocked) return;
+            if (
+              expelledPlayerIds.has(playerOffId) ||
+              expelledPlayerIds.has(playerOnId)
+            ) {
+              setToast({
+                message: t(
+                  "substitutionExpelledBlocked",
+                  "Expelled players cannot be substituted.",
+                ),
+              });
+              setTimeout(() => setToast(null), 3000);
+              return;
+            }
             // Create substitution event
             const team =
               substitutionTeam === "home" ? match.home_team : match.away_team;

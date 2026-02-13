@@ -138,10 +138,20 @@ export const submitStandardShot = async (
 
 export const ensureClockRunning = async (page: Page): Promise<void> => {
   const ballStateLabel = page.getByTestId("ball-state-label");
+  const effectiveClock = page.getByTestId("effective-clock-value");
+  const stopClockButton = page.getByTestId("btn-stop-clock");
   const stateText = (await ballStateLabel.textContent()) || "";
   if (/Ball In Play|Bal[oó]n en Juego/i.test(stateText)) return;
 
-  const stopClockButton = page.getByTestId("btn-stop-clock");
+  const stopEnabled = await stopClockButton.isEnabled().catch(() => false);
+  if (stopEnabled) {
+    const before = (await effectiveClock.textContent())?.trim() || "00:00";
+    await page.waitForTimeout(1200);
+    const after = (await effectiveClock.textContent())?.trim() || "00:00";
+    if (after !== before) {
+      return;
+    }
+  }
 
   const startClockButton = page.getByTestId("btn-start-clock");
   const startEnabled = await startClockButton.isEnabled().catch(() => false);
@@ -149,10 +159,17 @@ export const ensureClockRunning = async (page: Page): Promise<void> => {
     await startClockButton.click({ timeout: 15000 });
   }
 
-  await expect(ballStateLabel).toHaveText(/Ball In Play|Bal[oó]n en Juego/i, {
-    timeout: 15000,
-  });
   await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
+  await expect
+    .poll(async () => {
+      const label = (await ballStateLabel.textContent()) || "";
+      if (/Ball In Play|Bal[oó]n en Juego/i.test(label)) return true;
+      const before = (await effectiveClock.textContent())?.trim() || "00:00";
+      await page.waitForTimeout(1200);
+      const after = (await effectiveClock.textContent())?.trim() || "00:00";
+      return after !== before;
+    })
+    .toBe(true);
 };
 
 export const waitForPendingAckToClear = async (page: Page): Promise<void> => {

@@ -31,4 +31,3 @@ jobs:
 
       - name: Unit tests
         run: npm test --if-present
-

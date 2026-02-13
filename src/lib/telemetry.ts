@@ -1,15 +1,18 @@
 type TelemetryPayload = Record<string, any>;
 
 const isAnalyticsAvailable = (): boolean => {
-  return typeof window !== 'undefined' && typeof window.analytics?.track === 'function';
+  return (
+    typeof window !== "undefined" &&
+    typeof window.analytics?.track === "function"
+  );
 };
 
 export const trackTelemetry = (
   eventName: string,
-  payload: TelemetryPayload = {}
+  payload: TelemetryPayload = {},
 ): void => {
   const enrichedPayload = {
-    source: 'logger-ui',
+    source: "logger-ui",
     timestamp: new Date().toISOString(),
     ...payload,
   };

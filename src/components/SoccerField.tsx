@@ -125,6 +125,10 @@ interface SoccerFieldProps {
   awayTeamName: string;
   homePlayers: Player[];
   awayPlayers: Player[];
+  disciplinaryStatusByPlayer?: Record<
+    string,
+    { yellowCount: number; red: boolean }
+  >;
   onPlayerClick: (
     player: Player,
     anchor: FieldAnchor,
@@ -142,6 +146,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   awayTeamName,
   homePlayers,
   awayPlayers,
+  disciplinaryStatusByPlayer,
   onPlayerClick,
   onDestinationClick,
   overlay,
@@ -266,6 +271,9 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     const isHome = side === "home";
     const group = getPositionGroup(player.position);
     const meta = getGroupMeta(group);
+    const cardStatus = disciplinaryStatusByPlayer?.[player.id];
+    const hasYellow = (cardStatus?.yellowCount || 0) > 0;
+    const hasRed = Boolean(cardStatus?.red);
 
     return (
       <button
@@ -278,25 +286,58 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
         data-testid={`field-player-${player.id}`}
         data-player-row="true"
         data-position-group={group}
-        className={`pointer-events-auto w-full max-w-[320px] rounded-md border-l-4 px-2 py-1 text-left text-xs font-semibold shadow-sm transition-colors ${
+        className={`pointer-events-auto w-full max-w-[320px] xl:max-w-[360px] 2xl:max-w-[400px] rounded-md border-l-4 px-2 py-1 xl:px-3 xl:py-1.5 2xl:px-4 2xl:py-2 text-left text-xs xl:text-sm 2xl:text-base font-semibold shadow-sm transition-colors ${
           isHome
             ? "border-red-300 bg-white/95 text-slate-900"
             : "border-blue-300 bg-white/95 text-slate-900"
         } ${meta.border}`}
         title={`${player.full_name} (${player.position})`}
       >
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] px-1.5 py-0.5">
+        <div className="flex items-center gap-2 xl:gap-2.5 2xl:gap-3">
+          <span
+            className={`h-2 w-2 xl:h-2.5 xl:w-2.5 2xl:h-3 2xl:w-3 rounded-full ${meta.dot}`}
+          />
+          <span
+            data-testid={`field-player-number-${player.id}`}
+            className="inline-flex min-w-6 xl:min-w-7 2xl:min-w-8 items-center justify-center rounded-full bg-slate-900 text-white text-[10px] xl:text-xs 2xl:text-sm px-1.5 py-0.5 xl:px-2 xl:py-0.5"
+          >
             {player.jersey_number}
           </span>
-          <span className="flex-1 truncate">{player.full_name}</span>
+          <span
+            data-testid={`field-player-name-${player.id}`}
+            className="flex-1 truncate text-xs xl:text-sm 2xl:text-base"
+          >
+            {player.full_name}
+          </span>
           <span
             data-testid={`field-player-position-${player.id}`}
-            className={`text-[10px] uppercase tracking-wider border px-1.5 py-0.5 rounded-full ${meta.badge}`}
+            className={`text-[10px] xl:text-xs 2xl:text-sm uppercase tracking-wider border px-1.5 py-0.5 xl:px-2 xl:py-1 rounded-full ${meta.badge}`}
           >
             {player.position}
           </span>
+          {hasYellow && (
+            <span
+              data-testid={`field-player-status-yellow-${player.id}`}
+              className="inline-flex items-center gap-1 rounded-md border border-yellow-500/60 bg-yellow-500/20 px-1.5 py-1"
+            >
+              {Array.from({
+                length: Math.max(1, cardStatus?.yellowCount || 0),
+              }).map((_, index) => (
+                <span
+                  key={`${player.id}-field-yellow-${index}`}
+                  className="h-2.5 w-1.5 rounded-sm bg-yellow-500"
+                />
+              ))}
+            </span>
+          )}
+          {hasRed && (
+            <span
+              data-testid={`field-player-status-red-${player.id}`}
+              className="inline-flex items-center rounded-md border border-red-500/70 bg-red-500/20 px-1.5 py-1"
+            >
+              <span className="h-2.5 w-1.5 rounded-sm bg-red-600" />
+            </span>
+          )}
         </div>
       </button>
     );
@@ -361,13 +402,19 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
 
           {/* Players (list layout) */}
           <div className="absolute inset-0 flex items-center justify-between px-6 py-10 pointer-events-none">
-            <div className="w-[40%] space-y-2">
+            <div
+              className="w-[40%] 2xl:w-[30%] 2xl:max-w-[360px] space-y-2"
+              data-testid="field-side-left"
+            >
               {sortPlayersByGroup(flipSides ? awayPlayers : homePlayers).map(
                 (p, i) =>
                   renderPlayerListItem(p, i, flipSides ? "away" : "home"),
               )}
             </div>
-            <div className="w-[40%] space-y-2 flex flex-col items-end">
+            <div
+              className="w-[40%] 2xl:w-[30%] 2xl:max-w-[360px] space-y-2 flex flex-col items-end"
+              data-testid="field-side-right"
+            >
               {sortPlayersByGroup(flipSides ? homePlayers : awayPlayers).map(
                 (p, i) =>
                   renderPlayerListItem(p, i, flipSides ? "home" : "away"),

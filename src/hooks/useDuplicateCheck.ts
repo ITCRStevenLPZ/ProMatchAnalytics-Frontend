@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { apiClient } from '../lib/api';
+import { useState } from "react";
+import { apiClient } from "../lib/api";
 
 interface DuplicateResult {
   has_duplicates: boolean;
@@ -18,19 +18,19 @@ export const useDuplicateCheck = () => {
   const [duplicates, setDuplicates] = useState<DuplicateResult | null>(null);
 
   const checkDuplicates = async (
-    entityType: 'players' | 'teams' | 'venues' | 'referees' | 'competitions',
-    data: any
+    entityType: "players" | "teams" | "venues" | "referees" | "competitions",
+    data: any,
   ): Promise<DuplicateResult> => {
     setChecking(true);
     try {
       const response = await apiClient.post<DuplicateResult>(
         `/admin/check-duplicates/${entityType}`,
-        data
+        data,
       );
       setDuplicates(response);
       return response;
     } catch (error) {
-      console.error('Duplicate check failed:', error);
+      console.error("Duplicate check failed:", error);
       return { has_duplicates: false, count: 0, duplicates: [] };
     } finally {
       setChecking(false);
@@ -43,6 +43,6 @@ export const useDuplicateCheck = () => {
     checkDuplicates,
     checking,
     duplicates,
-    clearDuplicates
+    clearDuplicates,
   };
 };

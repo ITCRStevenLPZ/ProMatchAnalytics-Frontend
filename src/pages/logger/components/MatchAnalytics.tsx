@@ -80,6 +80,11 @@ interface ComparativeRow {
   testId: string;
 }
 
+interface TeamCardTotals {
+  yellow: number;
+  red: number;
+}
+
 const COLORS = {
   home: "#10b981", // green
   away: "#3b82f6", // blue
@@ -112,6 +117,121 @@ const formatSecondsAsClock = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
+const parseClockToSeconds = (clock?: string) => {
+  if (!clock) return 0;
+  const [mm, rest] = clock.split(":");
+  const seconds = parseFloat(rest || "0");
+  return Number(mm) * 60 + seconds;
+};
+
+const compareCardEventOrder = (
+  left: { event: MatchEvent; index: number },
+  right: { event: MatchEvent; index: number },
+) => {
+  const leftPeriod = Number(left.event.period || 0);
+  const rightPeriod = Number(right.event.period || 0);
+  if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
+
+  const leftTs = Date.parse(left.event.timestamp || "");
+  const rightTs = Date.parse(right.event.timestamp || "");
+  const leftHasTs = Number.isFinite(leftTs);
+  const rightHasTs = Number.isFinite(rightTs);
+  if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
+
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
+
+  return left.index - right.index;
+};
+
+const getNetCardTotalsByTeam = (
+  events: MatchEvent[],
+  homeTeamId: string,
+  awayTeamId: string,
+) => {
+  const stateByPlayer = new Map<
+    string,
+    {
+      teamId: string;
+      yellow: number;
+      red: number;
+      suppressNextRed: number;
+    }
+  >();
+
+  const orderedCards = events
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.type === "Card" && Boolean(event.player_id))
+    .sort(compareCardEventOrder);
+
+  orderedCards.forEach(({ event }) => {
+    const playerId = event.player_id;
+    if (!playerId) return;
+    const current = stateByPlayer.get(playerId) ?? {
+      teamId: event.team_id,
+      yellow: 0,
+      red: 0,
+      suppressNextRed: 0,
+    };
+    current.teamId = event.team_id || current.teamId;
+
+    const cardType = String(event.data?.card_type || "").toLowerCase();
+
+    if (cardType.includes("cancel")) {
+      if (current.red > 0 && current.yellow >= 2) {
+        current.red -= 1;
+        current.yellow -= 1;
+      } else if (current.red > 0) {
+        current.red -= 1;
+      } else if (current.yellow > 0) {
+        current.yellow -= 1;
+      }
+      stateByPlayer.set(playerId, current);
+      return;
+    }
+
+    if (cardType.includes("yellow (second)")) {
+      current.yellow += 1;
+      current.red += 1;
+      current.suppressNextRed += 1;
+      stateByPlayer.set(playerId, current);
+      return;
+    }
+
+    if (cardType.includes("yellow")) {
+      current.yellow += 1;
+      stateByPlayer.set(playerId, current);
+      return;
+    }
+
+    if (cardType.includes("red")) {
+      if (current.suppressNextRed > 0) {
+        current.suppressNextRed -= 1;
+      } else {
+        current.red += 1;
+      }
+      stateByPlayer.set(playerId, current);
+      return;
+    }
+  });
+
+  const totalsByTeam: Record<string, TeamCardTotals> = {
+    [homeTeamId]: { yellow: 0, red: 0 },
+    [awayTeamId]: { yellow: 0, red: 0 },
+  };
+
+  stateByPlayer.forEach(({ teamId, yellow, red }) => {
+    if (!totalsByTeam[teamId]) {
+      totalsByTeam[teamId] = { yellow: 0, red: 0 };
+    }
+    totalsByTeam[teamId].yellow += yellow;
+    totalsByTeam[teamId].red += red;
+  });
+
+  return totalsByTeam;
 };
 
 export function MatchAnalytics({
@@ -236,11 +356,6 @@ export function MatchAnalytics({
           e.type === "Shot" && outcomes.includes(String(e.data?.outcome || "")),
       ).length;
 
-    const getCardCount = (teamEvents: MatchEvent[], types: string[]) =>
-      teamEvents.filter(
-        (e) => e.type === "Card" && types.includes(String(e.data?.card_type)),
-      ).length;
-
     const getPassCounts = (teamEvents: MatchEvent[]) => {
       const total = teamEvents.filter((e) => e.type === "Pass").length;
       const accurate = teamEvents.filter(
@@ -248,6 +363,12 @@ export function MatchAnalytics({
       ).length;
       return { total, accurate };
     };
+
+    const cardTotalsByTeam = getNetCardTotalsByTeam(
+      events,
+      homeTeamId,
+      awayTeamId,
+    );
 
     const homePasses = getPassCounts(homeEvents);
     const awayPasses = getPassCounts(awayEvents);
@@ -293,10 +414,10 @@ export function MatchAnalytics({
       ).length;
     const homeFouls = getEventCount(homeEvents, "FoulCommitted");
     const awayFouls = getEventCount(awayEvents, "FoulCommitted");
-    const homeYellows = getCardCount(homeEvents, ["Yellow", "Yellow (Second)"]);
-    const awayYellows = getCardCount(awayEvents, ["Yellow", "Yellow (Second)"]);
-    const homeReds = getCardCount(homeEvents, ["Red", "Yellow (Second)"]);
-    const awayReds = getCardCount(awayEvents, ["Red", "Yellow (Second)"]);
+    const homeYellows = cardTotalsByTeam[homeTeamId]?.yellow ?? 0;
+    const awayYellows = cardTotalsByTeam[awayTeamId]?.yellow ?? 0;
+    const homeReds = cardTotalsByTeam[homeTeamId]?.red ?? 0;
+    const awayReds = cardTotalsByTeam[awayTeamId]?.red ?? 0;
 
     const teamComparison: TeamComparison[] = [
       {

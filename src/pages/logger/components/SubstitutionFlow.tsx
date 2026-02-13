@@ -38,6 +38,7 @@ interface SubstitutionFlowProps {
   team: Team;
   availablePlayers: Player[]; // All players in lineup
   onField: Set<string>; // Player IDs currently on field
+  expelledPlayerIds?: Set<string>;
   period: number;
   globalClock: string;
   onSubmit: (
@@ -53,6 +54,7 @@ export default function SubstitutionFlow({
   team,
   availablePlayers,
   onField,
+  expelledPlayerIds,
   period,
   globalClock,
   onSubmit,
@@ -80,11 +82,17 @@ export default function SubstitutionFlow({
   });
 
   const handleSelectOff = (player: Player) => {
+    if (expelledPlayerIds?.has(player.id)) {
+      return;
+    }
     setPlayerOff(player);
     setStep("select-on");
   };
 
   const handleSelectOn = (player: Player) => {
+    if (expelledPlayerIds?.has(player.id)) {
+      return;
+    }
     setPlayerOn(player);
     setStep("confirm");
   };
@@ -109,6 +117,8 @@ export default function SubstitutionFlow({
   const localIsValid = Boolean(
     playerOff &&
       playerOn &&
+      !expelledPlayerIds?.has(playerOff.id) &&
+      !expelledPlayerIds?.has(playerOn.id) &&
       onField.has(playerOff.id) &&
       !onField.has(playerOn.id),
   );
@@ -125,15 +135,22 @@ export default function SubstitutionFlow({
         }
       : {
           is_valid: false,
-          error_message: onField.has(playerOn.id)
-            ? t(
-                "substitution.playerAlreadyOn",
-                "Selected ON player is already on the field.",
-              )
-            : t(
-                "substitution.playerOffNotOnField",
-                "Selected OFF player is not currently on the field.",
-              ),
+          error_message:
+            expelledPlayerIds?.has(playerOff.id) ||
+            expelledPlayerIds?.has(playerOn.id)
+              ? t(
+                  "substitution.expelledBlocked",
+                  "Expelled players cannot be substituted.",
+                )
+              : onField.has(playerOn.id)
+                ? t(
+                    "substitution.playerAlreadyOn",
+                    "Selected ON player is already on the field.",
+                  )
+                : t(
+                    "substitution.playerOffNotOnField",
+                    "Selected OFF player is not currently on the field.",
+                  ),
           team_status: teamStatus,
           opens_new_window: false,
         };
@@ -226,13 +243,18 @@ export default function SubstitutionFlow({
     period,
     t,
     onField,
+    expelledPlayerIds,
     localIsValid,
   ]);
 
   const confirmDisabled = validation ? !validation.is_valid : !localIsValid;
 
-  const playersOnField = availablePlayers.filter((p) => onField.has(p.id));
-  const playersOnBench = availablePlayers.filter((p) => !onField.has(p.id));
+  const playersOnField = availablePlayers.filter(
+    (p) => onField.has(p.id) && !expelledPlayerIds?.has(p.id),
+  );
+  const playersOnBench = availablePlayers.filter(
+    (p) => !onField.has(p.id) && !expelledPlayerIds?.has(p.id),
+  );
 
   return (
     <div
