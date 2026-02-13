@@ -130,6 +130,7 @@ export interface TeamPlayer {
   player_id: string;
   jersey_number: number;
   position: PlayerPosition;
+  is_active?: boolean;
   is_starter?: boolean;
   joined_date?: string;
   player_name?: string;

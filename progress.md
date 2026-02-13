@@ -10,7 +10,7 @@
 
 ## Current Objective
 
-- [x] Run full frontend E2E suite and remove remaining logger timing/order flakes.
+- [x] Enforce `npx tsc --noEmit` as a mandatory pre-commit check for every commit.
 
 ## Status
 
@@ -42,6 +42,8 @@
 - [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) and [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) comparators to prioritize valid event timestamps before match clock inside the same period, eliminating late-cancel reordering edge cases.
 - [x] Updated [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts) VAR pause assertions from `+1s` to `+2s` tolerance to account for second-level clock quantization under CI load.
 - [x] Updated [e2e/utils/logger.ts](e2e/utils/logger.ts) `ensureClockRunning` to assert running state via stop-button enablement and effective-clock progression, with ball-state label as auxiliary signal.
+- [x] Updated [.pre-commit-config.yaml](.pre-commit-config.yaml) so `TypeScript Check` (`npx tsc --noEmit`) uses `always_run: true` and no longer skips non-TS commits.
+- [x] Updated [src/types/index.ts](src/types/index.ts) `TeamPlayer` with optional `is_active` so repository-wide TypeScript check passes under the stricter pre-commit policy.
 
 ## Tests Implemented/Updated (Mandatory)
 
@@ -55,6 +57,8 @@
 - [x] E2E: `CI=1 npx playwright test e2e/logger-lifecycle.spec.ts` -> PASS (2 passed)
 - [x] E2E: `CI=1 npx playwright test e2e/logger-ineffective-breakdown.spec.ts` -> PASS (10 passed)
 - [x] E2E: `CI=1 npx playwright test` -> PASS (135 passed)
+- [x] Quality Gate: `npx tsc --noEmit` -> PASS
+- [x] Quality Gate: `pre-commit run --files .pre-commit-config.yaml src/types/index.ts` -> PASS
 - [ ] Unit: N/A
 
 ## Implementation Notes
