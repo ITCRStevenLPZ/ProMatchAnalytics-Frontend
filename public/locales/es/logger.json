@@ -158,9 +158,6 @@
   "runningNo": "No",
   "matchTitle": "{{home}} vs {{away}}",
   "vs": "VS",
-  "analytics": {
-    "score": "Marcador"
-  },
   "queuedLabel": "En cola: {{count}}",
   "pendingAckLabel": "Acks pendientes: {{count}}",
   "adminOnlyTransitions": "Solo administradores: cambios de estado bloqueados.",

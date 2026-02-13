@@ -158,9 +158,6 @@
   "runningNo": "No",
   "matchTitle": "{{home}} vs {{away}}",
   "vs": "VS",
-  "analytics": {
-    "score": "Score"
-  },
   "queuedLabel": "Queued: {{count}}",
   "pendingAckLabel": "Pending acks: {{count}}",
   "adminOnlyTransitions": "Admin only: match status changes are locked.",
@@ -298,6 +295,10 @@
     "whoIsLeavingField": "Who is leaving the field?",
     "whoIsEnteringField": "Who is entering the field?",
     "playerLeavingField": "Player leaving field:",
+    "off": "OFF",
+    "on": "ON",
+    "concussionSubstitution": "Concussion Substitution",
+    "concussionNote": "Does not count toward the max. The opponent receives one additional substitution.",
     "validating": "Validating...",
     "invalid": "Invalid Substitution",
     "valid": "Substitution is valid",
