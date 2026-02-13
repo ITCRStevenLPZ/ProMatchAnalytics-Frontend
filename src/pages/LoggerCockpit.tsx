@@ -26,7 +26,6 @@ import {
 import {
   normalizeMatchPayload,
   formatMatchClock,
-  normalizeMatchClock,
   buildIneffectiveBreakdownFromAggregates,
   computeIneffectiveBreakdown,
 } from "./logger/utils";
@@ -127,7 +126,6 @@ export default function LoggerCockpit() {
     duplicateHighlight,
     duplicateStats,
     operatorClock,
-    setOperatorClock,
     operatorPeriod,
     isBallInPlay,
     setIsBallInPlay,
@@ -1245,7 +1243,6 @@ export default function LoggerCockpit() {
       const playerTeam = determinePlayerTeam(player);
       if (!playerTeam) return;
       const team = playerTeam === "home" ? match.home_team : match.away_team;
-      const recentEvents = [...liveEvents, ...queuedEvents];
 
       let resolvedCard: string = cardType;
       if (cardType === "Yellow") {
@@ -1657,25 +1654,6 @@ export default function LoggerCockpit() {
     match?.current_period_start_timestamp,
     varPauseStartMs,
   ]);
-
-  const handleClockBlur = useCallback(() => {
-    if (!operatorClock || operatorClock === "00:00.000") return;
-    const normalized = normalizeMatchClock(operatorClock);
-    if (normalized) {
-      setOperatorClock(normalized);
-    } else {
-      // Invalid input; revert to global clock or show error toast?
-      // For now, let's just revert to global clock (safe state)
-      setOperatorClock(globalClock);
-      setToast({
-        message: t(
-          "invalidClockFormat",
-          "Invalid clock format. Reverted to system time.",
-        ),
-      });
-      setTimeout(() => setToast(null), 3000);
-    }
-  }, [operatorClock, globalClock, setOperatorClock, t]);
 
   useEffect(() => {
     if (cockpitLocked) {
