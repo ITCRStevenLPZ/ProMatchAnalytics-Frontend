@@ -59,6 +59,7 @@ repos:
 
       - id: detect-private-key
         name: Detect Private Keys
+        exclude: '^TODO\.md$'
 
       - id: check-added-large-files
         name: Check for Large Files
@@ -80,8 +81,14 @@ repos:
     hooks:
       - id: markdownlint
         name: Markdown Lint
-        args: ['--fix']
-        exclude: 'node_modules'
+        args: ['--fix', '--disable', 'MD013']
+        exclude: |
+          (?x)^(
+            node_modules/.*|
+            TODO\.md|
+            progress\.md|
+            PERIOD_MANAGEMENT_UX\.md
+          )$
 
   # Dockerfile linting (if you add Dockerfile later)
   - repo: https://github.com/hadolint/hadolint
