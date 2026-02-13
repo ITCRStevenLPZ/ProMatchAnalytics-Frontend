@@ -1,11 +1,19 @@
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { X, Check, XCircle, Edit3, AlertTriangle, RefreshCw, FileText } from 'lucide-react';
-import type { ConflictRecord } from '../../lib/ingestion';
-import { apiClient } from '../../lib/api';
-import LoadingSpinner from '../LoadingSpinner';
-import SimilarRecordsViewer from '../SimilarRecordsViewer';
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import {
+  X,
+  Check,
+  XCircle,
+  Edit3,
+  AlertTriangle,
+  RefreshCw,
+  FileText,
+} from "lucide-react";
+import type { ConflictRecord } from "../../lib/ingestion";
+import { apiClient } from "../../lib/api";
+import LoadingSpinner from "../LoadingSpinner";
+import SimilarRecordsViewer from "../SimilarRecordsViewer";
 
 interface ConflictReviewDialogProps {
   item: {
@@ -15,7 +23,7 @@ interface ConflictReviewDialogProps {
     raw_payload: Record<string, any>;
     normalized_payload: Record<string, any>;
     content_hash: string;
-    match_kind: 'unique' | 'exact_duplicate' | 'near_conflict';
+    match_kind: "unique" | "exact_duplicate" | "near_conflict";
     similarity_score?: number;
     matched_record_id?: string;
     status: string;
@@ -35,12 +43,14 @@ export function ConflictReviewDialog({
   onClose,
   onResolved,
 }: ConflictReviewDialogProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
   const [isEditing, setIsEditing] = useState(false);
   const [editedFields, setEditedFields] = useState<Record<string, any>>({});
-  const [decisionNotes, setDecisionNotes] = useState('');
-  const [rejectReason, setRejectReason] = useState<'duplicate' | 'bad_source' | 'outdated' | 'other'>('duplicate');
-  const [rejectNotes, setRejectNotes] = useState('');
+  const [decisionNotes, setDecisionNotes] = useState("");
+  const [rejectReason, setRejectReason] = useState<
+    "duplicate" | "bad_source" | "outdated" | "other"
+  >("duplicate");
+  const [rejectNotes, setRejectNotes] = useState("");
   const [showRejectPanel, setShowRejectPanel] = useState(false);
   const [showExistingRecord, setShowExistingRecord] = useState(false);
   const [showSimilarViewer, setShowSimilarViewer] = useState(false);
@@ -52,17 +62,20 @@ export function ConflictReviewDialog({
     error: conflictErrorDetails,
     refetch: refetchConflict,
   } = useQuery<ConflictRecord>({
-    queryKey: ['conflict-details', item.item_id],
+    queryKey: ["conflict-details", item.item_id],
     queryFn: () => apiClient.get(`ingestions/conflicts/${item.item_id}`),
     enabled: Boolean(item.item_id),
     retry: 1,
   });
 
   const acceptMutation = useMutation({
-    mutationFn: async (payload: { edits?: Record<string, any>; notes?: string }) => {
+    mutationFn: async (payload: {
+      edits?: Record<string, any>;
+      notes?: string;
+    }) => {
       return await apiClient.post(
         `ingestions/${batchId}/items/${item.item_id}/accept`,
-        payload
+        payload,
       );
     },
     onSuccess: () => {
@@ -74,7 +87,7 @@ export function ConflictReviewDialog({
     mutationFn: async (payload: { reason: string; notes?: string }) => {
       return await apiClient.post(
         `ingestions/${batchId}/items/${item.item_id}/reject`,
-        payload
+        payload,
       );
     },
     onSuccess: () => {
@@ -97,8 +110,7 @@ export function ConflictReviewDialog({
       {
         ...conflict.existing_record_snapshot,
         name:
-          conflict.existing_record_snapshot.name ||
-          conflict.existing_record_id,
+          conflict.existing_record_snapshot.name || conflict.existing_record_id,
         similarity_score: conflict.similarity_score,
         match_score: conflict.similarity_score,
         match_details: [],
@@ -107,15 +119,15 @@ export function ConflictReviewDialog({
   }, [conflict]);
 
   const formatValue = (value: any): string => {
-    if (value === null || value === undefined || value === '') return '—';
-    if (typeof value === 'object') {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "object") {
       try {
         return JSON.stringify(value, null, 2);
       } catch {
         return String(value);
       }
     }
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return Number.isInteger(value) ? value.toString() : value.toFixed(2);
     }
     return String(value);
@@ -123,9 +135,9 @@ export function ConflictReviewDialog({
 
   const stringifyEditableValue = (value: any): string => {
     if (value === null || value === undefined) {
-      return '';
+      return "";
     }
-    if (typeof value === 'object') {
+    if (typeof value === "object") {
       try {
         return JSON.stringify(value, null, 2);
       } catch {
@@ -138,12 +150,15 @@ export function ConflictReviewDialog({
   const coerceEditedValue = (raw: string): any => {
     const trimmed = raw.trim();
     if (!trimmed) {
-      return '';
+      return "";
     }
-    if (trimmed === 'true' || trimmed === 'false') {
-      return trimmed === 'true';
+    if (trimmed === "true" || trimmed === "false") {
+      return trimmed === "true";
     }
-    if (!Number.isNaN(Number(trimmed)) && Number(trimmed).toString() === trimmed) {
+    if (
+      !Number.isNaN(Number(trimmed)) &&
+      Number(trimmed).toString() === trimmed
+    ) {
       return Number(trimmed);
     }
     try {
@@ -170,9 +185,10 @@ export function ConflictReviewDialog({
   const isConflictResolved = conflict?.resolved;
   const isConflictMissing =
     conflictError && (conflictErrorDetails as any)?.response?.status === 404;
-  const decisionDisabled = conflictLoading || isConflictMissing || isConflictResolved;
+  const decisionDisabled =
+    conflictLoading || isConflictMissing || isConflictResolved;
   const isRejectFormValid =
-    rejectReason !== 'other' || rejectNotes.trim().length >= 15;
+    rejectReason !== "other" || rejectNotes.trim().length >= 15;
 
   const handleAccept = () => {
     if (decisionDisabled) {
@@ -201,7 +217,7 @@ export function ConflictReviewDialog({
       return (
         <div className="flex flex-col items-center justify-center py-16 text-gray-600">
           <LoadingSpinner />
-          <p className="mt-4 text-sm">{t('ingestion.conflict.loading')}</p>
+          <p className="mt-4 text-sm">{t("ingestion.conflict.loading")}</p>
         </div>
       );
     }
@@ -211,8 +227,12 @@ export function ConflictReviewDialog({
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4 flex items-start space-x-3">
           <AlertTriangle className="h-5 w-5 mt-0.5" />
           <div>
-            <p className="font-semibold">{t('ingestion.conflict.resolvedElsewhere')}</p>
-            <p className="text-sm text-yellow-700">{t('ingestion.conflict.decisionDisabled')}</p>
+            <p className="font-semibold">
+              {t("ingestion.conflict.resolvedElsewhere")}
+            </p>
+            <p className="text-sm text-yellow-700">
+              {t("ingestion.conflict.decisionDisabled")}
+            </p>
           </div>
         </div>
       );
@@ -223,13 +243,13 @@ export function ConflictReviewDialog({
         <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 flex items-start space-x-3">
           <AlertTriangle className="h-5 w-5 mt-0.5" />
           <div>
-            <p className="font-semibold">{t('ingestion.conflict.loadError')}</p>
+            <p className="font-semibold">{t("ingestion.conflict.loadError")}</p>
             <button
               onClick={() => refetchConflict()}
               className="mt-2 inline-flex items-center text-sm font-medium text-red-700 hover:text-red-900"
             >
               <RefreshCw className="h-4 w-4 mr-1" />
-              {t('ingestion.conflict.retry')}
+              {t("ingestion.conflict.retry")}
             </button>
           </div>
         </div>
@@ -245,38 +265,57 @@ export function ConflictReviewDialog({
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-yellow-900">{t('ingestion.conflict.summaryTitle')}</h3>
+              <h3 className="font-semibold text-yellow-900">
+                {t("ingestion.conflict.summaryTitle")}
+              </h3>
               <p className="text-sm text-yellow-700 mt-1">
-                {t('ingestion.conflict.matchConfidence')}: <span className="font-medium">{Math.round((conflict.similarity_score || 0) * 100)}%</span>
+                {t("ingestion.conflict.matchConfidence")}:{" "}
+                <span className="font-medium">
+                  {Math.round((conflict.similarity_score || 0) * 100)}%
+                </span>
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase text-yellow-700">{t('ingestion.conflict.matchedRecordId')}</p>
-              <p className="font-mono text-sm text-yellow-900">{conflict.existing_record_id}</p>
+              <p className="text-xs uppercase text-yellow-700">
+                {t("ingestion.conflict.matchedRecordId")}
+              </p>
+              <p className="font-mono text-sm text-yellow-900">
+                {conflict.existing_record_id}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-gray-700">{t('ingestion.conflict.fieldDifferences')}</h4>
+            <h4 className="text-sm font-semibold text-gray-700">
+              {t("ingestion.conflict.fieldDifferences")}
+            </h4>
             <button
               onClick={() => setIsEditing((prev) => !prev)}
               data-testid="conflict-edit-toggle"
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                isEditing ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-gray-700 hover:bg-gray-100'
+                isEditing
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-white text-gray-700 hover:bg-gray-100"
               }`}
             >
               <Edit3 className="h-4 w-4" />
-              <span>{isEditing ? t('ingestion.editing') : t('ingestion.enableEdit')}</span>
+              <span>
+                {isEditing ? t("ingestion.editing") : t("ingestion.enableEdit")}
+              </span>
             </button>
           </div>
           {isEditing && (
-            <p className="text-xs text-gray-600 mt-2">{t('ingestion.conflict.editInstructions')}</p>
+            <p className="text-xs text-gray-600 mt-2">
+              {t("ingestion.conflict.editInstructions")}
+            </p>
           )}
 
           {diffEntries.length === 0 && (
-            <p className="mt-4 text-sm text-gray-600">{t('ingestion.conflict.noDifferences')}</p>
+            <p className="mt-4 text-sm text-gray-600">
+              {t("ingestion.conflict.noDifferences")}
+            </p>
           )}
 
           <div className="mt-4 space-y-4">
@@ -293,15 +332,21 @@ export function ConflictReviewDialog({
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="font-semibold text-gray-900">{diff.field_path}</p>
+                      <p className="font-semibold text-gray-900">
+                        {diff.field_path}
+                      </p>
                       {diff.is_significant && (
-                        <p className="text-xs text-red-600 uppercase tracking-wide">{t('ingestion.conflict.fieldMarkedSignificant')}</p>
+                        <p className="text-xs text-red-600 uppercase tracking-wide">
+                          {t("ingestion.conflict.fieldMarkedSignificant")}
+                        </p>
                       )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">{t('ingestion.conflict.incomingValue')}</p>
+                      <p className="text-xs text-gray-500 uppercase mb-1">
+                        {t("ingestion.conflict.incomingValue")}
+                      </p>
                       <div className="p-3 rounded bg-blue-50 text-gray-900 whitespace-pre-wrap break-words">
                         {formatValue(displayIncoming)}
                       </div>
@@ -310,22 +355,33 @@ export function ConflictReviewDialog({
                           className="mt-2 w-full rounded border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-blue-500"
                           rows={3}
                           value={stringifyEditableValue(displayIncoming)}
-                          onChange={(event) => handleFieldChange(diff.field_path, event.target.value)}
+                          onChange={(event) =>
+                            handleFieldChange(
+                              diff.field_path,
+                              event.target.value,
+                            )
+                          }
                           data-testid="conflict-edit-field-input"
                           data-field-path={diff.field_path}
                         />
                       )}
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">{t('ingestion.conflict.existingValue')}</p>
+                      <p className="text-xs text-gray-500 uppercase mb-1">
+                        {t("ingestion.conflict.existingValue")}
+                      </p>
                       <div className="p-3 rounded bg-gray-50 text-gray-900 whitespace-pre-wrap break-words">
                         {formatValue(diff.existing_value)}
                       </div>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">{t('ingestion.conflict.editedValue')}</p>
+                      <p className="text-xs text-gray-500 uppercase mb-1">
+                        {t("ingestion.conflict.editedValue")}
+                      </p>
                       <div className="p-3 rounded bg-white border border-dashed border-gray-300 text-gray-900 whitespace-pre-wrap break-words">
-                        {isEditing ? formatValue(editedValue ?? '') : formatValue(displayIncoming)}
+                        {isEditing
+                          ? formatValue(editedValue ?? "")
+                          : formatValue(displayIncoming)}
                       </div>
                     </div>
                   </div>
@@ -344,9 +400,13 @@ export function ConflictReviewDialog({
             >
               <span className="font-semibold text-gray-800 flex items-center space-x-2">
                 <FileText className="h-4 w-4" />
-                <span>{t('ingestion.conflict.viewExistingRecord')}</span>
+                <span>{t("ingestion.conflict.viewExistingRecord")}</span>
               </span>
-              <span className="text-sm text-blue-600">{showExistingRecord ? t('ingestion.conflict.closeExistingRecord') : t('ingestion.conflict.viewExistingRecord')}</span>
+              <span className="text-sm text-blue-600">
+                {showExistingRecord
+                  ? t("ingestion.conflict.closeExistingRecord")
+                  : t("ingestion.conflict.viewExistingRecord")}
+              </span>
             </button>
             {showExistingRecord && (
               <pre
@@ -361,14 +421,14 @@ export function ConflictReviewDialog({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('ingestion.conflict.notesLabel')}
+            {t("ingestion.conflict.notesLabel")}
           </label>
           <textarea
             className="w-full rounded border border-gray-300 p-2 text-sm focus:ring-2 focus:ring-blue-500"
             rows={3}
             value={decisionNotes}
             onChange={(event) => setDecisionNotes(event.target.value)}
-            placeholder={t('ingestion.conflict.notesPlaceholder')}
+            placeholder={t("ingestion.conflict.notesPlaceholder")}
             data-testid="conflict-notes-input"
           />
         </div>
@@ -379,30 +439,46 @@ export function ConflictReviewDialog({
             data-testid="conflict-reject-panel"
           >
             <div>
-              <label className="block text-sm font-semibold text-red-800">{t('ingestion.conflict.rejectTitle')}</label>
-              <p className="text-xs text-red-700">{t('ingestion.conflict.rejectHelper')}</p>
+              <label className="block text-sm font-semibold text-red-800">
+                {t("ingestion.conflict.rejectTitle")}
+              </label>
+              <p className="text-xs text-red-700">
+                {t("ingestion.conflict.rejectHelper")}
+              </p>
             </div>
             <select
               value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value as typeof rejectReason)}
+              onChange={(event) =>
+                setRejectReason(event.target.value as typeof rejectReason)
+              }
               className="w-full rounded border border-red-300 bg-white p-2 text-sm focus:ring-2 focus:ring-red-500"
               data-testid="conflict-reject-reason"
             >
-              <option value="duplicate">{t('ingestion.conflict.rejectReasons.duplicate')}</option>
-              <option value="bad_source">{t('ingestion.conflict.rejectReasons.bad_source')}</option>
-              <option value="outdated">{t('ingestion.conflict.rejectReasons.outdated')}</option>
-              <option value="other">{t('ingestion.conflict.rejectReasons.other')}</option>
+              <option value="duplicate">
+                {t("ingestion.conflict.rejectReasons.duplicate")}
+              </option>
+              <option value="bad_source">
+                {t("ingestion.conflict.rejectReasons.bad_source")}
+              </option>
+              <option value="outdated">
+                {t("ingestion.conflict.rejectReasons.outdated")}
+              </option>
+              <option value="other">
+                {t("ingestion.conflict.rejectReasons.other")}
+              </option>
             </select>
             <textarea
               className="w-full rounded border border-red-300 p-2 text-sm focus:ring-2 focus:ring-red-500"
               rows={4}
               value={rejectNotes}
               onChange={(event) => setRejectNotes(event.target.value)}
-              placeholder={t('ingestion.conflict.rejectNotesHelper')}
+              placeholder={t("ingestion.conflict.rejectNotesHelper")}
               data-testid="conflict-reject-notes"
             />
             {!isRejectFormValid && (
-              <p className="text-xs text-red-700">{t('ingestion.conflict.rejectNotesHelper')}</p>
+              <p className="text-xs text-red-700">
+                {t("ingestion.conflict.rejectNotesHelper")}
+              </p>
             )}
           </div>
         )}
@@ -419,14 +495,23 @@ export function ConflictReviewDialog({
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">{t('ingestion.reviewConflict')}</h2>
+            <h2 className="text-2xl font-bold">
+              {t("ingestion.reviewConflict")}
+            </h2>
             <p className="text-sm text-gray-600 mt-1">
-              {t('ingestion.itemId')}: {item.item_id}
+              {t("ingestion.itemId")}: {item.item_id}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               {item.resolved_by || item.resolved_at
-                ? `${t('ingestion.resolvedBy', 'Resolved by')} ${item.resolved_by ?? t('ingestion.unknownOperator', 'Unknown operator')}${item.resolved_at ? ` • ${new Date(item.resolved_at).toLocaleString()}` : ''}`
-                : t('ingestion.notResolvedYet', 'Not resolved yet')}
+                ? `${t("ingestion.resolvedBy", "Resolved by")} ${
+                    item.resolved_by ??
+                    t("ingestion.unknownOperator", "Unknown operator")
+                  }${
+                    item.resolved_at
+                      ? ` • ${new Date(item.resolved_at).toLocaleString()}`
+                      : ""
+                  }`
+                : t("ingestion.notResolvedYet", "Not resolved yet")}
             </p>
           </div>
           {similarRecords.length > 0 && (
@@ -435,7 +520,7 @@ export function ConflictReviewDialog({
               className="mr-2 inline-flex items-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               data-testid="conflict-similar-records-button"
             >
-              {t('ingestion.conflict.showSimilar')}
+              {t("ingestion.conflict.showSimilar")}
             </button>
           )}
           <button
@@ -459,9 +544,9 @@ export function ConflictReviewDialog({
               className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
               data-testid="conflict-cancel-button"
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </button>
-            
+
             {!showRejectPanel ? (
               <>
                 <button
@@ -471,7 +556,7 @@ export function ConflictReviewDialog({
                   data-testid="conflict-reject-button"
                 >
                   <XCircle className="h-4 w-4" />
-                  <span>{t('ingestion.reject')}</span>
+                  <span>{t("ingestion.reject")}</span>
                 </button>
 
                 <button
@@ -485,7 +570,11 @@ export function ConflictReviewDialog({
                   ) : (
                     <Check className="h-4 w-4" />
                   )}
-                  <span>{editedPayload ? t('ingestion.acceptWithEdits') : t('ingestion.accept')}</span>
+                  <span>
+                    {editedPayload
+                      ? t("ingestion.acceptWithEdits")
+                      : t("ingestion.accept")}
+                  </span>
                 </button>
               </>
             ) : (
@@ -493,13 +582,13 @@ export function ConflictReviewDialog({
                 <button
                   onClick={() => {
                     setShowRejectPanel(false);
-                    setRejectNotes('');
+                    setRejectNotes("");
                   }}
                   disabled={isPending}
                   className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
                   data-testid="conflict-back-button"
                 >
-                  {t('common.back')}
+                  {t("common.back")}
                 </button>
 
                 <button
@@ -513,7 +602,7 @@ export function ConflictReviewDialog({
                   ) : (
                     <XCircle className="h-4 w-4" />
                   )}
-                  <span>{t('ingestion.confirmReject')}</span>
+                  <span>{t("ingestion.confirmReject")}</span>
                 </button>
               </>
             )}
@@ -525,7 +614,7 @@ export function ConflictReviewDialog({
         <SimilarRecordsViewer
           records={similarRecords}
           currentData={item.normalized_payload}
-          entityType={item.target_model.replace(/s$/, '')}
+          entityType={item.target_model.replace(/s$/, "")}
           onClose={() => setShowSimilarViewer(false)}
           onOpenRecord={() => setShowSimilarViewer(false)}
         />

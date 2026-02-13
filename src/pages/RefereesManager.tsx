@@ -31,6 +31,7 @@ export default function RefereesManager() {
   const user = useAuthStore((state) => state.user);
   const [referees, setReferees] = useState<Referee[]>([]);
   const { loading, withLoading } = useLoading(true);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -102,6 +103,8 @@ export default function RefereesManager() {
         setTotalPages(response.total_pages);
       } catch (err: any) {
         setError(err.response?.data?.detail || t("errorFetchingData"));
+      } finally {
+        setHasInitialLoadCompleted(true);
       }
     });
   };
@@ -320,7 +323,7 @@ export default function RefereesManager() {
 
   // Backend handles filtering via search param
 
-  if (loading) {
+  if (loading && !hasInitialLoadCompleted) {
     return <LoadingSpinner size="lg" />;
   }
 

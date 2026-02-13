@@ -242,6 +242,72 @@ async function expectStatusTransition(matchDocId: string, status: string) {
 test.describe("Admin matches CRUD & status transitions", () => {
   test.describe.configure({ mode: "serial" });
 
+  test("auto-suffixes duplicate match_id instead of blocking creation", async () => {
+    const competitionId = uniqueId("COMP");
+    const venueId = uniqueId("VEN");
+    const refereeId = uniqueId("REF");
+
+    await createCompetition(
+      competitionId,
+      `E2E Competition ${competitionId.slice(-4)}`,
+    );
+    await createVenue(venueId, `Venue ${venueId.slice(-4)}`);
+    await createReferee(refereeId, `Ref ${refereeId.slice(-4)}`);
+
+    const homeTeam = await seedTeamWithRoster("HOME-DUP");
+    const awayTeam = await seedTeamWithRoster("AWAY-DUP");
+    const duplicateMatchId = uniqueId("MATCHDUPID");
+
+    const firstPayload = buildMatchPayload({
+      matchId: duplicateMatchId,
+      competitionId,
+      venueId,
+      venueName: `Venue ${venueId.slice(-4)}`,
+      refereeId,
+      refereeName: `Ref ${refereeId.slice(-4)}`,
+      home: homeTeam,
+      away: awayTeam,
+    });
+
+    const firstCreate = await apiRequest.post("matches/", {
+      data: firstPayload,
+    });
+    if (![200, 201].includes(firstCreate.status())) {
+      const body = await firstCreate.text();
+      throw new Error(
+        `Failed to create first duplicate-id match: ${firstCreate.status()} ${body}`,
+      );
+    }
+    const firstCreated = await json<any>(firstCreate);
+    expect(firstCreated.match_id).toBe(duplicateMatchId);
+
+    const secondPayload = buildMatchPayload({
+      matchId: duplicateMatchId,
+      competitionId,
+      venueId,
+      venueName: `Venue ${venueId.slice(-4)}`,
+      refereeId,
+      refereeName: `Ref ${refereeId.slice(-4)}`,
+      home: homeTeam,
+      away: awayTeam,
+    });
+
+    const secondCreate = await apiRequest.post("matches/", {
+      data: secondPayload,
+    });
+    if (![200, 201].includes(secondCreate.status())) {
+      const body = await secondCreate.text();
+      throw new Error(
+        `Failed to create second duplicate-id match: ${secondCreate.status()} ${body}`,
+      );
+    }
+    const secondCreated = await json<any>(secondCreate);
+    expect(secondCreated.match_id).not.toBe(duplicateMatchId);
+    expect(String(secondCreated.match_id)).toMatch(
+      new RegExp(`^${duplicateMatchId}_[0-9]+$`),
+    );
+  });
+
   test("creates matches, walks status transitions, and exposes stats", async () => {
     const competitionId = uniqueId("COMP");
     const venueId = uniqueId("VEN");

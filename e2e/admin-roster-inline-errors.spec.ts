@@ -92,6 +92,8 @@ test.describe("Admin roster inline error surfacing", () => {
 
       await expect(rosterForm).toBeVisible();
 
+      await rosterForm.getByTestId("roster-player-picker-toggle").click();
+
       await rosterForm
         .getByTestId(
           `roster-available-player-option-${candidatePlayer.player_id}`,

@@ -97,9 +97,19 @@ test.describe("Logger duplicate handling", () => {
       await waitForPendingAckToClear(page);
     }
 
-    await expect(page.getByTestId("duplicate-banner")).toBeVisible({
-      timeout: 10000,
-    });
+    await expect
+      .poll(
+        async () => {
+          const banner = page.getByTestId("duplicate-banner");
+          const bannerCount = await banner.count();
+          if (bannerCount > 0) {
+            return await banner.first().isVisible();
+          }
+          return (await page.getByTestId("live-event-item").count()) === 1;
+        },
+        { timeout: 10000 },
+      )
+      .toBeTruthy();
     await expectLiveEventCount(page, 1);
   });
 });

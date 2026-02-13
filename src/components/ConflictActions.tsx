@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ConflictRecord, ModelConfig } from '../lib/ingestion';
-import { useAcceptItem, useRejectItem } from '../hooks/useIngestion';
+import { useState } from "react";
+import { ConflictRecord, ModelConfig } from "../lib/ingestion";
+import { useAcceptItem, useRejectItem } from "../hooks/useIngestion";
 
 interface ConflictActionsProps {
   conflict: ConflictRecord;
@@ -18,7 +18,7 @@ export default function ConflictActions({
   const [isEditing, setIsEditing] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [edits, setEdits] = useState<Record<string, any>>({});
-  const [discardReason, setDiscardReason] = useState('');
+  const [discardReason, setDiscardReason] = useState("");
 
   const acceptMutation = useAcceptItem();
   const rejectMutation = useRejectItem();
@@ -31,7 +31,7 @@ export default function ConflictActions({
         ingestionId,
         itemId: conflict.ingestion_item_id,
         edits: isEditing && Object.keys(edits).length > 0 ? edits : undefined,
-        notes: isEditing ? 'Accepted with edits' : 'Accepted incoming data',
+        notes: isEditing ? "Accepted with edits" : "Accepted incoming data",
       },
       {
         onSuccess: () => {
@@ -39,13 +39,13 @@ export default function ConflictActions({
           setEdits({});
           onSuccess?.();
         },
-      }
+      },
     );
   };
 
   const handleDiscard = () => {
     if (!discardReason.trim()) {
-      alert('Please provide a reason for discarding this item');
+      alert("Please provide a reason for discarding this item");
       return;
     }
 
@@ -54,15 +54,15 @@ export default function ConflictActions({
         ingestionId,
         itemId: conflict.ingestion_item_id,
         reason: discardReason,
-        notes: 'Discarded via conflict resolution UI',
+        notes: "Discarded via conflict resolution UI",
       },
       {
         onSuccess: () => {
           setShowDiscardConfirm(false);
-          setDiscardReason('');
+          setDiscardReason("");
           onSuccess?.();
         },
-      }
+      },
     );
   };
 
@@ -83,7 +83,7 @@ export default function ConflictActions({
           disabled={isLoading || isEditing}
           className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {acceptMutation.isPending ? 'Accepting...' : 'Accept Incoming Data'}
+          {acceptMutation.isPending ? "Accepting..." : "Accept Incoming Data"}
         </button>
 
         {/* Edit + Accept Toggle */}
@@ -92,7 +92,7 @@ export default function ConflictActions({
           disabled={isLoading}
           className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
         >
-          {isEditing ? 'Cancel Edit' : 'Edit + Accept'}
+          {isEditing ? "Cancel Edit" : "Edit + Accept"}
         </button>
 
         {/* Discard Button */}
@@ -106,7 +106,9 @@ export default function ConflictActions({
           </button>
         ) : (
           <div className="border border-red-300 rounded-md p-3 bg-red-50">
-            <p className="text-sm font-medium text-red-900 mb-2">Confirm Discard</p>
+            <p className="text-sm font-medium text-red-900 mb-2">
+              Confirm Discard
+            </p>
             <textarea
               value={discardReason}
               onChange={(e) => setDiscardReason(e.target.value)}
@@ -120,12 +122,12 @@ export default function ConflictActions({
                 disabled={isLoading || !discardReason.trim()}
                 className="flex-1 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
               >
-                {rejectMutation.isPending ? 'Discarding...' : 'Confirm'}
+                {rejectMutation.isPending ? "Discarding..." : "Confirm"}
               </button>
               <button
                 onClick={() => {
                   setShowDiscardConfirm(false);
-                  setDiscardReason('');
+                  setDiscardReason("");
                 }}
                 disabled={isLoading}
                 className="flex-1 px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 disabled:opacity-50"
@@ -140,7 +142,9 @@ export default function ConflictActions({
       {/* Edit Form */}
       {isEditing && (
         <div className="border-t pt-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">Edit Fields</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+            Edit Fields
+          </h4>
           <div className="space-y-3">
             {Object.entries(conflict.fields_diff).map(([fieldPath, diff]) => {
               const isReadonly = readonlyFields.has(diff.field_path);
@@ -151,7 +155,9 @@ export default function ConflictActions({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {diff.field_path}
                     {isReadonly && (
-                      <span className="ml-2 text-xs text-gray-500">(read-only)</span>
+                      <span className="ml-2 text-xs text-gray-500">
+                        (read-only)
+                      </span>
                     )}
                   </label>
                   <input
@@ -161,8 +167,8 @@ export default function ConflictActions({
                     disabled={isReadonly}
                     className={`w-full px-3 py-2 border rounded-md ${
                       isReadonly
-                        ? 'bg-gray-100 cursor-not-allowed'
-                        : 'bg-white focus:ring-2 focus:ring-blue-500'
+                        ? "bg-gray-100 cursor-not-allowed"
+                        : "bg-white focus:ring-2 focus:ring-blue-500"
                     }`}
                   />
                 </div>
@@ -175,7 +181,7 @@ export default function ConflictActions({
             disabled={isLoading}
             className="mt-4 w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
           >
-            {acceptMutation.isPending ? 'Accepting...' : 'Accept with Edits'}
+            {acceptMutation.isPending ? "Accepting..." : "Accept with Edits"}
           </button>
         </div>
       )}
@@ -183,12 +189,18 @@ export default function ConflictActions({
       {/* Error Messages */}
       {acceptMutation.isError && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
-          Error accepting: {acceptMutation.error instanceof Error ? acceptMutation.error.message : 'Unknown error'}
+          Error accepting:{" "}
+          {acceptMutation.error instanceof Error
+            ? acceptMutation.error.message
+            : "Unknown error"}
         </div>
       )}
       {rejectMutation.isError && (
         <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
-          Error discarding: {rejectMutation.error instanceof Error ? rejectMutation.error.message : 'Unknown error'}
+          Error discarding:{" "}
+          {rejectMutation.error instanceof Error
+            ? rejectMutation.error.message
+            : "Unknown error"}
         </div>
       )}
     </div>
@@ -197,9 +209,9 @@ export default function ConflictActions({
 
 function formatEditValue(value: any): string {
   if (value === null || value === undefined) {
-    return '';
+    return "";
   }
-  if (typeof value === 'object') {
+  if (typeof value === "object") {
     return JSON.stringify(value);
   }
   return String(value);

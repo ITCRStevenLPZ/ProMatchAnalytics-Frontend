@@ -2,7 +2,7 @@
  * Data Ingestion - Frontend Client (Phase 3 & 4)
  * Duplicate-aware batch ingestion with conflict resolution
  */
-import { apiClient } from './api';
+import { apiClient } from "./api";
 
 // ===== Legacy Types (Deprecated) =====
 export interface ValidationError {
@@ -21,9 +21,19 @@ export interface IngestionResult {
 
 // ===== Phase 3 Types =====
 
-export type BatchStatus = 'queued' | 'in_progress' | 'conflicts' | 'failed' | 'success';
-export type ItemStatus = 'pending' | 'duplicate_discarded' | 'conflict_open' | 'accepted' | 'rejected';
-export type MatchKind = 'exact_duplicate' | 'near_conflict' | 'unique';
+export type BatchStatus =
+  | "queued"
+  | "in_progress"
+  | "conflicts"
+  | "failed"
+  | "success";
+export type ItemStatus =
+  | "pending"
+  | "duplicate_discarded"
+  | "conflict_open"
+  | "accepted"
+  | "rejected";
+export type MatchKind = "exact_duplicate" | "near_conflict" | "unique";
 
 export interface IngestionBatch {
   ingestion_id: string;
@@ -94,12 +104,15 @@ export interface ConflictRecord {
   existing_record_id: string;
   target_model: string;
   similarity_score: number;
-  fields_diff: Record<string, {
-    field_path: string;
-    existing_value: any;
-    incoming_value: any;
-    is_significant: boolean;
-  }>;
+  fields_diff: Record<
+    string,
+    {
+      field_path: string;
+      existing_value: any;
+      incoming_value: any;
+      is_significant: boolean;
+    }
+  >;
   resolved: boolean;
   resolved_by?: string;
   resolved_at?: string;
@@ -136,19 +149,23 @@ export async function listBatches(params?: {
   page_size: number;
 }> {
   const queryParams = new URLSearchParams();
-  if (params?.target_model) queryParams.append('target_model', params.target_model);
-  if (params?.status) queryParams.append('status', params.status);
-  if (params?.page) queryParams.append('page', params.page.toString());
-  if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
-  
+  if (params?.target_model)
+    queryParams.append("target_model", params.target_model);
+  if (params?.status) queryParams.append("status", params.status);
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.page_size)
+    queryParams.append("page_size", params.page_size.toString());
+
   const query = queryParams.toString();
-  return apiClient.get(`/ingestions${query ? `?${query}` : ''}`);
+  return apiClient.get(`/ingestions${query ? `?${query}` : ""}`);
 }
 
 /**
  * Delete an ingestion batch and its associated metadata
  */
-export async function deleteBatch(ingestionId: string): Promise<{ message?: string }> {
+export async function deleteBatch(
+  ingestionId: string,
+): Promise<{ message?: string }> {
   return apiClient.delete(`/ingestions/${ingestionId}`);
 }
 
@@ -168,13 +185,15 @@ export async function createBatch(params: {
   total_rows: number;
   message: string;
 }> {
-  return apiClient.post('/ingestions', params);
+  return apiClient.post("/ingestions", params);
 }
 
 /**
  * Get batch status and counters
  */
-export async function getBatchStatus(ingestionId: string): Promise<IngestionBatch> {
+export async function getBatchStatus(
+  ingestionId: string,
+): Promise<IngestionBatch> {
   return apiClient.get(`/ingestions/${ingestionId}`);
 }
 
@@ -187,7 +206,7 @@ export async function getBatchItems(
     status_filter?: ItemStatus;
     page?: number;
     page_size?: number;
-  }
+  },
 ): Promise<{
   items: IngestionItem[];
   total: number;
@@ -195,12 +214,16 @@ export async function getBatchItems(
   page_size: number;
 }> {
   const queryParams = new URLSearchParams();
-  if (params?.status_filter) queryParams.append('status_filter', params.status_filter);
-  if (params?.page) queryParams.append('page', params.page.toString());
-  if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
-  
+  if (params?.status_filter)
+    queryParams.append("status_filter", params.status_filter);
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.page_size)
+    queryParams.append("page_size", params.page_size.toString());
+
   const query = queryParams.toString();
-  return apiClient.get(`/ingestions/${ingestionId}/items${query ? `?${query}` : ''}`);
+  return apiClient.get(
+    `/ingestions/${ingestionId}/items${query ? `?${query}` : ""}`,
+  );
 }
 
 /**
@@ -212,13 +235,16 @@ export async function acceptItem(
   params?: {
     edits?: Record<string, any>;
     notes?: string;
-  }
+  },
 ): Promise<{
   item_id: string;
   status: string;
   message: string;
 }> {
-  return apiClient.post(`/ingestions/${ingestionId}/items/${itemId}/accept`, params || {});
+  return apiClient.post(
+    `/ingestions/${ingestionId}/items/${itemId}/accept`,
+    params || {},
+  );
 }
 
 /**
@@ -230,19 +256,24 @@ export async function rejectItem(
   params: {
     reason: string;
     notes?: string;
-  }
+  },
 ): Promise<{
   item_id: string;
   status: string;
   message: string;
 }> {
-  return apiClient.post(`/ingestions/${ingestionId}/items/${itemId}/reject`, params);
+  return apiClient.post(
+    `/ingestions/${ingestionId}/items/${itemId}/reject`,
+    params,
+  );
 }
 
 /**
  * Get conflict details for a specific ingestion item
  */
-export async function getConflictDetails(itemId: string): Promise<ConflictRecord> {
+export async function getConflictDetails(
+  itemId: string,
+): Promise<ConflictRecord> {
   return apiClient.get(`/ingestions/conflicts/${itemId}`);
 }
 
@@ -273,13 +304,15 @@ export async function listConflicts(params?: {
   page_size: number;
 }> {
   const queryParams = new URLSearchParams();
-  if (params?.target_model) queryParams.append('target_model', params.target_model);
-  if (params?.status) queryParams.append('status', params.status);
-  if (params?.page) queryParams.append('page', params.page.toString());
-  if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
-  
+  if (params?.target_model)
+    queryParams.append("target_model", params.target_model);
+  if (params?.status) queryParams.append("status", params.status);
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.page_size)
+    queryParams.append("page_size", params.page_size.toString());
+
   const query = queryParams.toString();
-  return apiClient.get(`/ingestions/conflicts/list${query ? `?${query}` : ''}`);
+  return apiClient.get(`/ingestions/conflicts/list${query ? `?${query}` : ""}`);
 }
 
 /**
@@ -290,7 +323,7 @@ export async function getBatchConflicts(
   params?: {
     page?: number;
     page_size?: number;
-  }
+  },
 ): Promise<{
   conflicts: ConflictRecord[];
   total: number;
@@ -298,11 +331,14 @@ export async function getBatchConflicts(
   page_size: number;
 }> {
   const queryParams = new URLSearchParams();
-  if (params?.page) queryParams.append('page', params.page.toString());
-  if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
-  
+  if (params?.page) queryParams.append("page", params.page.toString());
+  if (params?.page_size)
+    queryParams.append("page_size", params.page_size.toString());
+
   const query = queryParams.toString();
-  return apiClient.get(`/ingestions/${ingestionId}/conflicts${query ? `?${query}` : ''}`);
+  return apiClient.get(
+    `/ingestions/${ingestionId}/conflicts${query ? `?${query}` : ""}`,
+  );
 }
 
 // ===== Phase 4 API Functions (Admin Config) =====
@@ -311,7 +347,7 @@ export async function getBatchConflicts(
  * Get all model ingestion configs
  */
 export async function getModelConfigs(): Promise<Record<string, ModelConfig>> {
-  return apiClient.get('/admin/ingestion/configs');
+  return apiClient.get("/admin/ingestion/configs");
 }
 
 /**
@@ -319,7 +355,7 @@ export async function getModelConfigs(): Promise<Record<string, ModelConfig>> {
  */
 export async function updateModelConfig(
   modelKey: string,
-  config: Partial<ModelConfig>
+  config: Partial<ModelConfig>,
 ): Promise<ModelConfig> {
   return apiClient.put(`/admin/ingestion/configs/${modelKey}`, config);
 }
@@ -329,9 +365,13 @@ export async function updateModelConfig(
 /**
  * Ingest competitions data via backend API
  */
-export async function ingestCompetitions(data: any[]): Promise<IngestionResult> {
+export async function ingestCompetitions(
+  data: any[],
+): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/competitions', { data });
+    const response: any = await apiClient.post("/ingestion/competitions", {
+      data,
+    });
     return response.data;
   } catch (error: any) {
     return {
@@ -339,7 +379,7 @@ export async function ingestCompetitions(data: any[]): Promise<IngestionResult> 
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -349,7 +389,7 @@ export async function ingestCompetitions(data: any[]): Promise<IngestionResult> 
  */
 export async function ingestVenues(data: any[]): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/venues', { data });
+    const response: any = await apiClient.post("/ingestion/venues", { data });
     return response.data;
   } catch (error: any) {
     return {
@@ -357,7 +397,7 @@ export async function ingestVenues(data: any[]): Promise<IngestionResult> {
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -367,7 +407,7 @@ export async function ingestVenues(data: any[]): Promise<IngestionResult> {
  */
 export async function ingestReferees(data: any[]): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/referees', { data });
+    const response: any = await apiClient.post("/ingestion/referees", { data });
     return response.data;
   } catch (error: any) {
     return {
@@ -375,7 +415,7 @@ export async function ingestReferees(data: any[]): Promise<IngestionResult> {
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -385,7 +425,7 @@ export async function ingestReferees(data: any[]): Promise<IngestionResult> {
  */
 export async function ingestPlayers(data: any[]): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/players', { data });
+    const response: any = await apiClient.post("/ingestion/players", { data });
     return response.data;
   } catch (error: any) {
     return {
@@ -393,7 +433,7 @@ export async function ingestPlayers(data: any[]): Promise<IngestionResult> {
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -403,7 +443,7 @@ export async function ingestPlayers(data: any[]): Promise<IngestionResult> {
  */
 export async function ingestTeams(data: any[]): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/teams', { data });
+    const response: any = await apiClient.post("/ingestion/teams", { data });
     return response.data;
   } catch (error: any) {
     return {
@@ -411,7 +451,7 @@ export async function ingestTeams(data: any[]): Promise<IngestionResult> {
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -421,7 +461,7 @@ export async function ingestTeams(data: any[]): Promise<IngestionResult> {
  */
 export async function ingestMatches(data: any[]): Promise<IngestionResult> {
   try {
-    const response: any = await apiClient.post('/ingestion/matches', { data });
+    const response: any = await apiClient.post("/ingestion/matches", { data });
     return response.data;
   } catch (error: any) {
     return {
@@ -429,7 +469,7 @@ export async function ingestMatches(data: any[]): Promise<IngestionResult> {
       created: 0,
       updated: 0,
       skipped: 0,
-      errors: [{ message: error.response?.data?.detail || error.message }]
+      errors: [{ message: error.response?.data?.detail || error.message }],
     };
   }
 }
@@ -452,9 +492,9 @@ export async function createBatchIngestion(
   targetModel: string,
   data: any[],
   batchName?: string,
-  description?: string
+  description?: string,
 ): Promise<CreateBatchResponse> {
-  const response = await apiClient.post<CreateBatchResponse>('ingestions', {
+  const response = await apiClient.post<CreateBatchResponse>("ingestions", {
     target_model: targetModel,
     data,
     batch_name: batchName,
@@ -480,16 +520,19 @@ export interface BulkStatusResponse {
   created_at: string;
   total_rows: number;
   sections: Record<string, number>;
-  batch_statuses: Record<string, {
-    batch_id: string;
-    status: string;
-    total_rows: number;
-    inserted: number;
-    duplicates: number;
-    conflicts_open: number;
-    conflicts_accepted: number;
-    conflicts_rejected: number;
-  }>;
+  batch_statuses: Record<
+    string,
+    {
+      batch_id: string;
+      status: string;
+      total_rows: number;
+      inserted: number;
+      duplicates: number;
+      conflicts_open: number;
+      conflicts_accepted: number;
+      conflicts_rejected: number;
+    }
+  >;
   metadata: Record<string, any>;
 }
 
@@ -497,12 +540,12 @@ export interface BulkStatusResponse {
  * Create bulk ingestion for all models at once
  */
 export async function createBulkIngestion(
-  format: 'csv' | 'json',
+  format: "csv" | "json",
   content?: string,
   data?: Record<string, any>,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
 ): Promise<CreateBulkResponse> {
-  const response = await apiClient.post<CreateBulkResponse>('ingestions/bulk', {
+  const response = await apiClient.post<CreateBulkResponse>("ingestions/bulk", {
     format,
     content,
     data,
@@ -514,6 +557,8 @@ export async function createBulkIngestion(
 /**
  * Get bulk ingestion status with all batch statuses
  */
-export async function getBulkStatus(bulkId: string): Promise<BulkStatusResponse> {
+export async function getBulkStatus(
+  bulkId: string,
+): Promise<BulkStatusResponse> {
   return apiClient.get(`ingestions/bulk/${bulkId}`);
 }

@@ -57,6 +57,7 @@ export default function CompetitionsManager() {
   const user = useAuthStore((state) => state.user);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const { loading, withLoading } = useLoading(true);
+  const [hasInitialLoadCompleted, setHasInitialLoadCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -130,6 +131,8 @@ export default function CompetitionsManager() {
       } catch (err: any) {
         setError(err.response?.data?.detail || t("errorFetchingData"));
         console.error("Error fetching competitions:", err);
+      } finally {
+        setHasInitialLoadCompleted(true);
       }
     });
   };
@@ -358,7 +361,7 @@ export default function CompetitionsManager() {
 
   // Backend handles filtering via search and gender params
 
-  if (loading) {
+  if (loading && !hasInitialLoadCompleted) {
     return <LoadingSpinner size="lg" />;
   }
 

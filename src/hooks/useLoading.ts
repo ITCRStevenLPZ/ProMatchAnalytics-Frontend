@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 interface UseLoadingReturn {
   loading: boolean;
@@ -11,13 +11,13 @@ interface UseLoadingReturn {
 /**
  * Custom hook for managing loading states across the application
  * Provides consistent loading state management for API calls and async operations
- * 
+ *
  * @param initialState - Initial loading state (default: false)
  * @returns Object with loading state and control functions
- * 
+ *
  * @example
  * const { loading, withLoading } = useLoading();
- * 
+ *
  * const fetchData = async () => {
  *   await withLoading(async () => {
  *     const data = await apiClient.get('/endpoint');
@@ -41,15 +41,18 @@ export function useLoading(initialState = false): UseLoadingReturn {
    * Sets loading to true before execution and false after completion
    * Handles errors and ensures loading is stopped even if the function throws
    */
-  const withLoading = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
-    try {
-      setLoading(true);
-      const result = await fn();
-      return result;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const withLoading = useCallback(
+    async <T>(fn: () => Promise<T>): Promise<T> => {
+      try {
+        setLoading(true);
+        const result = await fn();
+        return result;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   return {
     loading,

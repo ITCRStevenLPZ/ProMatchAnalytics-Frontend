@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useModelConfigs, useUpdateModelConfig } from '../hooks/useIngestion';
-import { ModelConfig } from '../lib/ingestion';
+import { useState } from "react";
+import { useModelConfigs, useUpdateModelConfig } from "../hooks/useIngestion";
+import { ModelConfig } from "../lib/ingestion";
 
 interface ConfigRowProps {
   config: ModelConfig;
@@ -13,7 +13,7 @@ function ConfigRow({ config, onUpdate, updating }: ConfigRowProps) {
   const [threshold, setThreshold] = useState(config.threshold_similarity);
   const [enabled, setEnabled] = useState(config.enabled);
   const [selectedFields, setSelectedFields] = useState<Set<string>>(
-    new Set(config.hashing_fields)
+    new Set(config.hashing_fields),
   );
 
   const handleSave = () => {
@@ -54,15 +54,17 @@ function ConfigRow({ config, onUpdate, updating }: ConfigRowProps) {
               onChange={(e) => setEnabled(e.target.checked)}
               className="form-checkbox h-5 w-5 text-blue-600"
             />
-            <span className="ml-2">{enabled ? 'Enabled' : 'Disabled'}</span>
+            <span className="ml-2">{enabled ? "Enabled" : "Disabled"}</span>
           </label>
         ) : (
           <span
             className={`px-2 py-1 rounded text-sm ${
-              config.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              config.enabled
+                ? "bg-green-100 text-green-800"
+                : "bg-gray-100 text-gray-800"
             }`}
           >
-            {config.enabled ? 'Enabled' : 'Disabled'}
+            {config.enabled ? "Enabled" : "Disabled"}
           </span>
         )}
       </td>
@@ -77,7 +79,9 @@ function ConfigRow({ config, onUpdate, updating }: ConfigRowProps) {
               onChange={(e) => setThreshold(parseInt(e.target.value) / 100)}
               className="flex-1"
             />
-            <span className="text-sm font-medium w-12">{(threshold * 100).toFixed(0)}%</span>
+            <span className="text-sm font-medium w-12">
+              {(threshold * 100).toFixed(0)}%
+            </span>
           </div>
         ) : (
           <span>{(config.threshold_similarity * 100).toFixed(0)}%</span>
@@ -102,7 +106,10 @@ function ConfigRow({ config, onUpdate, updating }: ConfigRowProps) {
         ) : (
           <div className="flex flex-wrap gap-1">
             {config.hashing_fields.map((field) => (
-              <span key={field} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+              <span
+                key={field}
+                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
+              >
                 {field}
               </span>
             ))}
@@ -112,7 +119,10 @@ function ConfigRow({ config, onUpdate, updating }: ConfigRowProps) {
       <td className="px-4 py-3">
         <div className="flex flex-wrap gap-1">
           {config.readonly_fields.map((field) => (
-            <span key={field} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+            <span
+              key={field}
+              className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
+            >
               {field}
             </span>
           ))}
@@ -177,7 +187,8 @@ export default function AdminModelConfig() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-red-600">
-          Error loading configurations: {error instanceof Error ? error.message : 'Unknown error'}
+          Error loading configurations:{" "}
+          {error instanceof Error ? error.message : "Unknown error"}
         </div>
       </div>
     );
@@ -188,9 +199,12 @@ export default function AdminModelConfig() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Ingestion Model Configuration</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Ingestion Model Configuration
+        </h1>
         <p className="text-gray-600 mt-2">
-          Configure duplicate detection settings for each model type. Changes are applied in-memory.
+          Configure duplicate detection settings for each model type. Changes
+          are applied in-memory.
         </p>
       </div>
 
@@ -234,31 +248,35 @@ export default function AdminModelConfig() {
       {updateMutation.isError && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
           <p className="text-red-800">
-            Error updating configuration:{' '}
+            Error updating configuration:{" "}
             {updateMutation.error instanceof Error
               ? updateMutation.error.message
-              : 'Unknown error'}
+              : "Unknown error"}
           </p>
         </div>
       )}
 
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-md p-4">
-        <h2 className="text-sm font-semibold text-blue-900 mb-2">Configuration Notes</h2>
+        <h2 className="text-sm font-semibold text-blue-900 mb-2">
+          Configuration Notes
+        </h2>
         <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
           <li>
-            <strong>Similarity Threshold:</strong> Records with similarity scores above this threshold
-            are flagged as conflicts (50-99%)
+            <strong>Similarity Threshold:</strong> Records with similarity
+            scores above this threshold are flagged as conflicts (50-99%)
           </li>
           <li>
-            <strong>Hashing Fields:</strong> Fields used to compute content hash for exact duplicate
-            detection
+            <strong>Hashing Fields:</strong> Fields used to compute content hash
+            for exact duplicate detection
           </li>
           <li>
-            <strong>Readonly Fields:</strong> Fields that cannot be edited during conflict resolution
+            <strong>Readonly Fields:</strong> Fields that cannot be edited
+            during conflict resolution
           </li>
           <li>
-            <strong>In-Memory Updates:</strong> Changes persist only for the current server session.
-            For permanent changes, edit <code>app/config/ingestion_config.py</code>
+            <strong>In-Memory Updates:</strong> Changes persist only for the
+            current server session. For permanent changes, edit{" "}
+            <code>app/config/ingestion_config.py</code>
           </li>
         </ul>
       </div>

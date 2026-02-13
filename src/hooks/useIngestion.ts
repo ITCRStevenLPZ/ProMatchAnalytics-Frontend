@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createBatch,
   getBatchStatus,
@@ -11,20 +11,20 @@ import {
   getModelConfigs,
   updateModelConfig,
   ItemStatus,
-} from '../lib/ingestion';
+} from "../lib/ingestion";
 
 /**
  * Hook to fetch a batch by ID
  */
 export function useBatchStatus(batchId: string, enabled = true) {
   return useQuery({
-    queryKey: ['ingestion', 'batch', batchId],
+    queryKey: ["ingestion", "batch", batchId],
     queryFn: () => getBatchStatus(batchId),
     enabled,
     refetchInterval: (query) => {
       // Poll every 3 seconds if batch is still processing
       const data = query.state.data;
-      if (data && (data.status === 'in_progress' || data.status === 'queued')) {
+      if (data && (data.status === "in_progress" || data.status === "queued")) {
         return 3000;
       }
       return false;
@@ -42,10 +42,10 @@ export function useBatchItems(
     page?: number;
     page_size?: number;
   },
-  enabled = true
+  enabled = true,
 ) {
   return useQuery({
-    queryKey: ['ingestion', 'batch', batchId, 'items', params],
+    queryKey: ["ingestion", "batch", batchId, "items", params],
     queryFn: () => getBatchItems(batchId, params),
     enabled,
     placeholderData: (previousData) => previousData,
@@ -62,10 +62,10 @@ export function useConflicts(
     page?: number;
     page_size?: number;
   },
-  enabled = true
+  enabled = true,
 ) {
   return useQuery({
-    queryKey: ['ingestion', 'conflicts', params],
+    queryKey: ["ingestion", "conflicts", params],
     queryFn: () => listConflicts(params),
     enabled,
     placeholderData: (previousData) => previousData,
@@ -77,7 +77,7 @@ export function useConflicts(
  */
 export function useBatchConflicts(batchId: string, enabled = true) {
   return useQuery({
-    queryKey: ['ingestion', 'batch', batchId, 'conflicts'],
+    queryKey: ["ingestion", "batch", batchId, "conflicts"],
     queryFn: () => getBatchConflicts(batchId),
     enabled,
   });
@@ -88,7 +88,7 @@ export function useBatchConflicts(batchId: string, enabled = true) {
  */
 export function useModelConfigs(enabled = true) {
   return useQuery({
-    queryKey: ['ingestion', 'configs'],
+    queryKey: ["ingestion", "configs"],
     queryFn: getModelConfigs,
     enabled,
   });
@@ -114,8 +114,10 @@ export function useAcceptItem() {
     }) => acceptItem(ingestionId, itemId, { edits, notes }),
     onSuccess: (_data, variables) => {
       // Invalidate batch queries to refresh counters and status
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'batch', variables.ingestionId] });
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'conflicts'] });
+      queryClient.invalidateQueries({
+        queryKey: ["ingestion", "batch", variables.ingestionId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["ingestion", "conflicts"] });
     },
   });
 }
@@ -140,8 +142,10 @@ export function useRejectItem() {
     }) => rejectItem(ingestionId, itemId, { reason, notes }),
     onSuccess: (_data, variables) => {
       // Invalidate batch queries to refresh counters
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'batch', variables.ingestionId] });
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'conflicts'] });
+      queryClient.invalidateQueries({
+        queryKey: ["ingestion", "batch", variables.ingestionId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["ingestion", "conflicts"] });
     },
   });
 }
@@ -156,7 +160,9 @@ export function useRetryFailedItems() {
     mutationFn: (ingestionId: string) => retryFailedItems(ingestionId),
     onSuccess: (_data, variables) => {
       // Invalidate batch to show updated status
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'batch', variables] });
+      queryClient.invalidateQueries({
+        queryKey: ["ingestion", "batch", variables],
+      });
     },
   });
 }
@@ -177,7 +183,7 @@ export function useCreateBatch() {
     }) => createBatch(params),
     onSuccess: () => {
       // Invalidate queries to show new batch
-      queryClient.invalidateQueries({ queryKey: ['ingestion'] });
+      queryClient.invalidateQueries({ queryKey: ["ingestion"] });
     },
   });
 }
@@ -203,7 +209,7 @@ export function useUpdateModelConfig() {
     }) => updateModelConfig(modelKey, update),
     onSuccess: () => {
       // Refresh config list
-      queryClient.invalidateQueries({ queryKey: ['ingestion', 'configs'] });
+      queryClient.invalidateQueries({ queryKey: ["ingestion", "configs"] });
     },
   });
 }
