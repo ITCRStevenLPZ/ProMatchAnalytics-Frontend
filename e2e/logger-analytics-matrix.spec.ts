@@ -492,7 +492,9 @@ test.describe("Logger analytics matrix", () => {
     expect(fouls.away).toBe(1);
   });
 
-  test("ANL-14: duels increment duels", async ({ page }) => {
+  test("ANL-14: analytics table does not render duels row", async ({
+    page,
+  }) => {
     await gotoLoggerPage(page, MATRIX_MATCH_ID);
     await setRole(page, "admin");
 
@@ -508,8 +510,7 @@ test.describe("Logger analytics matrix", () => {
     });
 
     await openAnalytics(page);
-    const duels = await getRowValues(page, "stat-duels");
-    expect(duels.home).toBe(1);
+    await expect(page.getByTestId("stat-duels")).toHaveCount(0);
   });
 
   test("ANL-15: VAR time stays neutral", async ({ page }) => {
@@ -824,5 +825,72 @@ test.describe("Logger analytics matrix", () => {
     expect(homePercent).toBeGreaterThan(0);
     expect(homePercent).toBeLessThanOrEqual(100);
     expect(awayPercent).toBe(homePercent);
+  });
+
+  test("ANL-22: injury is hidden and excluded from ineffective totals", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendStoppage(page, {
+      match_clock: "00:32.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Injury",
+        trigger_action: "Injury",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+    await page.waitForTimeout(1100);
+    await sendStoppage(page, {
+      match_clock: "00:33.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Injury",
+        trigger_action: "Injury",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+
+    await sendStoppage(page, {
+      match_clock: "00:34.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+    await page.waitForTimeout(1100);
+    await sendStoppage(page, {
+      match_clock: "00:35.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+
+    await openAnalytics(page);
+
+    await expect(page.getByTestId("stat-ineffective-injury")).toHaveCount(0);
+
+    const out = await getRowValues(page, "stat-ineffective-outofbounds");
+    const totals = await getRowValues(page, "stat-ineffective-time");
+    expect(totals.home).toBe(out.home);
+    expect(totals.away).toBe(out.away);
   });
 });

@@ -94,25 +94,35 @@ const buildEmptyTotals = (): IneffectiveTotals => {
 
 const resolveTeamKey = (
   event: MatchEvent,
-  homeTeamId: string,
-  awayTeamId: string,
+  homeTeamIds: string | string[],
+  awayTeamIds: string | string[],
   action: IneffectiveAction,
 ): IneffectiveTeamKey => {
   if (action === "VAR") return "neutral";
   const triggerTeamRaw =
     event.data?.trigger_team_id || event.team_id || "NEUTRAL";
   const triggerTeam = String(triggerTeamRaw || "").toLowerCase();
-  const home = String(homeTeamId || "").toLowerCase();
-  const away = String(awayTeamId || "").toLowerCase();
-  if (triggerTeam === home) return "home";
-  if (triggerTeam === away) return "away";
+  if (triggerTeam === "home") return "home";
+  if (triggerTeam === "away") return "away";
+  const homeSet = new Set(
+    (Array.isArray(homeTeamIds) ? homeTeamIds : [homeTeamIds])
+      .map((value) => String(value || "").toLowerCase())
+      .filter(Boolean),
+  );
+  const awaySet = new Set(
+    (Array.isArray(awayTeamIds) ? awayTeamIds : [awayTeamIds])
+      .map((value) => String(value || "").toLowerCase())
+      .filter(Boolean),
+  );
+  if (homeSet.has(triggerTeam)) return "home";
+  if (awaySet.has(triggerTeam)) return "away";
   return "home";
 };
 
 export const computeIneffectiveBreakdown = (
   events: MatchEvent[],
-  homeTeamId: string,
-  awayTeamId: string,
+  homeTeamIds: string | string[],
+  awayTeamIds: string | string[],
   nowMs: number = Date.now(),
 ): IneffectiveBreakdown => {
   const totals = buildEmptyTotals();
@@ -198,7 +208,7 @@ export const computeIneffectiveBreakdown = (
     const action = normalizeIneffectiveAction(
       event.data?.trigger_action || event.data?.reason,
     );
-    const teamKey = resolveTeamKey(event, homeTeamId, awayTeamId, action);
+    const teamKey = resolveTeamKey(event, homeTeamIds, awayTeamIds, action);
 
     if (stoppageType === "ClockStop") {
       activeTeamKey = teamKey;

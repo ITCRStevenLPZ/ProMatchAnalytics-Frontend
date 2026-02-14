@@ -240,4 +240,74 @@ test.describe("Logger substitution rules", () => {
       .poll(async () => (await ineffectiveClock.innerText()).trim())
       .toBe(initialIneffective.trim());
   });
+
+  test("does not start ineffective time when clock is running", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+
+    await page.route(
+      "**/api/v1/logger/matches/**/validate-substitution",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            is_valid: true,
+            error_message: null,
+            opens_new_window: false,
+            team_status: {
+              total_substitutions: 1,
+              max_substitutions: 5,
+              remaining_substitutions: 4,
+              windows_used: 0,
+              max_windows: 3,
+              remaining_windows: 3,
+              is_extra_time: false,
+              concussion_subs_used: 0,
+            },
+          }),
+        });
+      },
+    );
+
+    await gotoLoggerPage(page, matchId);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    const startClockButton = page.getByTestId("btn-start-clock");
+    const stopClockButton = page.getByTestId("btn-stop-clock");
+    await expect(startClockButton).toBeEnabled({ timeout: 15000 });
+    await startClockButton.click();
+    await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
+
+    const ineffectiveClock = page.getByTestId("ineffective-clock-value");
+    const initialIneffective = await ineffectiveClock.innerText();
+
+    await page.getByTestId("field-player-HOME-1").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Substitution").click();
+
+    const subModal = page.getByTestId("substitution-modal");
+    await expect(subModal).toBeVisible();
+
+    const offList = subModal.locator('[data-testid^="sub-off-"]');
+    await expect(offList.first()).toBeVisible();
+    await offList.first().click();
+
+    const onList = subModal.locator('[data-testid^="sub-on-"]');
+    await expect(onList.first()).toBeVisible();
+    await onList.first().click();
+
+    const confirmButton = subModal.getByTestId("confirm-substitution");
+    await expect(confirmButton).toBeEnabled({ timeout: 10000 });
+    await confirmButton.click();
+    await expect(subModal).toBeHidden({ timeout: 10000 });
+
+    await page.waitForTimeout(1200);
+    await expect(page.getByTestId("btn-resume-effective")).toHaveCount(0);
+    await expect
+      .poll(async () => (await ineffectiveClock.innerText()).trim())
+      .toBe(initialIneffective.trim());
+  });
 });
