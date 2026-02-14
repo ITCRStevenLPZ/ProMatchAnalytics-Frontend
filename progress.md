@@ -8,6 +8,7 @@
 
 ## Current Objective
 
+- [x] Fix Teams roster modal player search so newly added players are always discoverable, including records beyond the first `/players/` page.
 - [x] Make Outside flow immediate (log + stop effective time) without destination/recipient selection.
 - [x] Ensure Offside also logs immediately (no destination) and stops effective time.
 - [x] Remove Duels from the logger analytics comparison table.
@@ -30,6 +31,10 @@
 
 ## What Was Completed
 
+- [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) `fetchAllPlayers` to iterate all `/players/` pages (instead of only page 1) before building roster candidates.
+- [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) data-loading effects so player catalog fetch runs on mount (not every teams search/pagination change), preventing repeated heavy refetch churn.
+- [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) roster modal open flow to refresh players before loading roster candidates, eliminating stale player-picker data after recent player creation.
+- [x] Added E2E regression in [e2e/admin-team-roster-ui.spec.ts](e2e/admin-team-roster-ui.spec.ts) validating that roster search can find a target player pushed beyond the first players page by >100 newer records.
 - [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) ineffective team resolution to accept team ID aliases and map `trigger_team_id`/`team_id` robustly (including `home`/`away` literals).
 - [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) ineffective breakdown computation calls to pass both `team.id` and `team.team_id` aliases for home/away.
 - [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) `Pass -> Out` ineffective trigger context to use opponent team ID (possession-receiving team) instead of acting team.
@@ -155,6 +160,8 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8013 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4179 CI=1 npx playwright test e2e/admin-team-roster-ui.spec.ts --max-failures=1` -> PASS (4 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
 - [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (10 passed)
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "quick Shot requires destination and resolves defender/keeper outcome|Pass Out logs immediately and stops effective time without destination"` -> PASS (2 passed)
 - [x] Typecheck: `npx tsc --noEmit` -> PASS

@@ -104,6 +104,72 @@ test.describe("Admin team roster UI", () => {
     }
   });
 
+  test("roster player search includes players beyond first players page", async ({
+    page,
+  }) => {
+    const seededTeam = await seedTeam(api, {
+      name: `Roster Overflow ${uniqueId("TEAM")}`,
+      rosterTemplate: [{ position: "GK" }],
+    });
+
+    const targetPlayer = await seedPlayer(api, {
+      name: `Overflow Target ${uniqueId("PLY")}`,
+      position: "CM",
+    });
+    const overflowPlayerIds = [targetPlayer.player_id];
+
+    for (let index = 0; index < 105; index += 1) {
+      const overflow = await seedPlayer(api, {
+        name: `Overflow Filler ${index} ${uniqueId("PLY")}`,
+        position: "CB",
+      });
+      overflowPlayerIds.push(overflow.player_id);
+    }
+
+    try {
+      await page.goto("/teams");
+      const searchInput = page.getByPlaceholder(/Search|Buscar/i).first();
+      await searchInput.fill(seededTeam.name);
+
+      const teamRow = page.locator("tr", { hasText: seededTeam.name }).first();
+      await expect(teamRow).toBeVisible({ timeout: 15000 });
+
+      await teamRow
+        .locator('button[title="Roster"], button[title="Plantel"]')
+        .first()
+        .click();
+
+      await expect(
+        page.locator("h2", { hasText: seededTeam.name }).first(),
+      ).toBeVisible({ timeout: 10000 });
+
+      await page.getByTestId("roster-player-picker-toggle").click();
+      await page.getByTestId("roster-player-search").fill(targetPlayer.name);
+
+      await expect(
+        page.getByTestId(
+          `roster-available-player-option-${targetPlayer.player_id}`,
+        ),
+      ).toBeVisible({ timeout: 10000 });
+    } finally {
+      for (const rosterEntry of seededTeam.roster) {
+        await cleanupResource(
+          api,
+          `teams/${seededTeam.team_id}/players/${rosterEntry.player_id}`,
+        ).catch(() => {});
+        await cleanupResource(api, `players/${rosterEntry.player_id}`).catch(
+          () => {},
+        );
+      }
+
+      for (const playerId of overflowPlayerIds) {
+        await cleanupResource(api, `players/${playerId}`).catch(() => {});
+      }
+
+      await cleanupResource(api, `teams/${seededTeam.team_id}`).catch(() => {});
+    }
+  });
+
   test("shows roster loading while opening modal and while switching roster pages", async ({
     page,
   }) => {

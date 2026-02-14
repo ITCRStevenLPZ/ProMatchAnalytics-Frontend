@@ -172,6 +172,8 @@ export default function TeamsManager() {
   const [isTeamsPaginationLoading, setIsTeamsPaginationLoading] =
     useState(false);
 
+  const PLAYER_FETCH_PAGE_SIZE = 100;
+
   const [formData, setFormData] = useState<Partial<Team>>(() =>
     withTeamFormDefaults(),
   );
@@ -235,8 +237,11 @@ export default function TeamsManager() {
 
   useEffect(() => {
     fetchTeams();
-    fetchAllPlayers();
   }, [currentPage, pageSize, genderFilter, searchTerm]);
+
+  useEffect(() => {
+    fetchAllPlayers();
+  }, []);
 
   const fetchTeams = async () => {
     await withLoading(async () => {
@@ -270,16 +275,30 @@ export default function TeamsManager() {
     });
   };
 
-  const fetchAllPlayers = async () => {
+  const fetchAllPlayers = async (): Promise<PlayerData[]> => {
     try {
-      const response = await apiClient.get<
-        PaginatedResponse<PlayerApiResponse>
-      >("/players/", {
-        params: { page: 1, page_size: 100 },
-      });
-      setPlayers(normalizePlayers(response.items));
+      const allPlayers: PlayerApiResponse[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await apiClient.get<
+          PaginatedResponse<PlayerApiResponse>
+        >("/players/", {
+          params: { page, page_size: PLAYER_FETCH_PAGE_SIZE },
+        });
+
+        allPlayers.push(...response.items);
+        totalPages = Math.max(1, response.total_pages || 1);
+        page += 1;
+      } while (page <= totalPages);
+
+      const normalizedPlayers = normalizePlayers(allPlayers);
+      setPlayers(normalizedPlayers);
+      return normalizedPlayers;
     } catch (err: any) {
       console.error("Error fetching players:", err);
+      return [];
     }
   };
 
@@ -288,6 +307,7 @@ export default function TeamsManager() {
     mode: "modal" | "pagination" | "refresh" = "refresh",
     pageOverride?: number,
     pageSizeOverride?: number,
+    playerPool?: PlayerData[],
   ) => {
     if (mode === "modal") {
       setIsRosterModalLoading(true);
@@ -328,7 +348,8 @@ export default function TeamsManager() {
         page += 1;
       } while (page <= totalPages);
 
-      const filtered = players.filter(
+      const sourcePlayers = playerPool ?? players;
+      const filtered = sourcePlayers.filter(
         (p) => !rosterPlayerIds.includes(p.player_id),
       );
       setAvailablePlayers(filtered);
@@ -614,7 +635,14 @@ export default function TeamsManager() {
     setRosterFormError(null);
     setShowRosterModal(true);
     setRosterPage(1);
-    await fetchTeamRoster(team.team_id, "modal", 1, rosterPageSize);
+    const latestPlayers = await fetchAllPlayers();
+    await fetchTeamRoster(
+      team.team_id,
+      "modal",
+      1,
+      rosterPageSize,
+      latestPlayers,
+    );
   };
 
   const handleAddPlayerToRoster = async (e: React.FormEvent) => {
