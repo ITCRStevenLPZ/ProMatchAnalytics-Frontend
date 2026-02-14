@@ -122,7 +122,7 @@ test.describe("Logger substitutions", () => {
     await confirmBtn.click();
 
     await waitForPendingAckToClear(page);
-    await expectLiveEventCount(page, 2);
+    await expectLiveEventCount(page, 1);
     const substitutionEvent = page
       .getByTestId("live-event-item")
       .filter({ hasText: /Substitution/i })

@@ -32,7 +32,8 @@ interface UseActionFlowParams {
 
 const resolveEventType = (action: string): EventType => {
   if (action === "Pass") return "Pass";
-  if (action === "Shot" || action === "Goal") return "Shot";
+  if (action === "Shot" || action === "Goal" || action === "DirectShot")
+    return "Shot";
   if (action === "Duel") return "Duel";
   if (action === "Foul") return "FoulCommitted";
   if (action === "Card") return "Card";
@@ -63,6 +64,19 @@ const getActionConfig = (action?: string | null) => {
   if (!action) return undefined;
   return Object.values(ACTION_FLOWS).find((config) =>
     config.actions.includes(action),
+  );
+};
+
+const isGoalkeeperPosition = (value?: string | null) => {
+  const normalized = (value || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .trim();
+  return (
+    normalized === "gk" ||
+    normalized.includes("goalkeeper") ||
+    normalized.includes("keeper") ||
+    normalized.includes("portero")
   );
 };
 
@@ -213,19 +227,18 @@ export const useActionFlow = ({
 
   const currentTeam = useMemo<Team | undefined>(() => {
     if (!match) return undefined;
+    if (selectedPlayer) {
+      const isHomePlayer = match.home_team.players.some(
+        (player) => player.id === selectedPlayer.id,
+      );
+      if (isHomePlayer) return match.home_team;
+      const isAwayPlayer = match.away_team.players.some(
+        (player) => player.id === selectedPlayer.id,
+      );
+      if (isAwayPlayer) return match.away_team;
+    }
     if (selectedTeam === "home") return match.home_team;
     if (selectedTeam === "away") return match.away_team;
-    // If viewing both, defer to selected player's team if available
-    if (selectedPlayer) {
-      const isHome = match.home_team.players.some(
-        (p) => p.id === selectedPlayer.id,
-      );
-      if (isHome) return match.home_team;
-      const isAway = match.away_team.players.some(
-        (p) => p.id === selectedPlayer.id,
-      );
-      if (isAway) return match.away_team;
-    }
     return undefined;
   }, [match, selectedPlayer, selectedTeam]);
 
@@ -236,6 +249,16 @@ export const useActionFlow = ({
         return "home";
       if (match.away_team.players.some((p) => p.id === player.id))
         return "away";
+      return null;
+    },
+    [match],
+  );
+
+  const resolveOpponentTeamId = useCallback(
+    (teamId?: string | null): string | null => {
+      if (!match || !teamId) return null;
+      if (teamId === match.home_team.id) return match.away_team.id;
+      if (teamId === match.away_team.id) return match.home_team.id;
       return null;
     },
     [match],
@@ -305,35 +328,10 @@ export const useActionFlow = ({
           resolvedOutcome = requested;
         }
 
-        const isDisciplinary =
-          resolvedOutcome === "Yellow" ||
-          resolvedOutcome === "Yellow (Second)" ||
-          resolvedOutcome === "Red";
-        const hasRecentFoul = recentEvents.some(
-          (event) =>
-            event.type === "FoulCommitted" &&
-            event.match_clock === globalClock &&
-            event.period === operatorPeriod,
-        );
-
-        if (isDisciplinary && !hasRecentFoul) {
-          sendPayload("Foul", "Standard", null);
-        }
-
         sendPayload("Card", resolvedOutcome, null);
 
         if (resolvedOutcome === "Yellow (Second)") {
           sendPayload("Card", "Red", null);
-        }
-
-        if (isDisciplinary) {
-          const noteText = `Card: ${resolvedOutcome}`;
-          onIneffectiveTrigger?.({
-            note: noteText,
-            teamId: currentTeam.id,
-            playerId: selectedPlayer.id,
-            actionType: "Card",
-          });
         }
 
         return true;
@@ -355,9 +353,16 @@ export const useActionFlow = ({
 
       if (action === "Foul") {
         onIneffectiveTrigger?.({
-          teamId: currentTeam.id,
+          teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
           playerId: selectedPlayer.id,
           actionType: "Foul",
+        });
+      }
+      if (action === "Offside") {
+        onIneffectiveTrigger?.({
+          teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+          playerId: selectedPlayer.id,
+          actionType: "Offside",
         });
       }
       return true;
@@ -371,6 +376,7 @@ export const useActionFlow = ({
       expelledPlayerIds,
       recentEvents,
       onIneffectiveTrigger,
+      resolveOpponentTeamId,
       globalClock,
       operatorPeriod,
       sendEvent,
@@ -398,9 +404,34 @@ export const useActionFlow = ({
         setCurrentStep("selectOutcome");
         return;
       }
+      if (action === "DirectShot") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "OnTarget", null, {
+            location: selectedPlayerLocation ?? undefined,
+            extraData: {
+              shot_type: "Direct",
+            },
+          });
+          if (sent) {
+            resetFlow();
+          }
+        }
+        return;
+      }
       if (action === "Goal") {
         if (selectedPlayer && currentTeam) {
           const sent = dispatchEvent(action, "Goal", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            resetFlow();
+          }
+        }
+        return;
+      }
+      if (action === "Offside") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Standard", null, {
             location: selectedPlayerLocation ?? undefined,
           });
           if (sent) {
@@ -452,6 +483,39 @@ export const useActionFlow = ({
           ? selectedPlayerSide !== targetPlayerSide
           : false;
 
+      const isPassOrShot =
+        selectedAction === "Pass" || selectedAction === "Shot";
+      const ownGoalEdge =
+        selectedPlayerSide === "home"
+          ? "left"
+          : selectedPlayerSide === "away"
+            ? "right"
+            : null;
+      const isSameSideKeeperTarget =
+        isPassOrShot &&
+        isSameTeam &&
+        Boolean(targetPlayer) &&
+        isGoalkeeperPosition(targetPlayer?.position);
+      const isBehindOwnGoalLine =
+        isPassOrShot &&
+        destination.isOutOfBounds &&
+        Boolean(destination.outOfBoundsEdge) &&
+        ownGoalEdge !== null &&
+        destination.outOfBoundsEdge === ownGoalEdge;
+      const shouldAwardCorner = isSameSideKeeperTarget || isBehindOwnGoalLine;
+
+      const awardedCornerTeamId =
+        shouldAwardCorner && selectedPlayerSide === "home"
+          ? match?.away_team.id || null
+          : shouldAwardCorner && selectedPlayerSide === "away"
+            ? match?.home_team.id || null
+            : null;
+      const cornerReason = isSameSideKeeperTarget
+        ? "same_side_keeper"
+        : isBehindOwnGoalLine
+          ? "behind_own_goal_line"
+          : null;
+
       let outcome: string | null = null;
       const extraData: Record<string, any> = {
         destination_type: destination.isOutOfBounds
@@ -469,8 +533,22 @@ export const useActionFlow = ({
         extraData.target_player_name = targetPlayer.full_name;
       }
 
+      if (shouldAwardCorner) {
+        extraData.corner_awarded = true;
+        if (cornerReason) {
+          extraData.corner_reason = cornerReason;
+        }
+        if (awardedCornerTeamId) {
+          extraData.corner_team_id = awardedCornerTeamId;
+        }
+      }
+
       if (selectedAction === "Pass") {
-        if (destination.isOutOfBounds) {
+        if (isBehindOwnGoalLine) {
+          outcome = "Out";
+        } else if (shouldAwardCorner) {
+          outcome = "Incomplete";
+        } else if (destination.isOutOfBounds) {
           outcome = "Out";
         } else if (isSameTeam) {
           outcome = "Complete";
@@ -481,8 +559,14 @@ export const useActionFlow = ({
             extraData.intercepted_by_name = targetPlayer.full_name;
           }
         }
-      } else if (selectedAction === "Shot" || selectedAction === "Goal") {
-        if (destination.isOutOfBounds) {
+      } else if (
+        selectedAction === "Shot" ||
+        selectedAction === "Goal" ||
+        selectedAction === "DirectShot"
+      ) {
+        if (shouldAwardCorner) {
+          outcome = "OffTarget";
+        } else if (destination.isOutOfBounds) {
           outcome = "OffTarget";
         } else if (isOpponent && targetPlayer?.position === "GK") {
           outcome = "Saved";
@@ -499,18 +583,40 @@ export const useActionFlow = ({
         outcome = null;
       }
 
-      const recipient = isSameTeam ? targetPlayer : null;
+      const recipient = shouldAwardCorner
+        ? null
+        : isSameTeam
+          ? targetPlayer
+          : null;
       const sent = dispatchEvent(selectedAction, outcome, recipient, {
         location: selectedPlayerLocation ?? undefined,
         endLocation: destination.statsbomb,
         extraData,
       });
 
+      if (sent && shouldAwardCorner && awardedCornerTeamId) {
+        sendEvent({
+          match_clock: globalClock,
+          period: operatorPeriod,
+          team_id: awardedCornerTeamId,
+          type: "SetPiece",
+          location: destination.statsbomb,
+          data: {
+            set_piece_type: "Corner",
+            outcome: "Complete",
+            awarded_reason: cornerReason || "auto",
+            source_action: selectedAction,
+            source_team_id: currentTeam.id,
+            source_player_id: selectedPlayer.id,
+          },
+        });
+      }
+
       const isGoal = outcome === "Goal";
 
       const triggerAction: IneffectiveAction | null = isGoal
         ? "Goal"
-        : destination.isOutOfBounds
+        : shouldAwardCorner || destination.isOutOfBounds
           ? "OutOfBounds"
           : null;
 
@@ -518,7 +624,12 @@ export const useActionFlow = ({
         sent && triggerAction
           ? {
               actionType: triggerAction,
-              teamId: currentTeam.id,
+              teamId:
+                triggerAction === "OutOfBounds"
+                  ? awardedCornerTeamId ||
+                    resolveOpponentTeamId(currentTeam.id) ||
+                    currentTeam.id
+                  : currentTeam.id,
               playerId: selectedPlayer.id,
             }
           : null;
@@ -535,10 +646,14 @@ export const useActionFlow = ({
       };
     },
     [
+      globalClock,
+      match,
       currentTeam,
       dispatchEvent,
+      operatorPeriod,
       resetFlow,
       resolvePlayerSide,
+      sendEvent,
       selectedAction,
       selectedPlayer,
       selectedPlayerLocation,
@@ -555,6 +670,25 @@ export const useActionFlow = ({
         config,
         needsRecipient: config?.needsRecipient,
       });
+      if (selectedAction === "Pass" && outcome === "Out") {
+        const sent = dispatchEvent(selectedAction, outcome, null, {
+          location: selectedPlayerLocation ?? undefined,
+          extraData: {
+            destination_type: "out_of_bounds",
+            out_of_bounds: true,
+          },
+        });
+        if (sent && currentTeam && selectedPlayer) {
+          onIneffectiveTrigger?.({
+            note: "Out of bounds",
+            teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+            playerId: selectedPlayer.id,
+            actionType: "OutOfBounds",
+          });
+          resetFlow();
+        }
+        return;
+      }
       if (config?.needsRecipient) {
         setPendingOutcome(outcome);
         setCurrentStep("selectRecipient");
@@ -567,10 +701,14 @@ export const useActionFlow = ({
     },
     [
       dispatchEvent,
+      currentTeam,
+      onIneffectiveTrigger,
       resetFlow,
       selectedAction,
-      currentTeam?.players,
       selectedPlayer,
+      selectedPlayerLocation,
+      currentTeam?.players,
+      resolveOpponentTeamId,
     ],
   );
 

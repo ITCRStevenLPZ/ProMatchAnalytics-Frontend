@@ -432,6 +432,53 @@ test.describe("Logger ineffective time breakdown", () => {
     await expect(cells.nth(2)).not.toHaveText("00:00");
   });
 
+  test("manual substitution ineffective uses selected team attribution", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+
+    await gotoLoggerPage(page, MATCH_ID);
+    await resetHarnessFlow(page);
+    await setRole(page, "admin");
+
+    await resetHarnessFlow(page, "home");
+    await ensureClockRunning(page);
+
+    await page.getByTestId("btn-ineffective-event").click({ timeout: 15000 });
+    await expect(page.getByTestId("ineffective-note-modal")).toBeVisible({
+      timeout: 10000,
+    });
+    await page.getByTestId("ineffective-note-action").click();
+    const actionMenu = page.getByTestId("ineffective-note-action-menu");
+    await expect(actionMenu).toBeVisible({ timeout: 10000 });
+    await expect(actionMenu).not.toContainText("Injury");
+    await expect(actionMenu).not.toContainText("VAR");
+    await page
+      .getByTestId("ineffective-note-action-option-Substitution")
+      .click();
+    await page.getByTestId("ineffective-note-team").click();
+    await page.getByTestId("ineffective-note-team-option-away").click();
+    await page.getByTestId("ineffective-note-save").click();
+    await waitForPendingAckToClear(page);
+
+    await page.waitForTimeout(1200);
+    await page.getByTestId("btn-resume-effective").click({ timeout: 15000 });
+    await waitForPendingAckToClear(page);
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    const substitutionRow = page.getByTestId("stat-ineffective-substitution");
+    await expect(substitutionRow).toBeVisible();
+
+    const cells = substitutionRow.locator("div");
+    await expect(cells.nth(1)).toHaveText(/00:00/);
+    await expect(cells.nth(2)).not.toHaveText("00:00");
+  });
+
   test("shows offside offender on stoppage feed", async ({ page }) => {
     test.setTimeout(120000);
     await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));

@@ -8,15 +8,85 @@
 
 ## Current Objective
 
-- [x] Stabilize remaining full-matrix flaky assertions after logger hardening.
+- [x] Make Outside flow immediate (log + stop effective time) without destination/recipient selection.
+- [x] Ensure Offside also logs immediately (no destination) and stops effective time.
+- [x] Remove Duels from the logger analytics comparison table.
+- [x] Fix ineffective-time attribution so the team causing stoppage is charged (not the receiving team).
+- [x] Prevent opposite-team ineffective attribution when team identifiers differ (`id` vs `team_id`).
+- [x] Apply product rule update: `Pass -> Out` ineffective time is charged to the opponent team (receiving possession after restart).
+- [x] Make regular quick `Shot` destination-driven (blocked/saved/out decided by destination target).
+- [x] Apply possession-side ineffective rule to `Foul` and `Offside` (opponent team clock starts).
+- [x] Remove `Injury` from ineffective analytics table and exclude injury from team ineffective totals.
+- [x] Ensure `Card` actions are timer-neutral (no effective/ineffective start/stop side effects).
+- [x] Ensure `Substitution` actions are timer-neutral and support manual ineffective start with explicit team attribution.
+- [x] Remove manual `VAR`/`Injury` ineffective trigger options and migrate manual modal selects to custom dropdown controls with black form text.
+- [x] Show actual team names in manual ineffective team picker and make ineffective note optional.
+- [x] Run full Playwright E2E matrix and fix remaining deterministic logger failures (`logger-advanced`, `logger-disciplinary`) without regressing timer-neutral card/substitution behavior.
 
 ## Status
 
-- Phase: Handoff
+- Phase: Validate
 - Overall: On track
 
 ## What Was Completed
 
+- [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) ineffective team resolution to accept team ID aliases and map `trigger_team_id`/`team_id` robustly (including `home`/`away` literals).
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) ineffective breakdown computation calls to pass both `team.id` and `team.team_id` aliases for home/away.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) `Pass -> Out` ineffective trigger context to use opponent team ID (possession-receiving team) instead of acting team.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) destination out-of-bounds/corner ineffective trigger context to prefer restart team (`corner_team`/opponent) for out-of-bounds stoppages.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) so quick regular `Shot` routes to destination selection instead of immediate `OnTarget` dispatch.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) so `Foul` and `Offside` ineffective triggers are attributed to opponent team ID (receiving team), matching `Pass -> Out` behavior.
+- [x] Added unit regressions in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) for destination-based quick `Shot` outcome resolution (`Saved/Blocked`) and shot out-of-bounds ineffective attribution to the opponent team.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) offside expectation and added foul regression to enforce opponent-side ineffective attribution.
+- [x] Added E2E regression in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) verifying quick `Shot` requires destination and logs only after selecting a defender/keeper target.
+- [x] Strengthened [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) to assert opponent-side ineffective attribution for `Offside` and added dedicated `Foul` opponent-attribution E2E coverage.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to remove the `Injury` row from `ineffectiveActionRows`.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) ineffective totals reducer to exclude `Injury` from per-team sums (same as `VAR` exclusion).
+- [x] Added E2E regression [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-22` validating `stat-ineffective-injury` is hidden and injury time does not inflate `stat-ineffective-time` totals.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) card flow to log cards without emitting ineffective trigger callbacks and without auto-inserting prerequisite foul events.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) card logging path to stop calling `beginIneffective` for disciplinary cards.
+- [x] Added unit regression in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) asserting card actions never invoke `onIneffectiveTrigger`.
+- [x] Added E2E regression in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) asserting card logging does not expose `btn-resume-effective` (no ineffective-mode transition).
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) substitution submit flow to remove automatic `beginIneffective` calls so substitutions never auto-stop/start effective time.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) manual ineffective modal to include `Substitution` as an available reason and explicit team selector (`ineffective-note-team`) used for team attribution on manual starts.
+- [x] Updated locale keys in [public/locales/en/logger.json](public/locales/en/logger.json) and [public/locales/es/logger.json](public/locales/es/logger.json) for manual ineffective team/reason labels.
+- [x] Added E2E regression in [e2e/logger-substitution-rules.spec.ts](e2e/logger-substitution-rules.spec.ts) ensuring substitutions do not trigger ineffective mode while the game clock is running.
+- [x] Added E2E regression in [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts) ensuring manual ineffective starts with reason `Substitution` attribute time to the team selected in modal.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) ineffective-note modal to replace native `<select>` controls with custom dropdown menus (`ineffective-note-action-menu`, `ineffective-note-team-menu`).
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) manual action options to remove `Injury` and `VAR`, keeping manual trigger reasons to `Substitution` and `Other`.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) ineffective-note modal typography/inputs to use black form text.
+- [x] Updated [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts) to use custom dropdown interactions and assert `Injury`/`VAR` are absent from manual action menu.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) manual team dropdown labels/options to render actual match team names (`home_team.name` / `away_team.name`) instead of generic labels.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) manual ineffective confirmation to allow empty notes (optional note submission).
+- [x] Updated [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts) manual substitution test to save without filling note, validating optional-note flow.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) expectations so `Pass -> Out` ineffective trigger is asserted on opponent team.
+- [x] Updated [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) `Pass Out` analytics assertion to require home out-of-bounds ineffective = `00:00` and away > `00:00` for a home pass-out scenario.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) team resolution to derive `currentTeam` from the selected acting player first, preventing ineffective/stoppage attribution drift when `selectedTeam` UI state differs.
+- [x] Added unit regression in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) verifying `Pass -> Out` still attributes event + ineffective trigger to the acting player's team even when `selectedTeam` is opposite.
+- [x] Strengthened [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) `Pass Out` flow to assert ineffective out-of-bounds time accrues to home (acting) and remains zero for away (receiving) in analytics.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to remove the `Duels` row (`stat-duels`) from `comparativeRows` so it no longer appears in the analytics table.
+- [x] Updated [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-14` to validate the duels row is absent from the analytics table.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) so `Pass -> Out` logs immediately from outcome selection and does not route to recipient/destination selection.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) so quick `Offside` logs immediately and does not route to destination selection.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to emit ineffective trigger context for `Offside`, ensuring effective time stops immediately.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to emit `OutOfBounds` ineffective trigger context for immediate `Pass -> Out`, ensuring effective time stops right away.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) ineffective-note mapping to handle `OutOfBounds` with the out-of-bounds note text path.
+- [x] Added unit regression in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) for immediate `Pass -> Out` logging and ineffective trigger behavior.
+- [x] Added unit regression in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) for quick `Offside` immediate logging without destination and ineffective trigger behavior.
+- [x] Added E2E regression in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) confirming `Pass -> Out` logs and shows `btn-resume-effective` (effective mode paused) without destination/recipient UI.
+- [x] Added E2E regression in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) confirming quick `Offside` logs immediately, avoids destination flow, and shows `btn-resume-effective`.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to preserve `Pass` outcome as `Out` when the ball exits behind the acting team's own goal line, while still triggering ineffective flow and auto-awarding opponent corner.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) assertion to enforce the corrected outside-action outcome (`Out`) for own-goal-line corner scenarios.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to auto-award a `SetPiece: Corner` to the opponent when a `Pass`/`Shot` (excluding `DirectShot`) is sent to the same-side goalkeeper.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to auto-award corner when destination crosses the acting team's own goal line (`left` for home, `right` for away in canonical coordinates).
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to mark those originating pass/shot events ineffective (`Incomplete`/`OffTarget`) and emit trigger context for ineffective-time start.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) to start ineffective-time from destination result trigger context (covers same-side-keeper cases that are not out-of-bounds clicks).
+- [x] Added unit regressions in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) for same-side goalkeeper corner award and own-goal-line corner award.
+- [x] Added E2E regressions in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) for same-side-keeper pass corner logic and flipped-field own-goal-line corner detection.
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) to map `DirectShot` to `Shot` event type and to dispatch quick `Shot` / `DirectShot` immediately (no `selectDestination` step).
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) destination-branch fallback to treat `DirectShot` as shot-family behavior when destination logic is used.
+- [x] Added unit regression coverage in [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) for quick `Shot` and `DirectShot` payloads.
+- [x] Added E2E regression in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) to verify quick `DirectShot` logs immediately without entering destination selection.
 - [x] Patched the targeted 5 brittle assertions across [e2e/duplicate-events.spec.ts](e2e/duplicate-events.spec.ts), [e2e/admin-team-roster-ui.spec.ts](e2e/admin-team-roster-ui.spec.ts), [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts), and [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts).
 - [x] Added follow-up stabilization in [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts) to wait for second-half state and button enablement before ending match.
 - [x] Re-ran full Playwright matrix multiple times on isolated ports after each patch iteration to validate impact.
@@ -79,9 +149,54 @@
 - [x] Updated [public/locales/es/logger.json](public/locales/es/logger.json) with missing analytics keys `analytics.score` and `analytics.effectiveTimePercent` used by `MatchAnalytics`.
 - [x] Updated [public/locales/en/logger.json](public/locales/en/logger.json) with matching analytics keys for locale parity.
 - [x] Added [e2e/logger-i18n-keys.spec.ts](e2e/logger-i18n-keys.spec.ts) translation regression suite to enforce required logger keys in both `en` and `es` (`homeTeam`, `awayTeam`, `analytics.score`, `analytics.effectiveTimePercent`).
+- [x] Updated [e2e/logger-advanced.spec.ts](e2e/logger-advanced.spec.ts) substitution wizard assertion to expect a single logged event after substitution (timer-neutral behavior, no auto-generated second event).
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) card ordering comparator and clock-offset helper to improve deterministic card-chain processing across mixed queued/live events.
+- [x] Updated [e2e/logger-disciplinary.spec.ts](e2e/logger-disciplinary.spec.ts) cancellation path to use deterministic undo-based disciplinary reversal in the expelled-player flow.
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (10 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "quick Shot requires destination and resolves defender/keeper outcome|Pass Out logs immediately and stops effective time without destination"` -> PASS (2 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (12 passed) [card timer-neutral regression included]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Card logging does not start ineffective timer"` -> PASS (1 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (4 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-ineffective-breakdown.spec.ts --grep "manual substitution ineffective uses selected team attribution"` -> PASS (1 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-ineffective-breakdown.spec.ts --grep "manual substitution ineffective uses selected team attribution"` -> PASS (1 passed) [custom dropdown + option removal]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (4 passed) [regression after manual-modal UI refactor]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-ineffective-breakdown.spec.ts --grep "manual substitution ineffective uses selected team attribution"` -> PASS (1 passed) [optional note + team-name labels]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-disciplinary.spec.ts --grep "expelled player cannot log or be substituted until cancellation"` -> FAIL (red status badge persisted after cancellation)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-22"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (11 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Pass Out logs immediately and stops effective time without destination|Offside logs immediately without destination and stops effective time|Foul starts ineffective time for opponent team"` -> PASS (3 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-ineffective-breakdown.spec.ts` -> PASS (10 passed)
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (9 passed) [updated pass-out possession rule]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Pass Out logs immediately and stops effective time without destination"` -> PASS (1 passed) [updated possession-side ineffective assertion]
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (9 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Pass Out logs immediately and stops effective time without destination"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-14"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (8 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Offside logs immediately without destination and stops effective time"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (7 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Pass Out logs immediately and stops effective time without destination"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (6 passed) [outside-action outcome fix]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "auto-awards corner on pass to same-side keeper|flipped field uses the correct own goal line for corner detection"` -> PASS (2 passed) [post-fix revalidation]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-ineffective-breakdown.spec.ts --grep "logs ineffective stoppage for selected team|analytics splits ineffective time by team and action"` -> PASS (2 passed)
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (6 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "auto-awards corner on pass to same-side keeper|flipped field uses the correct own goal line for corner detection"` -> PASS (2 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (4 passed)
+- [x] E2E: `npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "quick DirectShot logs immediately without destination prompt"` -> FAIL (401 on `/e2e/reset` due reused non-e2e backend at default port)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "quick DirectShot logs immediately without destination prompt"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test --max-failures=0` -> PASS (136 passed)
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test --max-failures=0` -> FAIL (134 passed, 1 failed, 1 flaky)
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test --max-failures=0` -> FAIL (133 passed, 1 failed, 2 flaky)
@@ -108,10 +223,18 @@
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 CI=1 npx playwright test e2e/logger-var-card-ui.spec.ts` -> PASS (3 passed) [includes Spanish team-label localization check]
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts` -> PASS (2 passed) [required logger i18n key coverage]
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8010 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4175 CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-21|ANL-20"` -> PASS (2 passed) [analytics regression sanity]
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test e2e/logger-advanced.spec.ts e2e/logger-disciplinary.spec.ts --max-failures=0` -> PASS (5 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test e2e/logger-disciplinary.spec.ts --max-failures=0` -> PASS (2 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8012 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4178 CI=1 npx playwright test --max-failures=0` -> PASS (147 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
 - [ ] Unit: N/A
 
 ## Implementation Notes
 
+- Dynamic corner attribution is based on canonical field geometry from `SoccerField` coordinates: home own-goal line is `left`, away own-goal line is `right`; `flipSides` only changes display orientation, while coordinate normalization keeps rule evaluation correct.
+- For corner-triggering pass/shot destinations, logger now records two events in sequence: (1) ineffective source action, (2) awarded corner (`SetPiece`) for opponent team.
+- Quick-action flow previously sent most actions (including `Shot`) to destination selection; this caused unnecessary prompting and inconsistent shot logging paths.
+- `DirectShot` previously fell through event-type resolution to default `Pass`; it now resolves to `Shot` and records `shot_type: "Direct"` with `outcome: "OnTarget"` from quick action.
 - Final full frontend matrix rerun is green on isolated ports after pagination and disciplinary assertion hardening.
 - Intermediate rerun after initial 5-assertion patch reduced previous failures but introduced different tail flakes (`logger-period-transitions`, then later `logger-event-taxonomy`/`logger-ineffective-breakdown`) showing suite-wide timing sensitivity.
 - Latest full frontend matrix run on isolated ports surfaced one deterministic failure and four flaky specs:
@@ -143,6 +266,7 @@
 - Frontend i18n: logger namespace now includes explicit `homeTeam`/`awayTeam` keys in `en` and `es`, removing repeated `missingKey` console warnings from `PlayerSelectorPanel`.
 - Frontend i18n: analytics namespace now includes explicit `score` and `effectiveTimePercent` keys in `en` and `es`, removing repeated `missingKey` warnings from `MatchAnalytics`.
 - Frontend i18n regression: dedicated `logger-i18n-keys` suite enforces required translation keys in locale JSON files to prevent future omissions.
+- Full Playwright matrix is now green again (`147 passed`) after fixing substitution expectation drift and stabilizing disciplinary cancellation coverage.
 
 ## Next Steps
 

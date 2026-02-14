@@ -98,15 +98,15 @@ const compareCardEventOrder = (
   const rightPeriod = Number(right.event.period || 0);
   if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
 
-  const leftClock = parseClockToSeconds(left.event.match_clock);
-  const rightClock = parseClockToSeconds(right.event.match_clock);
-  if (leftClock !== rightClock) return leftClock - rightClock;
-
   const leftTs = Date.parse(left.event.timestamp || "");
   const rightTs = Date.parse(right.event.timestamp || "");
   const leftHasTs = Number.isFinite(leftTs);
   const rightHasTs = Number.isFinite(rightTs);
   if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
+
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
 
   return left.index - right.index;
 };
@@ -129,11 +129,11 @@ const formatSecondsAsClockWithMs = (seconds: number): string => {
 };
 
 const addMillisecondsToClock = (clock: string, deltaMs: number): string => {
-  const match = clock.match(/^(\d+):(\d{2})\.(\d{3})$/);
+  const match = clock.match(/^(\d+):(\d{2})(?:\.(\d{3}))?$/);
   if (!match) return clock;
   const minutes = Number(match[1]);
   const seconds = Number(match[2]);
-  const milliseconds = Number(match[3]);
+  const milliseconds = Number(match[3] || 0);
   const totalMs = minutes * 60_000 + seconds * 1_000 + milliseconds + deltaMs;
   const safeTotal = Math.max(0, totalMs);
   const nextMinutes = Math.floor(safeTotal / 60_000);
@@ -261,12 +261,20 @@ export default function LoggerCockpit() {
   const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
     null,
   );
+  const pendingCardTypeRef = useRef<CardSelection | null>(null);
 
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [ineffectiveNoteOpen, setIneffectiveNoteOpen] = useState(false);
   const [ineffectiveNoteText, setIneffectiveNoteText] = useState("");
   const [ineffectiveActionType, setIneffectiveActionType] =
     useState<IneffectiveAction>("Other");
+  const [ineffectiveTeamSelection, setIneffectiveTeamSelection] = useState<
+    "home" | "away"
+  >("home");
+  const [ineffectiveActionDropdownOpen, setIneffectiveActionDropdownOpen] =
+    useState(false);
+  const [ineffectiveTeamDropdownOpen, setIneffectiveTeamDropdownOpen] =
+    useState(false);
   const [hasActiveIneffective, setHasActiveIneffective] = useState(false);
   const [isVarActiveLocal, setIsVarActiveLocal] = useState(false);
   const [varStartMs, setVarStartMs] = useState<number | null>(null);
@@ -441,11 +449,17 @@ export default function LoggerCockpit() {
 
   const ineffectiveBreakdown = useMemo(() => {
     if (!match) return null;
+    const homeTeamIds = [match.home_team.id, match.home_team.team_id].filter(
+      Boolean,
+    ) as string[];
+    const awayTeamIds = [match.away_team.id, match.away_team.team_id].filter(
+      Boolean,
+    ) as string[];
     if (hasVarStoppage) {
       return computeIneffectiveBreakdown(
         [...liveEvents, ...queuedEvents],
-        match.home_team.id,
-        match.away_team.id,
+        homeTeamIds,
+        awayTeamIds,
         Date.now(),
       );
     }
@@ -457,8 +471,8 @@ export default function LoggerCockpit() {
     }
     return computeIneffectiveBreakdown(
       [...liveEvents, ...queuedEvents],
-      match.home_team.id,
-      match.away_team.id,
+      homeTeamIds,
+      awayTeamIds,
       Date.now(),
     );
   }, [match, liveEvents, queuedEvents, ineffectiveTick, hasVarStoppage]);
@@ -572,6 +586,23 @@ export default function LoggerCockpit() {
     return match.home_team.id;
   }, [match, selectedTeam]);
 
+  const resolveManualTeamSelection = useCallback(
+    (teamId?: string | null): "home" | "away" => {
+      if (teamId && teamId === match?.away_team.id) return "away";
+      if (teamId && teamId === match?.home_team.id) return "home";
+      return selectedTeam === "away" ? "away" : "home";
+    },
+    [match, selectedTeam],
+  );
+
+  const getManualTeamId = useCallback(
+    (teamSelection: "home" | "away") => {
+      if (teamSelection === "away") return match?.away_team.id ?? null;
+      return match?.home_team.id ?? null;
+    },
+    [match],
+  );
+
   const logClockStoppage = useCallback(
     (
       stoppageType: "ClockStop" | "ClockStart",
@@ -674,14 +705,25 @@ export default function LoggerCockpit() {
           : selectedTeam === "home"
             ? match?.home_team.id ?? null
             : null;
+      const explicitTeamId = context?.teamId ?? null;
       const resolvedContext = {
-        teamId: context?.teamId ?? fallbackTeamId,
+        teamId: explicitTeamId ?? fallbackTeamId,
         playerId: context?.playerId ?? null,
         actionType: context?.actionType ?? ineffectiveActionType,
       };
       if (!trimmed) {
+        setIneffectiveTeamSelection(
+          resolveManualTeamSelection(resolvedContext.teamId),
+        );
+        if (resolvedContext.actionType) {
+          setIneffectiveActionType(resolvedContext.actionType);
+        }
         setIneffectiveNoteText("");
-        setPendingIneffectiveContext(resolvedContext);
+        setPendingIneffectiveContext({
+          teamId: explicitTeamId,
+          playerId: resolvedContext.playerId,
+          actionType: context?.actionType ?? null,
+        });
         setIneffectiveNoteOpen(true);
         return;
       }
@@ -699,6 +741,7 @@ export default function LoggerCockpit() {
       clockMode,
       handleModeSwitch,
       ineffectiveActionType,
+      resolveManualTeamSelection,
       logClockStoppage,
       match,
       optimisticModeChange,
@@ -726,29 +769,14 @@ export default function LoggerCockpit() {
 
   const confirmIneffectiveNote = useCallback(() => {
     const trimmed = ineffectiveNoteText.trim();
-    if (!trimmed) {
-      setToast({
-        message: t(
-          "ineffectiveNoteRequired",
-          "Add a note to start ineffective time.",
-        ),
-      });
-      setTimeout(() => setToast(null), 3000);
-      return;
-    }
-    const fallbackTeamId =
-      selectedTeam === "away"
-        ? match?.away_team.id ?? null
-        : selectedTeam === "home"
-          ? match?.home_team.id ?? null
-          : null;
+    const fallbackTeamId = getManualTeamId(ineffectiveTeamSelection);
     const resolvedContext = {
       teamId: pendingIneffectiveContext?.teamId ?? fallbackTeamId,
       playerId: pendingIneffectiveContext?.playerId ?? null,
       actionType:
         pendingIneffectiveContext?.actionType ?? ineffectiveActionType,
     };
-    logClockStoppage("ClockStop", trimmed, resolvedContext);
+    logClockStoppage("ClockStop", trimmed || null, resolvedContext);
     activeIneffectiveContextRef.current = {
       ...resolvedContext,
       startedAtMs: Date.now(),
@@ -760,23 +788,26 @@ export default function LoggerCockpit() {
     setIneffectiveNoteOpen(false);
     setIneffectiveNoteText("");
     setPendingIneffectiveContext(null);
+    setIneffectiveActionDropdownOpen(false);
+    setIneffectiveTeamDropdownOpen(false);
   }, [
     handleModeSwitch,
     ineffectiveActionType,
+    ineffectiveTeamSelection,
     ineffectiveNoteText,
+    getManualTeamId,
     logClockStoppage,
-    match,
     optimisticModeChange,
     pendingIneffectiveContext,
     setIsBallInPlay,
-    selectedTeam,
-    t,
   ]);
 
   const cancelIneffectiveNote = useCallback(() => {
     setIneffectiveNoteOpen(false);
     setIneffectiveNoteText("");
     setPendingIneffectiveContext(null);
+    setIneffectiveActionDropdownOpen(false);
+    setIneffectiveTeamDropdownOpen(false);
   }, []);
 
   const handleUpdateEventNotes = useCallback(
@@ -1134,9 +1165,11 @@ export default function LoggerCockpit() {
         ? payload.note
         : payload.actionType === "Foul"
           ? t("ineffectiveNoteFoul", "Foul")
-          : payload.actionType === "Offside"
-            ? t("ineffectiveNoteOffside", "Offside")
-            : t("ineffectiveNoteCard", "Card issued");
+          : payload.actionType === "OutOfBounds"
+            ? t("ineffectiveNoteOut", "Out of bounds")
+            : payload.actionType === "Offside"
+              ? t("ineffectiveNoteOffside", "Offside")
+              : t("ineffectiveNoteCard", "Card issued");
       beginIneffective(note, {
         teamId: payload.teamId,
         playerId: payload.playerId,
@@ -1397,13 +1430,18 @@ export default function LoggerCockpit() {
       if (selectedTeam === "both") {
         setSelectedTeam("home");
       }
-      setPendingCardType((prev) => (prev === cardType ? null : cardType));
+      setPendingCardType((prev) => {
+        const next = prev === cardType ? null : cardType;
+        pendingCardTypeRef.current = next;
+        return next;
+      });
       resetFlow();
     },
     [cockpitLocked, resetFlow, selectedTeam, setSelectedTeam],
   );
 
   const cancelCardSelection = useCallback(() => {
+    pendingCardTypeRef.current = null;
     setPendingCardType(null);
   }, []);
 
@@ -1413,21 +1451,28 @@ export default function LoggerCockpit() {
       const playerTeam = determinePlayerTeam(player);
       if (!playerTeam) return;
       const team = playerTeam === "home" ? match.home_team : match.away_team;
+      const latestState = useMatchLogStore.getState();
+      const existingCardEventsAtClock = [
+        ...latestState.liveEvents,
+        ...latestState.queuedEvents,
+      ].filter(
+        (event) =>
+          event.type === "Card" &&
+          event.period === operatorPeriod &&
+          event.team_id === team.id &&
+          event.player_id === player.id &&
+          event.match_clock === globalClock,
+      ).length;
+      const cancelClockOffsetMs = existingCardEventsAtClock + 1;
 
       let resolvedCard: string = cardType;
       if (cardType === "Yellow") {
-        const latestState = useMatchLogStore.getState();
         const previousYellows = getActiveYellowCountForPlayer(
           [...latestState.liveEvents, ...latestState.queuedEvents],
           player.id,
         );
         resolvedCard = previousYellows >= 1 ? "Yellow (Second)" : "Yellow";
       }
-
-      const isDisciplinary =
-        resolvedCard === "Yellow" ||
-        resolvedCard === "Yellow (Second)" ||
-        resolvedCard === "Red";
 
       const buildCardPayload = (
         cardValue: string,
@@ -1450,19 +1495,18 @@ export default function LoggerCockpit() {
         const redClock = addMillisecondsToClock(globalClock, 2);
         sendEvent(buildCardPayload(resolvedCard, secondYellowClock));
         sendEvent(buildCardPayload("Red", redClock));
+      } else if (resolvedCard === "Cancelled") {
+        const cancelledClock = addMillisecondsToClock(
+          globalClock,
+          cancelClockOffsetMs,
+        );
+        sendEvent(buildCardPayload(resolvedCard, cancelledClock));
       } else {
         sendEvent(buildCardPayload(resolvedCard));
       }
 
-      if (isDisciplinary) {
-        beginIneffective(`Card: ${resolvedCard}`, {
-          teamId: team.id,
-          playerId: player.id,
-          actionType: "Card",
-        });
-      }
-
       setPendingCardType(null);
+      pendingCardTypeRef.current = null;
       resetFlow();
     },
     [
@@ -1474,7 +1518,6 @@ export default function LoggerCockpit() {
       globalClock,
       operatorPeriod,
       sendEvent,
-      beginIneffective,
       resetFlow,
     ],
   );
@@ -1482,11 +1525,12 @@ export default function LoggerCockpit() {
   const handlePlayerSelection = useCallback(
     (player: Player) => {
       if (cockpitLocked) return;
-      if (pendingCardType) {
-        logCardForPlayer(player, pendingCardType);
+      const activePendingCard = pendingCardTypeRef.current ?? pendingCardType;
+      if (activePendingCard) {
+        logCardForPlayer(player, activePendingCard);
         return;
       }
-      if (expelledPlayerIds.has(player.id) && pendingCardType !== "Cancelled") {
+      if (expelledPlayerIds.has(player.id)) {
         setToast({
           message: t(
             "playerExpelled",
@@ -1536,7 +1580,11 @@ export default function LoggerCockpit() {
         return;
       }
 
-      if (expelledPlayerIds.has(player.id)) {
+      const activePendingCard = pendingCardTypeRef.current ?? pendingCardType;
+      if (
+        expelledPlayerIds.has(player.id) &&
+        activePendingCard !== "Cancelled"
+      ) {
         setToast({
           message: t(
             "playerExpelled",
@@ -1554,10 +1602,11 @@ export default function LoggerCockpit() {
             yPercent: anchor.yPercent,
             statsbomb: location,
             isOutOfBounds: false,
+            outOfBoundsEdge: null,
           },
           targetPlayer: player,
         });
-        if (result?.outOfBounds || result?.isGoal) {
+        if (result?.triggerContext) {
           beginIneffective(
             result?.isGoal
               ? t("ineffectiveNoteGoal", "Goal")
@@ -1574,8 +1623,8 @@ export default function LoggerCockpit() {
         return;
       }
 
-      if (pendingCardType) {
-        logCardForPlayer(player, pendingCardType, location);
+      if (activePendingCard) {
+        logCardForPlayer(player, activePendingCard, location);
         return;
       }
 
@@ -1608,6 +1657,7 @@ export default function LoggerCockpit() {
       yPercent: number;
       statsbomb: [number, number];
       isOutOfBounds: boolean;
+      outOfBoundsEdge?: "left" | "right" | "top" | "bottom" | null;
     }) => {
       if (cockpitLocked || currentStep !== "selectDestination") return;
       if (isVarActive) {
@@ -1621,7 +1671,7 @@ export default function LoggerCockpit() {
         return;
       }
       const result = handleDestinationClick({ destination });
-      if (result?.outOfBounds || result?.isGoal) {
+      if (result?.triggerContext) {
         beginIneffective(
           result?.isGoal
             ? t("ineffectiveNoteGoal", "Goal")
@@ -2310,6 +2360,9 @@ export default function LoggerCockpit() {
     setResetConfirmText("");
   };
 
+  const manualHomeTeamLabel = match?.home_team.name || t("homeTeam", "Home");
+  const manualAwayTeamLabel = match?.away_team.name || t("awayTeam", "Away");
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       <div
@@ -2472,45 +2525,122 @@ export default function LoggerCockpit() {
                         className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl"
                         data-testid="ineffective-note-modal"
                       >
-                        <h3 className="text-lg font-bold mb-3 text-slate-800">
+                        <h3 className="text-lg font-bold mb-3 text-black">
                           {t("ineffectiveNoteTitle", "Ineffective time note")}
                         </h3>
-                        <p className="text-sm text-slate-600 mb-3">
+                        <p className="text-sm text-black mb-3">
                           {t(
                             "ineffectiveNoteHelp",
                             "Add a note for why effective time stopped.",
                           )}
                         </p>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-semibold text-black uppercase tracking-wider mb-1">
                           {t("ineffectiveReasonLabel", "Ineffective reason")}
                         </label>
-                        <select
-                          value={ineffectiveActionType}
-                          onChange={(e) =>
-                            setIneffectiveActionType(
-                              e.target.value as IneffectiveAction,
-                            )
-                          }
-                          className="w-full mb-3 px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                          data-testid="ineffective-note-action"
-                        >
-                          <option value="Injury">
-                            {t("ineffectiveReasonInjury", "Injury")}
-                          </option>
-                          <option value="VAR">
-                            {t("ineffectiveReasonVar", "VAR")}
-                          </option>
-                          <option value="Other">
-                            {t("ineffectiveReasonOther", "Other")}
-                          </option>
-                        </select>
+                        <div className="relative mb-3">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md text-left text-black bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            data-testid="ineffective-note-action"
+                            onClick={() => {
+                              setIneffectiveActionDropdownOpen((prev) => !prev);
+                              setIneffectiveTeamDropdownOpen(false);
+                            }}
+                          >
+                            {ineffectiveActionType === "Substitution"
+                              ? t(
+                                  "ineffectiveReasonSubstitution",
+                                  "Substitution",
+                                )
+                              : t("ineffectiveReasonOther", "Other")}
+                          </button>
+                          {ineffectiveActionDropdownOpen && (
+                            <div
+                              className="absolute z-10 mt-1 w-full bg-white border border-slate-300 rounded-md shadow-lg"
+                              data-testid="ineffective-note-action-menu"
+                            >
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
+                                data-testid="ineffective-note-action-option-Substitution"
+                                onClick={() => {
+                                  setIneffectiveActionType("Substitution");
+                                  setIneffectiveActionDropdownOpen(false);
+                                }}
+                              >
+                                {t(
+                                  "ineffectiveReasonSubstitution",
+                                  "Substitution",
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
+                                data-testid="ineffective-note-action-option-Other"
+                                onClick={() => {
+                                  setIneffectiveActionType("Other");
+                                  setIneffectiveActionDropdownOpen(false);
+                                }}
+                              >
+                                {t("ineffectiveReasonOther", "Other")}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <label className="block text-xs font-semibold text-black uppercase tracking-wider mb-1">
+                          {t("ineffectiveTeamLabel", "Team")}
+                        </label>
+                        <div className="relative mb-3">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md text-left text-black bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            data-testid="ineffective-note-team"
+                            onClick={() => {
+                              setIneffectiveTeamDropdownOpen((prev) => !prev);
+                              setIneffectiveActionDropdownOpen(false);
+                            }}
+                          >
+                            {ineffectiveTeamSelection === "home"
+                              ? manualHomeTeamLabel
+                              : manualAwayTeamLabel}
+                          </button>
+                          {ineffectiveTeamDropdownOpen && (
+                            <div
+                              className="absolute z-10 mt-1 w-full bg-white border border-slate-300 rounded-md shadow-lg"
+                              data-testid="ineffective-note-team-menu"
+                            >
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
+                                data-testid="ineffective-note-team-option-home"
+                                onClick={() => {
+                                  setIneffectiveTeamSelection("home");
+                                  setIneffectiveTeamDropdownOpen(false);
+                                }}
+                              >
+                                {manualHomeTeamLabel}
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
+                                data-testid="ineffective-note-team-option-away"
+                                onClick={() => {
+                                  setIneffectiveTeamSelection("away");
+                                  setIneffectiveTeamDropdownOpen(false);
+                                }}
+                              >
+                                {manualAwayTeamLabel}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <textarea
                           value={ineffectiveNoteText}
                           onChange={(e) =>
                             setIneffectiveNoteText(e.target.value)
                           }
                           data-testid="ineffective-note-input"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-md text-black placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                           placeholder={t("notesPlaceholder", "Add a note...")}
                           rows={3}
                           autoFocus
@@ -3420,16 +3550,6 @@ export default function LoggerCockpit() {
             };
             applyOnFieldChange(substitutionTeam, playerOffId, playerOnId);
             sendEvent(eventData);
-            if (isGlobalClockRunning) {
-              beginIneffective(
-                t("ineffectiveNoteSubstitution", "Substitution"),
-                {
-                  teamId: team.id,
-                  playerId: playerOffId || playerOnId || null,
-                  actionType: "Substitution",
-                },
-              );
-            }
             setShowSubstitutionFlow(false);
           }}
           onCancel={() => setShowSubstitutionFlow(false)}

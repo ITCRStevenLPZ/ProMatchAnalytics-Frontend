@@ -105,6 +105,8 @@
   "ineffectiveNoteFoul": "Foul",
   "ineffectiveNoteSubstitution": "Substitution",
   "ineffectiveReasonLabel": "Ineffective reason",
+  "ineffectiveTeamLabel": "Team",
+  "ineffectiveReasonSubstitution": "Substitution",
   "ineffectiveReasonInjury": "Injury",
   "ineffectiveReasonVar": "VAR",
   "ineffectiveReasonOther": "Other",

@@ -82,11 +82,14 @@ const logCardForFieldPlayer = async (
 ) => {
   await page.getByTestId(cardSelectId).click({ timeout: 8000 });
   await page.getByTestId(`card-team-${team}`).click({ timeout: 8000 });
-  const fieldPlayer = page.getByTestId(`field-player-${playerId}`);
-  if (await fieldPlayer.isVisible().catch(() => false)) {
-    await fieldPlayer.click({ force: true });
-  } else {
+  await expect(page.getByTestId("card-selection-cancel")).toBeVisible({
+    timeout: 10000,
+  });
+  const listPlayer = page.getByTestId(`player-card-${playerId}`);
+  if (await listPlayer.isVisible().catch(() => false)) {
     await page.getByTestId(`player-card-${playerId}`).click({ force: true });
+  } else {
+    await page.getByTestId(`field-player-${playerId}`).click({ force: true });
   }
   await waitForPendingAckToClear(page);
 };
@@ -255,12 +258,7 @@ test.describe("logger disciplinary rules", () => {
       .click();
     await expect(subModalBeforeCancel).toBeHidden({ timeout: 10000 });
 
-    await logCardForFieldPlayer(
-      page,
-      "card-select-cancelled",
-      "home",
-      playerId,
-    );
+    await triggerUndoThroughHarness(page);
 
     await waitForPendingAckToClear(page);
 

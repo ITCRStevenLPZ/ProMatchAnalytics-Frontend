@@ -105,6 +105,8 @@
   "ineffectiveNoteFoul": "Falta",
   "ineffectiveNoteSubstitution": "Sustitución",
   "ineffectiveReasonLabel": "Motivo del tiempo inefectivo",
+  "ineffectiveTeamLabel": "Equipo",
+  "ineffectiveReasonSubstitution": "Sustitución",
   "ineffectiveReasonInjury": "Lesión",
   "ineffectiveReasonVar": "VAR",
   "ineffectiveReasonOther": "Otro",

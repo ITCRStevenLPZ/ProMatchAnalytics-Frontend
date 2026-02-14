@@ -134,15 +134,15 @@ const compareCardEventOrder = (
   const rightPeriod = Number(right.event.period || 0);
   if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
 
-  const leftClock = parseClockToSeconds(left.event.match_clock);
-  const rightClock = parseClockToSeconds(right.event.match_clock);
-  if (leftClock !== rightClock) return leftClock - rightClock;
-
   const leftTs = Date.parse(left.event.timestamp || "");
   const rightTs = Date.parse(right.event.timestamp || "");
   const leftHasTs = Number.isFinite(leftTs);
   const rightHasTs = Number.isFinite(rightTs);
   if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
+
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
 
   return left.index - right.index;
 };
@@ -274,7 +274,7 @@ export function MatchAnalytics({
       ineffectiveTotals.byAction || {},
     ).reduce(
       (acc, [action, totals]) => {
-        if (action === "VAR") return acc;
+        if (action === "VAR" || action === "Injury") return acc;
         acc.home += totals?.home ?? 0;
         acc.away += totals?.away ?? 0;
         return acc;
@@ -542,12 +542,6 @@ export function MatchAnalytics({
           away: getIneffectiveAction("Substitution", "away"),
         },
         {
-          action: "Injury",
-          label: t("analytics.ineffectiveInjury", "Injury"),
-          home: getIneffectiveAction("Injury", "home"),
-          away: getIneffectiveAction("Injury", "away"),
-        },
-        {
           action: "Other",
           label: t("analytics.ineffectiveOther", "Other"),
           home: getIneffectiveAction("Other", "home"),
@@ -608,12 +602,6 @@ export function MatchAnalytics({
           home: homeFouls,
           away: awayFouls,
           testId: "stat-fouls",
-        },
-        {
-          label: t("analytics.duels", "Duels"),
-          home: getEventCount(homeEvents, "Duel"),
-          away: getEventCount(awayEvents, "Duel"),
-          testId: "stat-duels",
         },
         {
           label: t("analytics.yellowCards", "Yellow Cards"),
