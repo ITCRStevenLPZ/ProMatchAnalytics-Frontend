@@ -8,6 +8,10 @@
 
 ## Current Objective
 
+- [x] Fix logger bug where pass to same-team goalkeeper incorrectly auto-awards corner and stops effective time.
+- [x] Implement fix for same-timestamp ACK collision so substitution state cannot be undone by duplicate-event reconciliation.
+- [x] Add deterministic E2E regression that reproduces same-timestamp collision and verifies substituted players do not reappear.
+- [x] Research reported logger regression where substituted players can reappear on-field after timeline/event reconciliation.
 - [x] Fix Teams roster modal player search so newly added players are always discoverable, including records beyond the first `/players/` page.
 - [x] Make Outside flow immediate (log + stop effective time) without destination/recipient selection.
 - [x] Ensure Offside also logs immediately (no destination) and stops effective time.
@@ -31,6 +35,22 @@
 
 ## What Was Completed
 
+- [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) destination logic to stop treating same-team goalkeeper targets as corner conditions.
+- [x] Kept corner auto-award restricted to out-of-bounds behind own goal line only (`behind_own_goal_line`).
+- [x] Updated [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) regression to assert pass-to-same-side-keeper remains `Complete`, emits no `SetPiece`, and does not trigger ineffective stoppage context.
+- [x] Updated [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) to assert same-side keeper pass does not produce `Corner`/`SetPiece` and does not show `btn-resume-effective`.
+- [x] Updated [src/hooks/useMatchSocket.ts](src/hooks/useMatchSocket.ts) ACK success path to reconcile event IDs via `upsertLiveEvent` with the pending optimistic event payload (client-id scoped), removing timestamp-only ID mutation behavior.
+- [x] Updated [src/hooks/useMatchSocket.ts](src/hooks/useMatchSocket.ts) duplicate ACK path to remove optimistic events by `client_id` first (with timestamp fallback only when no client ID exists), preventing unrelated same-timestamp event deletion.
+- [x] Updated [src/store/useMatchLogStore.ts](src/store/useMatchLogStore.ts) `upsertLiveEvent` matching order to prioritize `_id`, then `client_id`, then legacy timestamp/type/clock fallback.
+- [x] Added deterministic same-timestamp collision regression in [e2e/logger-substitution-rules.spec.ts](e2e/logger-substitution-rules.spec.ts) by freezing browser time, logging a substitution plus duplicate pass events at the same timestamp, and asserting the substituted-off player remains off-field.
+- [x] Traced substitution lifecycle across [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx), [src/hooks/useMatchSocket.ts](src/hooks/useMatchSocket.ts), [src/store/useMatchLogStore.ts](src/store/useMatchLogStore.ts), backend websocket handling, and paginated event hydration.
+- [x] Identified high-risk reconciliation path in [src/hooks/useMatchSocket.ts](src/hooks/useMatchSocket.ts): duplicate ACK handling removes optimistic events by `timestamp` only (`removeLiveEventByTimestamp`), which can remove unrelated events sharing the same timestamp (including substitutions).
+- [x] Confirmed replay sensitivity in [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx): on-field IDs are recomputed from starters + substitution events in `liveEvents`, so any dropped substitution event makes the substituted-out player reappear.
+- [x] Validation baseline: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (4 passed).
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (5 passed, includes same-timestamp collision regression).
+- [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (12 passed).
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "same-side keeper"` -> PASS (1 passed).
+- [x] Build/Type: `npm run build` -> PASS (`tsc` + Vite build).
 - [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) `fetchAllPlayers` to iterate all `/players/` pages (instead of only page 1) before building roster candidates.
 - [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) data-loading effects so player catalog fetch runs on mount (not every teams search/pagination change), preventing repeated heavy refetch churn.
 - [x] Updated [src/pages/TeamsManager.tsx](src/pages/TeamsManager.tsx) roster modal open flow to refresh players before loading roster candidates, eliminating stale player-picker data after recent player creation.

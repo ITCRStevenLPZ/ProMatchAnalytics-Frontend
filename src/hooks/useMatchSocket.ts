@@ -113,7 +113,6 @@ export const useMatchSocket = ({
     removeLiveEventByTimestamp,
     removeLiveEventByClientId,
     removeLiveEventById,
-    updateLiveEventId,
     addQueuedEvent,
     removeQueuedEvent,
     removeQueuedEventByClientId,
@@ -273,7 +272,11 @@ export const useMatchSocket = ({
 
       if (status === "success") {
         if (ackResult?.event_id) {
-          updateLiveEventId(event.timestamp, ackResult.event_id);
+          upsertLiveEvent({
+            ...event,
+            _id: ackResult.event_id,
+            _confirmed: true,
+          });
         }
         if (source === "queue") {
           removeQueuedEvent(event);
@@ -283,7 +286,11 @@ export const useMatchSocket = ({
         }
         console.log("✓ Event persisted:", event.type, ackResult?.event_id);
       } else if (status === "duplicate") {
-        removeLiveEventByTimestamp(event.timestamp);
+        if (event.client_id) {
+          removeLiveEventByClientId(event.client_id);
+        } else {
+          removeLiveEventByTimestamp(event.timestamp);
+        }
         if (source === "queue") {
           removeQueuedEvent(event);
         }
@@ -326,9 +333,10 @@ export const useMatchSocket = ({
     [
       resolvePendingAck,
       rejectPendingAck,
+      upsertLiveEvent,
       removeQueuedEvent,
       removeLiveEventByTimestamp,
-      updateLiveEventId,
+      removeLiveEventByClientId,
       addQueuedEvent,
       setDuplicateHighlight,
       incrementDuplicateStats,

@@ -350,7 +350,7 @@ test.describe("Logger event taxonomy", () => {
     expect(finalStep).toBe("selectPlayer");
   });
 
-  test("auto-awards corner on pass to same-side keeper and logs ineffective pass", async ({
+  test("pass to same-side keeper stays complete and does not auto-award corner", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -367,7 +367,7 @@ test.describe("Logger event taxonomy", () => {
     const liveEvents = page.getByTestId("live-event-item");
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(2);
+      .toBeGreaterThanOrEqual(1);
 
     await expect
       .poll(
@@ -376,7 +376,7 @@ test.describe("Logger event taxonomy", () => {
           timeout: 10000,
         },
       )
-      .toBeGreaterThanOrEqual(1);
+      .toBe(0);
     await expect
       .poll(
         async () => await liveEvents.filter({ hasText: /Corner/i }).count(),
@@ -384,7 +384,7 @@ test.describe("Logger event taxonomy", () => {
           timeout: 10000,
         },
       )
-      .toBeGreaterThanOrEqual(1);
+      .toBe(0);
     await expect
       .poll(async () => await liveEvents.filter({ hasText: /Pass/i }).count(), {
         timeout: 10000,
@@ -392,12 +392,13 @@ test.describe("Logger event taxonomy", () => {
       .toBeGreaterThanOrEqual(1);
     await expect
       .poll(
-        async () => await liveEvents.filter({ hasText: /Incomplete/i }).count(),
+        async () => await liveEvents.filter({ hasText: /Complete/i }).count(),
         {
           timeout: 10000,
         },
       )
       .toBeGreaterThanOrEqual(1);
+    await expect(page.getByTestId("btn-resume-effective")).toHaveCount(0);
   });
 
   test("flipped field uses the correct own goal line for corner detection", async ({

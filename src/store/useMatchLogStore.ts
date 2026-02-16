@@ -279,6 +279,9 @@ export const useMatchLogStore = create<MatchLogState>()(
             if (event._id && existing._id) {
               return existing._id === event._id;
             }
+            if (event.client_id && existing.client_id) {
+              return existing.client_id === event.client_id;
+            }
             return (
               existing.timestamp === event.timestamp &&
               existing.type === event.type &&
