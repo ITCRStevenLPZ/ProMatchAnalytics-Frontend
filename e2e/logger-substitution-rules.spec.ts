@@ -8,8 +8,11 @@ import {
 
 import {
   BACKEND_BASE_URL,
+  getHarnessMatchContext,
   gotoLoggerPage,
   resetHarnessFlow,
+  sendRawEventThroughHarness,
+  waitForPendingAckToClear,
 } from "./utils/logger";
 import { uniqueId } from "./utils/admin";
 
@@ -40,6 +43,58 @@ const resetMatch = async (matchId: string) => {
     data: { matchId },
   });
   expect(response.ok()).toBeTruthy();
+};
+
+const freezeClientTime = async (page: Page, isoTimestamp: string) => {
+  await page.evaluate((iso) => {
+    const globalWindow = window as any;
+    if (globalWindow.__PROMATCH_ORIGINAL_DATE__) {
+      return;
+    }
+
+    const fixedMs = new Date(iso).getTime();
+    const OriginalDate = Date;
+
+    const FixedDate = class extends OriginalDate {
+      constructor(...args: any[]) {
+        if (args.length === 0) {
+          super(fixedMs);
+          return;
+        }
+        super(...(args as [any]));
+      }
+
+      static now() {
+        return fixedMs;
+      }
+
+      static parse = OriginalDate.parse;
+      static UTC = OriginalDate.UTC;
+    };
+
+    Object.defineProperty(globalWindow, "Date", {
+      configurable: true,
+      writable: true,
+      value: FixedDate,
+    });
+    globalWindow.__PROMATCH_ORIGINAL_DATE__ = OriginalDate;
+  }, isoTimestamp);
+};
+
+const restoreClientTime = async (page: Page) => {
+  await page.evaluate(() => {
+    const globalWindow = window as any;
+    const OriginalDate = globalWindow.__PROMATCH_ORIGINAL_DATE__;
+    if (!OriginalDate) {
+      return;
+    }
+    Object.defineProperty(globalWindow, "Date", {
+      configurable: true,
+      writable: true,
+      value: OriginalDate,
+    });
+    delete globalWindow.__PROMATCH_ORIGINAL_DATE__;
+  });
 };
 
 const openSubstitutionFlow = async (page: Page, id: string) => {
@@ -309,5 +364,102 @@ test.describe("Logger substitution rules", () => {
     await expect
       .poll(async () => (await ineffectiveClock.innerText()).trim())
       .toBe(initialIneffective.trim());
+  });
+
+  test("keeps substitution applied when duplicate ack shares the same timestamp", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+
+    await page.route(
+      "**/api/v1/logger/matches/**/validate-substitution",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            is_valid: true,
+            error_message: null,
+            opens_new_window: false,
+            team_status: {
+              total_substitutions: 1,
+              max_substitutions: 5,
+              remaining_substitutions: 4,
+              windows_used: 0,
+              max_windows: 3,
+              remaining_windows: 3,
+              is_extra_time: false,
+              concussion_subs_used: 0,
+            },
+          }),
+        });
+      },
+    );
+
+    await gotoLoggerPage(page, matchId);
+    await promoteToAdmin(page);
+    await resetHarnessFlow(page);
+
+    await freezeClientTime(page, "2026-02-15T12:00:00.000Z");
+
+    let substitutedOffId = "";
+    let substitutedOnId = "";
+
+    try {
+      await page.getByTestId("field-player-HOME-1").click();
+      await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+      await page.getByTestId("action-btn-Substitution").click();
+
+      const subModal = page.getByTestId("substitution-modal");
+      await expect(subModal).toBeVisible();
+
+      const offOption = subModal.locator('[data-testid^="sub-off-"]').first();
+      await expect(offOption).toBeVisible();
+      const offTestId = (await offOption.getAttribute("data-testid")) || "";
+      substitutedOffId = offTestId.replace("sub-off-", "");
+      await offOption.click();
+
+      const onOption = subModal.locator('[data-testid^="sub-on-"]').first();
+      await expect(onOption).toBeVisible();
+      const onTestId = (await onOption.getAttribute("data-testid")) || "";
+      substitutedOnId = onTestId.replace("sub-on-", "");
+      await onOption.click();
+
+      await subModal.getByTestId("confirm-substitution").click();
+      await expect(subModal).toBeHidden({ timeout: 10000 });
+      await waitForPendingAckToClear(page);
+
+      const context = await getHarnessMatchContext(page);
+      expect(context).not.toBeNull();
+
+      const duplicatePayload = {
+        match_clock: "12:34.000",
+        period: 1,
+        team_id: context!.homeTeamId,
+        player_id: "HOME-2",
+        type: "Pass",
+        data: {
+          pass_type: "Standard",
+          outcome: "Complete",
+          receiver_id: "HOME-3",
+          receiver_name: "Home Player 3",
+        },
+      };
+
+      await sendRawEventThroughHarness(page, duplicatePayload);
+      await sendRawEventThroughHarness(page, duplicatePayload);
+      await waitForPendingAckToClear(page);
+    } finally {
+      await restoreClientTime(page);
+    }
+
+    expect(substitutedOffId).not.toBe("");
+    expect(substitutedOnId).not.toBe("");
+    await expect(
+      page.getByTestId(`field-player-${substitutedOffId}`),
+    ).toHaveCount(0);
+    await expect(
+      page.getByTestId(`field-player-${substitutedOnId}`),
+    ).toBeVisible();
   });
 });

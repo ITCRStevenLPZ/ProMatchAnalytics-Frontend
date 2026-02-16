@@ -208,7 +208,7 @@ describe("useActionFlow", () => {
     expect(result.current.currentStep).toBe("selectPlayer");
   });
 
-  it("should mark pass ineffective and auto-award corner when targeted to same-side keeper", () => {
+  it("should keep pass complete and avoid corner when targeted to same-side keeper", () => {
     const props = {
       ...defaultProps,
       sendEvent: vi.fn(),
@@ -244,18 +244,14 @@ describe("useActionFlow", () => {
     });
 
     expect(destinationResult?.sent).toBe(true);
-    expect(destinationResult?.triggerContext?.actionType).toBe("OutOfBounds");
-    expect(props.sendEvent).toHaveBeenCalledTimes(2);
+    expect(destinationResult?.triggerContext).toBeNull();
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
 
     const primaryPayload = (props.sendEvent as any).mock.calls[0][0];
     expect(primaryPayload.type).toBe("Pass");
-    expect(primaryPayload.data.outcome).toBe("Incomplete");
-    expect(primaryPayload.data.corner_awarded).toBe(true);
-
-    const cornerPayload = (props.sendEvent as any).mock.calls[1][0];
-    expect(cornerPayload.type).toBe("SetPiece");
-    expect(cornerPayload.team_id).toBe("t2");
-    expect(cornerPayload.data.set_piece_type).toBe("Corner");
+    expect(primaryPayload.data.outcome).toBe("Complete");
+    expect(primaryPayload.data.corner_awarded).toBeUndefined();
+    expect(primaryPayload.data.receiver_id).toBe("p2");
   });
 
   it("should auto-award corner when pass goes behind own goalkeeper line", () => {

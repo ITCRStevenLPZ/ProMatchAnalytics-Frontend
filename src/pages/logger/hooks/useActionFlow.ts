@@ -67,19 +67,6 @@ const getActionConfig = (action?: string | null) => {
   );
 };
 
-const isGoalkeeperPosition = (value?: string | null) => {
-  const normalized = (value || "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "")
-    .trim();
-  return (
-    normalized === "gk" ||
-    normalized.includes("goalkeeper") ||
-    normalized.includes("keeper") ||
-    normalized.includes("portero")
-  );
-};
-
 const buildEventPayload = (
   action: string,
   outcome: string | null,
@@ -491,18 +478,13 @@ export const useActionFlow = ({
           : selectedPlayerSide === "away"
             ? "right"
             : null;
-      const isSameSideKeeperTarget =
-        isPassOrShot &&
-        isSameTeam &&
-        Boolean(targetPlayer) &&
-        isGoalkeeperPosition(targetPlayer?.position);
       const isBehindOwnGoalLine =
         isPassOrShot &&
         destination.isOutOfBounds &&
         Boolean(destination.outOfBoundsEdge) &&
         ownGoalEdge !== null &&
         destination.outOfBoundsEdge === ownGoalEdge;
-      const shouldAwardCorner = isSameSideKeeperTarget || isBehindOwnGoalLine;
+      const shouldAwardCorner = isBehindOwnGoalLine;
 
       const awardedCornerTeamId =
         shouldAwardCorner && selectedPlayerSide === "home"
@@ -510,11 +492,7 @@ export const useActionFlow = ({
           : shouldAwardCorner && selectedPlayerSide === "away"
             ? match?.home_team.id || null
             : null;
-      const cornerReason = isSameSideKeeperTarget
-        ? "same_side_keeper"
-        : isBehindOwnGoalLine
-          ? "behind_own_goal_line"
-          : null;
+      const cornerReason = isBehindOwnGoalLine ? "behind_own_goal_line" : null;
 
       let outcome: string | null = null;
       const extraData: Record<string, any> = {
