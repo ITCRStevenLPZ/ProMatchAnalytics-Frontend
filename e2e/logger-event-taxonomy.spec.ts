@@ -490,16 +490,27 @@ test.describe("Logger event taxonomy", () => {
       return Number(mm) * 60 + Number(ss || 0);
     };
 
-    const outRowText =
-      (await page.getByTestId("stat-ineffective-outofbounds").textContent()) ||
-      "";
-    const outClocks = outRowText.match(/\d{2}:\d{2}/g) || [];
-    expect(outClocks.length).toBeGreaterThanOrEqual(2);
+    const getOutSeconds = async () => {
+      const cells = page
+        .getByTestId("stat-ineffective-outofbounds")
+        .locator("div");
+      const homeValue = (await cells.nth(1).textContent()) || "00:00";
+      const awayValue = (await cells.nth(3).textContent()) || "00:00";
+      if (!homeValue || !awayValue) {
+        return { home: 0, away: 0 };
+      }
+      return {
+        home: parseClock(homeValue),
+        away: parseClock(awayValue),
+      };
+    };
 
-    const homeOut = parseClock(outClocks[0]);
-    const awayOut = parseClock(outClocks[1]);
-    expect(homeOut).toBe(0);
-    expect(awayOut).toBeGreaterThanOrEqual(1);
+    await expect
+      .poll(async () => (await getOutSeconds()).home, { timeout: 10000 })
+      .toBe(0);
+    await expect
+      .poll(async () => (await getOutSeconds()).away, { timeout: 15000 })
+      .toBeGreaterThanOrEqual(1);
   });
 
   test("Offside logs immediately without destination and stops effective time", async ({
@@ -594,13 +605,39 @@ test.describe("Logger event taxonomy", () => {
       return Number(mm) * 60 + Number(ss || 0);
     };
 
-    const foulRowText =
-      (await page.getByTestId("stat-ineffective-foul").textContent()) || "";
-    const foulClocks = foulRowText.match(/\d{2}:\d{2}/g) || [];
-    expect(foulClocks.length).toBeGreaterThanOrEqual(2);
+    await expect
+      .poll(
+        async () => {
+          const cells = page
+            .getByTestId("stat-ineffective-foul")
+            .locator("div");
+          const homeValue = (await cells.nth(1).textContent()) || "00:00";
+          return parseClock(homeValue);
+        },
+        { timeout: 12000, interval: 300 },
+      )
+      .toBe(0);
 
-    const homeFoul = parseClock(foulClocks[0]);
-    const awayFoul = parseClock(foulClocks[1]);
+    await expect
+      .poll(
+        async () => {
+          const cells = page
+            .getByTestId("stat-ineffective-foul")
+            .locator("div");
+          const awayValue = (await cells.nth(3).textContent()) || "00:00";
+          return parseClock(awayValue);
+        },
+        { timeout: 15000, interval: 300 },
+      )
+      .toBeGreaterThanOrEqual(1);
+
+    const foulCells = page.getByTestId("stat-ineffective-foul").locator("div");
+    const homeFoul = parseClock(
+      (await foulCells.nth(1).textContent()) || "00:00",
+    );
+    const awayFoul = parseClock(
+      (await foulCells.nth(3).textContent()) || "00:00",
+    );
     expect(homeFoul).toBe(0);
     expect(awayFoul).toBeGreaterThanOrEqual(1);
   });

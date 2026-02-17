@@ -55,6 +55,29 @@ const readGlobalSeconds = async (page: Page) => {
   return parseClockToSeconds(value);
 };
 
+const readEffectiveSeconds = async (page: Page) => {
+  const value =
+    (await page.getByTestId("effective-clock-value").textContent()) || "00:00";
+  return parseClockToSeconds(value);
+};
+
+const readIneffectiveSeconds = async (page: Page) => {
+  const value =
+    (await page.getByTestId("ineffective-clock-value").textContent()) ||
+    "00:00";
+  return parseClockToSeconds(value);
+};
+
+const readTimeoutSeconds = async (page: Page) => {
+  const value =
+    (await page
+      .getByTestId("timeout-time-card")
+      .locator(".font-mono")
+      .first()
+      .textContent()) || "00:00";
+  return parseClockToSeconds(value);
+};
+
 test.beforeAll(async () => {
   backendRequest = await request.newContext({
     baseURL: BACKEND_BASE_URL,
@@ -154,5 +177,42 @@ test.describe("Logger VAR and card UI guards", () => {
     await expect(playerGrid.getByTestId("card-team-away")).toHaveText(
       "Visitante",
     );
+  });
+
+  test("Neutral timeout advances global clock without increasing effective or team ineffective clocks", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATCH_ID);
+    await setRole(page, "admin");
+    await ensureClockRunning(page);
+
+    const globalBefore = await readGlobalSeconds(page);
+    const effectiveBefore = await readEffectiveSeconds(page);
+    const ineffectiveBefore = await readIneffectiveSeconds(page);
+    const timeoutBefore = await readTimeoutSeconds(page);
+
+    await page.getByTestId("btn-timeout-toggle").click();
+    await page.waitForTimeout(1600);
+
+    const globalDuring = await readGlobalSeconds(page);
+    const effectiveDuring = await readEffectiveSeconds(page);
+    const ineffectiveDuring = await readIneffectiveSeconds(page);
+    const timeoutDuring = await readTimeoutSeconds(page);
+
+    const globalDelta = globalDuring - globalBefore;
+    const effectiveDelta = effectiveDuring - effectiveBefore;
+    const ineffectiveDelta = ineffectiveDuring - ineffectiveBefore;
+    const timeoutDelta = timeoutDuring - timeoutBefore;
+
+    expect(timeoutDelta).toBeGreaterThanOrEqual(1);
+    expect(Math.abs(globalDelta - timeoutDelta)).toBeLessThanOrEqual(1);
+    expect(effectiveDelta).toBeLessThanOrEqual(0);
+    expect(ineffectiveDelta).toBeLessThanOrEqual(0);
+
+    await page.getByTestId("btn-timeout-toggle").click();
+    const timeoutAfterStop = await readTimeoutSeconds(page);
+    await page.waitForTimeout(1500);
+    const timeoutFinal = await readTimeoutSeconds(page);
+    expect(timeoutFinal - timeoutAfterStop).toBeLessThanOrEqual(1);
   });
 });

@@ -370,11 +370,12 @@ test.describe("Logger period transitions", () => {
     await expect(secondHalfReason).toBeVisible({ timeout: 15000 });
     await expect(secondHalfReason).toContainText(/45:00/);
 
-    await resetMatch(matchId, {
+    const eligibleMatchId = makeMatchId();
+    await resetMatch(eligibleMatchId, {
       status: "Live_Second_Half",
       matchTimeSeconds: 136 * 60,
     });
-    await page.reload();
+    await page.goto(`/matches/${eligibleMatchId}/logger`);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("period-status-second-half")).toBeVisible({

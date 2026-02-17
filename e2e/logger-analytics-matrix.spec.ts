@@ -99,6 +99,19 @@ const getRowValues = async (page: Page, testId: string) => {
   };
 };
 
+const getBreakdownRowValues = async (page: Page, testId: string) => {
+  const row = page.getByTestId(testId);
+  await expect(row).toBeVisible({ timeout: 15000 });
+  const neutralText = (await row.locator("div").nth(2).textContent()) || "";
+  const homeText = (await row.locator("div").nth(1).textContent()) || "";
+  const awayText = (await row.locator("div").nth(3).textContent()) || "";
+  return {
+    home: parseClockToSeconds(homeText),
+    neutral: parseClockToSeconds(neutralText),
+    away: parseClockToSeconds(awayText),
+  };
+};
+
 const getTotalEvents = async (page: Page) => {
   const raw = await page.getByTestId("analytics-total-events").textContent();
   const parsed = Number(String(raw || "").replace(/[^0-9]/g, ""));
@@ -892,5 +905,128 @@ test.describe("Logger analytics matrix", () => {
     const totals = await getRowValues(page, "stat-ineffective-time");
     expect(totals.home).toBe(out.home);
     expect(totals.away).toBe(out.away);
+  });
+
+  test("ANL-23: VAR appears in ineffective breakdown as neutral time", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    await sendStoppage(page, {
+      match_clock: "00:36.000",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "VARStart",
+        reason: "VAR",
+        trigger_action: "VAR",
+        trigger_team_id: null,
+        trigger_player_id: null,
+      },
+    });
+    await page.waitForTimeout(1100);
+    await sendStoppage(page, {
+      match_clock: "00:37.000",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "VARStop",
+        reason: "VAR",
+        trigger_action: "VAR",
+        trigger_team_id: null,
+        trigger_player_id: null,
+      },
+    });
+
+    await openAnalytics(page);
+
+    const varRow = await getBreakdownRowValues(page, "stat-ineffective-var");
+    expect(varRow.home).toBe(0);
+    expect(varRow.away).toBe(0);
+    expect(varRow.neutral).toBeGreaterThanOrEqual(1);
+  });
+
+  test("ANL-24: average age row renders in comparison table", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:03.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Pass",
+      data: { outcome: "Complete" },
+    });
+
+    await openAnalytics(page);
+    const row = page.getByTestId("stat-average-age");
+    await expect(row).toBeVisible({ timeout: 15000 });
+
+    const home = ((await row.locator("div").nth(0).textContent()) || "").trim();
+    const away = ((await row.locator("div").nth(2).textContent()) || "").trim();
+    const valuePattern = /^(\d+(\.\d)?)|(N\/?A)|(N\/D)$/;
+    expect(home).toMatch(valuePattern);
+    expect(away).toMatch(valuePattern);
+  });
+
+  test("ANL-25: analytics export buttons produce CSV and PDF downloads", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:04.000",
+      team_id: context!.awayTeamId,
+      player_id: "AWAY-1",
+      type: "Pass",
+      data: { outcome: "Complete" },
+    });
+
+    await openAnalytics(page);
+
+    const [csvDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-analytics-csv").click(),
+    ]);
+    expect(csvDownload.suggestedFilename()).toMatch(/analytics-.*\.csv$/i);
+
+    const [pdfDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("export-analytics-pdf").click(),
+    ]);
+    expect(pdfDownload.suggestedFilename()).toMatch(/analytics-.*\.pdf$/i);
+  });
+
+  test("ANL-26: reset modal confirm input has readable text and placeholder", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    await page.getByTestId("btn-reset-clock").click();
+    const input = page.getByPlaceholder("RESET");
+    await expect(input).toBeVisible({ timeout: 15000 });
+
+    const styles = await input.evaluate((el) => {
+      const base = window.getComputedStyle(el);
+      const placeholder = window.getComputedStyle(el, "::placeholder");
+      return {
+        textColor: base.color,
+        bgColor: base.backgroundColor,
+        placeholderColor: placeholder.color,
+      };
+    });
+
+    expect(styles.bgColor).toBe("rgb(255, 255, 255)");
+    expect(styles.textColor).toBe("rgb(17, 24, 39)");
+    expect(styles.placeholderColor).toBe("rgb(156, 163, 175)");
   });
 });

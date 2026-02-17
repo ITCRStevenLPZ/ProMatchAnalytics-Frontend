@@ -8,6 +8,19 @@
 
 ## Current Objective
 
+- [x] Build an ultimate logger/cockpit E2E suite covering quick-action movement paths, timer interplay behavior, and end-to-end match logging consistency.
+- [x] Add a second ultimate logger variant focused on substitution/card edge-chains under heavy event volume.
+- [x] Add UDS suite coverage entry to logger E2E coverage matrix documentation.
+- [x] Add team average age to logger analytics comparison table.
+- [x] Fix reset modal confirm-input text and placeholder contrast.
+- [x] Implement analytics export actions (CSV + detailed PDF) with E2E coverage.
+- [x] Polish Time Off UX copy with explicit active/inactive state wording and state-aware action labels in EN/ES.
+- [x] Add VAR time row to ineffective breakdown analytics (with neutral attribution visibility).
+- [x] Add neutral timeout control that advances global time without affecting effective time or team ineffective totals.
+- [x] Run full frontend E2E suite and stabilize any flaky regressions.
+- [x] Remove Create Match starter-position constraints so coaches can use creative lineups without defender/forward minimum errors.
+- [x] Order Create Match lineup candidates (Titulares/Suplentes) by jersey number ascending.
+- [x] Remove all-uppercase player name rendering and enforce normal capitalization across player normalization/display flows.
 - [x] Fix logger bug where pass to same-team goalkeeper incorrectly auto-awards corner and stops effective time.
 - [x] Implement fix for same-timestamp ACK collision so substitution state cannot be undone by duplicate-event reconciliation.
 - [x] Add deterministic E2E regression that reproduces same-timestamp collision and verifies substituted players do not reappear.
@@ -30,11 +43,57 @@
 
 ## Status
 
-- Phase: Validate
+- Phase: Handoff
 - Overall: On track
 
 ## What Was Completed
 
+- [x] Added [e2e/logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts) as a serial regression suite with four end-to-end scenarios:
+  - `ULT-01` quick-action movement matrix (quick/action/harness fallback paths)
+  - `ULT-02` movement outcomes matrix (teammate, opponent, out-of-bounds)
+  - `ULT-03` timer interplay matrix (effective/global/VAR/timeout/ineffective)
+  - `ULT-04` match-logging consistency matrix (feed + analytics totals)
+- [x] Added [e2e/logger-ultimate-disciplinary-stress.spec.ts](e2e/logger-ultimate-disciplinary-stress.spec.ts) as a serial stress suite focused on disciplinary/substitution edge chains under load:
+  - `UDS-01` validates second-yellow/red expulsion still blocks substitution options after 120 high-volume events.
+  - `UDS-02` validates undo + cancellation chains restore substitution eligibility after 140 high-volume events.
+- [x] Implemented deterministic heavy-volume/card helpers in [e2e/logger-ultimate-disciplinary-stress.spec.ts](e2e/logger-ultimate-disciplinary-stress.spec.ts) with harness raw-event injection and unique card clock seeds to avoid duplicate suppression.
+- [x] Updated [docs/logger-e2e-plan.md](docs/logger-e2e-plan.md) with an explicit ultimate-variants matrix including `logger-ultimate-disciplinary-stress.spec.ts` (`UDS-01`, `UDS-02`) alongside `logger-ultimate-cockpit.spec.ts` coverage.
+- [x] Hardened [e2e/logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts) for deterministic CI by supporting both UI action-entry modes and harness fallback event injection with unique match-clock seeds.
+- [x] Updated [src/pages/logger/types.ts](src/pages/logger/types.ts) and [src/pages/logger/utils.ts](src/pages/logger/utils.ts) so logger player normalization preserves `birth_date` for analytics computations.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to compute and render `analytics.averageAge` (`stat-average-age`) in the team-comparison table.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) with export actions `export-analytics-csv` and `export-analytics-pdf`, including multi-section CSV output and detailed PDF table report generation via `jspdf` + `jspdf-autotable`.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) reset confirmation input styling to enforce readable `bg-white`, `text-gray-900`, and `placeholder:text-gray-400` contrast.
+- [x] Updated analytics locale keys in [public/locales/en/logger.json](public/locales/en/logger.json) and [public/locales/es/logger.json](public/locales/es/logger.json): `analytics.averageAge`, `analytics.exportCsv`, `analytics.exportPdf`, `analytics.notAvailable`.
+- [x] Extended locale guardrail in [e2e/logger-i18n-keys.spec.ts](e2e/logger-i18n-keys.spec.ts) to require the new analytics keys in both EN/ES.
+- [x] Added E2E regressions in [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts): `ANL-24` (average age row), `ANL-25` (CSV/PDF downloads), `ANL-26` (reset modal input/placeholder contrast).
+- [x] Updated [src/pages/logger/components/MatchTimerDisplay.tsx](src/pages/logger/components/MatchTimerDisplay.tsx) to show state-aware Time Off button labels (`Start Time Off` / `End Time Off`) and timer-state badge (`Active` / `Inactive`).
+- [x] Updated locale keys in [public/locales/en/logger.json](public/locales/en/logger.json) and [public/locales/es/logger.json](public/locales/es/logger.json) with `timeOffStart`, `timeOffStop`, `timeOffActive`, and `timeOffInactive`.
+- [x] Extended i18n regression coverage in [e2e/logger-i18n-keys.spec.ts](e2e/logger-i18n-keys.spec.ts) to require the new Time Off wording keys in both locales.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) ineffective breakdown table to show a dedicated neutral column and include explicit `VAR` row (`stat-ineffective-var`).
+- [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) ineffective breakdown engine to track neutral timeout intervals (`TimeoutStart`/`TimeoutStop`) separately from team ineffective totals.
+- [x] Updated [src/pages/logger/hooks/useMatchTimer.ts](src/pages/logger/hooks/useMatchTimer.ts) so global clock includes neutral timeout seconds while effective/ineffective accumulators pause during active timeout.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) to log neutral timeout stoppage events, derive timeout state from event breakdown, and wire timeout timer values into cockpit controls.
+- [x] Updated [src/pages/logger/components/MatchTimerDisplay.tsx](src/pages/logger/components/MatchTimerDisplay.tsx) with `Time Off` timer card (`timeout-time-card`) and toggle button (`btn-timeout-toggle`).
+- [x] Added E2E regression in [e2e/logger-var-card-ui.spec.ts](e2e/logger-var-card-ui.spec.ts) validating neutral timeout increases global time while effective/ineffective clocks remain unchanged.
+- [x] Added E2E regression in [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) validating `VAR` appears in ineffective breakdown as neutral-only time.
+- [x] Updated existing logger E2E assertions in [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) and [e2e/logger-ineffective-breakdown.spec.ts](e2e/logger-ineffective-breakdown.spec.ts) for the new 4-column breakdown layout.
+- [x] Hardened [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) `Foul starts ineffective time for opponent team` with polling-based analytics clock assertions to avoid race-driven reads right after event ACK.
+- [x] Hardened [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts) minimum-time transition flow by validating final second-half eligibility on a fresh reset match context.
+- [x] Re-ran flaky logger subset after hardening and confirmed deterministic pass (taxonomy + period transitions).
+- [x] Re-ran full frontend Playwright suite after the final hardening pass; suite is green with 152/152 passing.
+- [x] Stabilized [e2e/logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts) `Pass Out logs immediately and stops effective time without destination` by polling analytics clocks until away out-of-bounds time increments deterministically.
+- [x] Reduced ID-length noise in [e2e/admin-matches-crud.spec.ts](e2e/admin-matches-crud.spec.ts) duplicate-match seeding by shortening labels used for generated team/player IDs.
+- [x] Added E2E regression in [e2e/admin-matches-crud.spec.ts](e2e/admin-matches-crud.spec.ts) validating match creation accepts creative starting lineups with only two defenders and no forwards (still 11 starters).
+- [x] Updated [src/pages/MatchesManager.tsx](src/pages/MatchesManager.tsx) lineup candidate rendering to sort active roster players by `jersey_number` ascending (with stable name fallback), applied to home/away starters and substitutes columns.
+- [x] Added stable create-match field test hooks in [src/pages/MatchesManager.tsx](src/pages/MatchesManager.tsx): `season-input`, `competition-stage-input`, `match-date-input`, `kickoff-time-input`, and `away-team-select`.
+- [x] Added lineup list test hooks in [src/pages/MatchesManager.tsx](src/pages/MatchesManager.tsx): `home-starters-candidates`, `home-substitutes-candidates`, `away-starters-candidates`, `away-substitutes-candidates`.
+- [x] Added E2E regression in [e2e/admin-matches-lineup-order.spec.ts](e2e/admin-matches-lineup-order.spec.ts) validating Create Match lineup candidates render in ascending jersey order for both Titulares and Suplentes.
+- [x] Added shared player-name formatter in [src/lib/nameFormat.ts](src/lib/nameFormat.ts) to normalize names to title case while preserving identifier-like tokens.
+- [x] Updated [src/lib/players.ts](src/lib/players.ts) to apply formatted player names during API normalization and player payload creation.
+- [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) to normalize logger `full_name` values through the shared formatter.
+- [x] Updated [src/pages/MatchesManager.tsx](src/pages/MatchesManager.tsx) roster/lineup mappings to format `player_name` before rendering or logger payload usage.
+- [x] Added unit regression coverage in [src/lib/nameFormat.test.ts](src/lib/nameFormat.test.ts) for uppercase names, spacing normalization, punctuation handling, and identifier passthrough.
+- [x] Added E2E regression in [e2e/admin-team-roster-ui.spec.ts](e2e/admin-team-roster-ui.spec.ts) to validate uppercase-seeded names render in normal capitalization in roster picker labels.
 - [x] Updated [src/pages/logger/hooks/useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts) destination logic to stop treating same-team goalkeeper targets as corner conditions.
 - [x] Kept corner auto-award restricted to out-of-bounds behind own goal line only (`behind_own_goal_line`).
 - [x] Updated [src/pages/logger/hooks/useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts) regression to assert pass-to-same-side-keeper remains `Complete`, emits no `SetPiece`, and does not trigger ineffective stoppage context.
@@ -180,6 +239,32 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-ultimate-cockpit.spec.ts` -> PASS (4 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-ultimate-disciplinary-stress.spec.ts` -> PASS (2 passed)
+- [x] E2E: `CI=1 npx playwright test --max-failures=0` -> PASS (163 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (161 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts e2e/logger-analytics-matrix.spec.ts --grep "ANL-24|ANL-25|ANL-26|required logger keys"` -> PASS (5 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (157 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts` -> PASS (2 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-23|ANL-22"` -> PASS (2 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-var-card-ui.spec.ts --grep "Neutral timeout advances global clock without increasing effective or team ineffective clocks|VAR time pauses when global clock is stopped"` -> PASS (2 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-var-card-ui.spec.ts e2e/logger-analytics-matrix.spec.ts e2e/logger-ineffective-breakdown.spec.ts e2e/logger-event-taxonomy.spec.ts` -> PASS (52 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (154 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-event-taxonomy.spec.ts e2e/logger-period-transitions.spec.ts` -> PASS (19 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (152 passed, final confirmation rerun)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (152 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Pass Out logs immediately and stops effective time without destination"` -> PASS (1 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/admin-matches-crud.spec.ts --grep "auto-suffixes duplicate match_id|creative starting lineups"` -> PASS (2 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/admin-matches-crud.spec.ts --grep "creative starting lineups"` -> PASS (1 passed)
+- [x] Unit (backend): `pytest tests/test_matches_lineup_validation.py` -> PASS (3 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/admin-matches-lineup-order.spec.ts` -> PASS (1 passed)
+- [x] Build/Type: `npm run build` -> PASS (`tsc` + Vite build)
+- [x] Unit: `npx vitest run src/lib/nameFormat.test.ts` -> PASS (4 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/admin-team-roster-ui.spec.ts --grep "normal capitalization|non-rostered candidates"` -> PASS (2 passed)
+- [x] Build/Type: `npm run build` -> PASS (`tsc` + Vite build)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (149 passed, 1 flaky: existing `logger-event-taxonomy` pass-out timing assertion)
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8013 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4179 CI=1 npx playwright test e2e/admin-team-roster-ui.spec.ts --max-failures=1` -> PASS (4 passed)
 - [x] Typecheck: `npx tsc --noEmit` -> PASS
 - [x] Unit: `npx vitest run src/pages/logger/hooks/useActionFlow.test.ts` -> PASS (10 passed)

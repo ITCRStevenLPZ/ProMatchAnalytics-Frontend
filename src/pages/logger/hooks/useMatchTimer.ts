@@ -27,6 +27,8 @@ export const useMatchTimer = (
     isVarActive?: boolean;
     varPauseStartMs?: number | null;
     varPausedSeconds?: number;
+    timeoutSeconds?: number;
+    isTimeoutActive?: boolean;
   },
 ) => {
   const [globalClock, setGlobalClock] = useState("00:00");
@@ -47,6 +49,8 @@ export const useMatchTimer = (
   const isVarActive = options?.isVarActive ?? false;
   const varPauseStartMs = options?.varPauseStartMs ?? null;
   const varPausedSeconds = options?.varPausedSeconds ?? 0;
+  const timeoutSeconds = options?.timeoutSeconds ?? 0;
+  const isTimeoutActive = options?.isTimeoutActive ?? false;
 
   // Sync state with match data
   useEffect(() => {
@@ -95,29 +99,32 @@ export const useMatchTimer = (
         // IMPORTANT: Only accumulate if the backend match state matches our local optimistic clockMode.
         // Otherwise, we might calculate elapsed time using a timestamp from the WRONG mode (e.g. previous mode start),
         // leading to massive time jumps (phantom accumulation) which can be permanently saved if a save triggers during the glitch.
-        if (clockMode === "EFFECTIVE") {
-          if (match.clock_mode === "EFFECTIVE") {
-            currentEffectiveSeconds =
-              (match.clock_seconds_at_period_start || 0) +
-              Math.max(0, elapsed - varPauseTotal);
-          } else {
-            // Waiting for sync: use the stored value
-            currentEffectiveSeconds =
-              match.clock_seconds_at_period_start ||
-              match.match_time_seconds ||
-              0;
-          }
-        } else if (clockMode === "INEFFECTIVE") {
-          if (
-            match.clock_mode === "INEFFECTIVE" &&
-            match.last_mode_change_timestamp
-          ) {
-            const lastChange = parseTimestamp(match.last_mode_change_timestamp);
-            const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
-            currentIneffectiveSeconds += Math.max(
-              0,
-              elapsedSinceChange - varPauseTotal,
-            );
+        if (!isTimeoutActive) {
+          if (clockMode === "EFFECTIVE") {
+            if (match.clock_mode === "EFFECTIVE") {
+              currentEffectiveSeconds =
+                (match.clock_seconds_at_period_start || 0) +
+                Math.max(0, elapsed - varPauseTotal);
+            } else {
+              currentEffectiveSeconds =
+                match.clock_seconds_at_period_start ||
+                match.match_time_seconds ||
+                0;
+            }
+          } else if (clockMode === "INEFFECTIVE") {
+            if (
+              match.clock_mode === "INEFFECTIVE" &&
+              match.last_mode_change_timestamp
+            ) {
+              const lastChange = parseTimestamp(
+                match.last_mode_change_timestamp,
+              );
+              const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
+              currentIneffectiveSeconds += Math.max(
+                0,
+                elapsedSinceChange - varPauseTotal,
+              );
+            }
           }
         }
 
@@ -129,7 +136,10 @@ export const useMatchTimer = (
       // 2. Calculate Global Time (effective + ineffective only)
       // VAR is displayed in its own timer card and should not double-count
       // into the global clock while effective/ineffective accumulation is active.
-      const globalSeconds = currentEffectiveSeconds + currentIneffectiveSeconds;
+      const globalSeconds =
+        currentEffectiveSeconds +
+        currentIneffectiveSeconds +
+        Math.max(0, timeoutSeconds);
 
       // Update refs for mode switch calculations
       currentEffectiveRef.current = currentEffectiveSeconds;
@@ -153,6 +163,8 @@ export const useMatchTimer = (
     isVarActive,
     varPauseStartMs,
     varPausedSeconds,
+    timeoutSeconds,
+    isTimeoutActive,
   ]);
 
   // Handlers

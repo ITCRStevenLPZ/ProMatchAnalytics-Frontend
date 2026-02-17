@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../lib/api";
 import { getMatch as getLoggerMatch } from "../lib/loggerApi";
+import { formatPlayerName } from "../lib/nameFormat";
 import type {
   Team,
   TeamPlayer,
@@ -349,11 +350,21 @@ export default function MatchesManager() {
           params: { page, page_size: pageSize },
         });
         if ("items" in resp && Array.isArray(resp.items)) {
-          roster.push(...resp.items);
+          roster.push(
+            ...resp.items.map((player) => ({
+              ...player,
+              player_name: formatPlayerName(player.player_name),
+            })),
+          );
           const total = resp.total ?? resp.items.length;
           hasMore = roster.length < total;
         } else if (Array.isArray(resp)) {
-          roster.push(...resp);
+          roster.push(
+            ...resp.map((player) => ({
+              ...player,
+              player_name: formatPlayerName(player.player_name),
+            })),
+          );
           hasMore = false;
         } else {
           hasMore = false;
@@ -520,7 +531,7 @@ export default function MatchesManager() {
           ...prev,
           home_lineup: starters.map((p) => ({
             player_id: p.player_id,
-            player_name: p.player_name || p.player_id,
+            player_name: formatPlayerName(p.player_name || p.player_id),
             position: p.position,
             jersey_number: p.jersey_number,
             is_starter: true,
@@ -537,7 +548,7 @@ export default function MatchesManager() {
           ...prev,
           away_lineup: starters.map((p) => ({
             player_id: p.player_id,
-            player_name: p.player_name || p.player_id,
+            player_name: formatPlayerName(p.player_name || p.player_id),
             position: p.position,
             jersey_number: p.jersey_number,
             is_starter: true,
@@ -726,7 +737,7 @@ export default function MatchesManager() {
       }
       const newPlayer: LineupPlayerSelection = {
         player_id: player.player_id,
-        player_name: player.player_name || player.player_id,
+        player_name: formatPlayerName(player.player_name || player.player_id),
         position: player.position,
         jersey_number: player.jersey_number,
         is_starter: isStarter,
@@ -801,12 +812,30 @@ export default function MatchesManager() {
   ): LineupPlayerSelection[] =>
     toArray(lineup).map((player) => ({
       player_id: player.player_id,
-      player_name: player.player_name || player.player_id,
+      player_name: formatPlayerName(player.player_name || player.player_id),
       position: player.position,
       jersey_number: player.jersey_number,
       is_starter: player.is_starter ?? true,
       is_captain: player.is_captain ?? false,
     }));
+
+  const sortRosterByJerseyNumber = (roster: TeamPlayer[]): TeamPlayer[] =>
+    [...roster].sort((left, right) => {
+      const leftJersey = Number(left.jersey_number);
+      const rightJersey = Number(right.jersey_number);
+      const leftSortable = Number.isFinite(leftJersey)
+        ? leftJersey
+        : Number.MAX_SAFE_INTEGER;
+      const rightSortable = Number.isFinite(rightJersey)
+        ? rightJersey
+        : Number.MAX_SAFE_INTEGER;
+      if (leftSortable !== rightSortable) {
+        return leftSortable - rightSortable;
+      }
+      return String(left.player_name || left.player_id).localeCompare(
+        String(right.player_name || right.player_id),
+      );
+    });
 
   const safeCompetitions = toArray(competitions);
   const safeTeams = toArray(teams);
@@ -815,6 +844,12 @@ export default function MatchesManager() {
   const safeMatches = toArray(matches);
   const filterActivePlayers = (roster: TeamPlayer[]) =>
     roster.filter((p) => (p as any).is_active !== false);
+  const sortedHomeRosterCandidates = sortRosterByJerseyNumber(
+    filterActivePlayers(homeRoster),
+  );
+  const sortedAwayRosterCandidates = sortRosterByJerseyNumber(
+    filterActivePlayers(awayRoster),
+  );
   const totalSteps = 3;
   const showLineupSteps = true;
   const isLastStep = wizardStep === 3;
@@ -1176,6 +1211,7 @@ export default function MatchesManager() {
                           })
                         }
                         className="input w-full"
+                        data-testid="season-input"
                       />
                     </div>
                     <div>
@@ -1193,6 +1229,7 @@ export default function MatchesManager() {
                           })
                         }
                         className="input w-full"
+                        data-testid="competition-stage-input"
                       />
                     </div>
                   </div>
@@ -1238,6 +1275,7 @@ export default function MatchesManager() {
                           })
                         }
                         className="input w-full"
+                        data-testid="away-team-select"
                       >
                         <option value="">{t("selectTeam")}</option>
                         {safeTeams.map((team) => (
@@ -1267,6 +1305,7 @@ export default function MatchesManager() {
                           })
                         }
                         className="input w-full"
+                        data-testid="match-date-input"
                       />
                     </div>
                     <div>
@@ -1284,6 +1323,7 @@ export default function MatchesManager() {
                           })
                         }
                         className="input w-full"
+                        data-testid="kickoff-time-input"
                       />
                     </div>
                   </div>
@@ -1361,8 +1401,11 @@ export default function MatchesManager() {
                   <div className="grid grid-cols-2 gap-6">
                     <div>
                       <h4 className="font-medium mb-3">{t("starters")}</h4>
-                      <div className="space-y-2">
-                        {filterActivePlayers(homeRoster).map((player) => {
+                      <div
+                        className="space-y-2"
+                        data-testid="home-starters-candidates"
+                      >
+                        {sortedHomeRosterCandidates.map((player) => {
                           const selectable =
                             player.position &&
                             player.jersey_number !== undefined &&
@@ -1418,8 +1461,11 @@ export default function MatchesManager() {
                     </div>
                     <div>
                       <h4 className="font-medium mb-3">{t("substitutes")}</h4>
-                      <div className="space-y-2">
-                        {filterActivePlayers(homeRoster).map((player) => {
+                      <div
+                        className="space-y-2"
+                        data-testid="home-substitutes-candidates"
+                      >
+                        {sortedHomeRosterCandidates.map((player) => {
                           const selectable =
                             player.position &&
                             player.jersey_number !== undefined &&
@@ -1492,8 +1538,11 @@ export default function MatchesManager() {
                   <div className="grid grid-cols-2 gap-6">
                     <div>
                       <h4 className="font-medium mb-3">{t("starters")}</h4>
-                      <div className="space-y-2">
-                        {filterActivePlayers(awayRoster).map((player) => {
+                      <div
+                        className="space-y-2"
+                        data-testid="away-starters-candidates"
+                      >
+                        {sortedAwayRosterCandidates.map((player) => {
                           const selectable =
                             player.position &&
                             player.jersey_number !== undefined &&
@@ -1549,8 +1598,11 @@ export default function MatchesManager() {
                     </div>
                     <div>
                       <h4 className="font-medium mb-3">{t("substitutes")}</h4>
-                      <div className="space-y-2">
-                        {filterActivePlayers(awayRoster).map((player) => {
+                      <div
+                        className="space-y-2"
+                        data-testid="away-substitutes-candidates"
+                      >
+                        {sortedAwayRosterCandidates.map((player) => {
                           const selectable =
                             player.position &&
                             player.jersey_number !== undefined &&
