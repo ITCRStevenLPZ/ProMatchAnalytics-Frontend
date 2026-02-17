@@ -9,6 +9,7 @@ interface MatchTimerDisplayProps {
   effectiveClock: string;
   ineffectiveClock: string;
   varClock: string;
+  timeoutClock: string;
   clockMode: "EFFECTIVE" | "INEFFECTIVE";
   isClockRunning: boolean;
   onGlobalStart: () => void;
@@ -18,7 +19,9 @@ interface MatchTimerDisplayProps {
   lockReason?: string;
   onModeSwitch: (mode: "EFFECTIVE" | "INEFFECTIVE") => void;
   onVarToggle: () => void;
+  onTimeoutToggle: () => void;
   isVarActive: boolean;
+  isTimeoutActive: boolean;
   hideResumeButton?: boolean;
   t: any;
 }
@@ -30,6 +33,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   effectiveClock,
   ineffectiveClock,
   varClock,
+  timeoutClock,
   clockMode,
   isClockRunning,
   onGlobalStart,
@@ -39,7 +43,9 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   lockReason,
   onModeSwitch,
   onVarToggle,
+  onTimeoutToggle,
   isVarActive,
+  isTimeoutActive,
   hideResumeButton = false,
   t,
 }) => {
@@ -159,7 +165,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
       </div>
 
       {/* Sub Clocks */}
-      <div className="grid gap-3 mb-4 text-center grid-cols-3">
+      <div className="grid gap-3 mb-4 text-center grid-cols-4">
         <div
           className={`p-3 rounded-lg border transition-colors ${
             clockMode === "EFFECTIVE"
@@ -206,12 +212,33 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
             {trimMs(varClock)}
           </div>
         </div>
+        <div
+          className="p-3 rounded-lg border bg-slate-700/30 border-slate-700"
+          data-testid="timeout-time-card"
+        >
+          <p className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold mb-1 tracking-wider">
+            {t("timeOff", "Time Off")}
+          </p>
+          <div className="font-mono font-bold text-lg text-sky-300">
+            {trimMs(timeoutClock)}
+          </div>
+          <div
+            className={`text-[10px] sm:text-xs font-semibold mt-1 ${
+              isTimeoutActive ? "text-sky-200" : "text-slate-400"
+            }`}
+            data-testid="timeout-state-label"
+          >
+            {isTimeoutActive
+              ? t("timeOffActive", "Active")
+              : t("timeOffInactive", "Inactive")}
+          </div>
+        </div>
       </div>
 
       {/* Mode Controls */}
       <div className="flex flex-col gap-2">
         {clockMode === "EFFECTIVE" ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               data-testid="btn-ineffective-event"
               onClick={() => onModeSwitch("INEFFECTIVE")}
@@ -234,21 +261,53 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
               <Tv size={14} />
               {t("varToggle", "VAR")}
             </button>
+            <button
+              data-testid="btn-timeout-toggle"
+              onClick={onTimeoutToggle}
+              className={`flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors border disabled:opacity-50 ${
+                isTimeoutActive
+                  ? "bg-sky-900/40 text-sky-200 border-sky-500/40"
+                  : "bg-slate-900/40 text-sky-300 border-sky-500/30 hover:bg-slate-900/60"
+              }`}
+              disabled={locked}
+            >
+              <Pause size={14} />
+              {isTimeoutActive
+                ? t("timeOffStop", "End Time Off")
+                : t("timeOffStart", "Start Time Off")}
+            </button>
           </div>
         ) : (
-          <button
-            data-testid="btn-var-toggle"
-            onClick={onVarToggle}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors border disabled:opacity-50 ${
-              isVarActive
-                ? "bg-amber-900/40 text-amber-200 border-amber-500/40"
-                : "bg-slate-900/40 text-amber-300 border-amber-500/30 hover:bg-slate-900/60"
-            }`}
-            disabled={locked}
-          >
-            <Tv size={14} />
-            {t("varToggle", "VAR")}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              data-testid="btn-var-toggle"
+              onClick={onVarToggle}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors border disabled:opacity-50 ${
+                isVarActive
+                  ? "bg-amber-900/40 text-amber-200 border-amber-500/40"
+                  : "bg-slate-900/40 text-amber-300 border-amber-500/30 hover:bg-slate-900/60"
+              }`}
+              disabled={locked}
+            >
+              <Tv size={14} />
+              {t("varToggle", "VAR")}
+            </button>
+            <button
+              data-testid="btn-timeout-toggle"
+              onClick={onTimeoutToggle}
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors border disabled:opacity-50 ${
+                isTimeoutActive
+                  ? "bg-sky-900/40 text-sky-200 border-sky-500/40"
+                  : "bg-slate-900/40 text-sky-300 border-sky-500/30 hover:bg-slate-900/60"
+              }`}
+              disabled={locked}
+            >
+              <Pause size={14} />
+              {isTimeoutActive
+                ? t("timeOffStop", "End Time Off")
+                : t("timeOffStart", "Start Time Off")}
+            </button>
+          </div>
         )}
         {!hideResumeButton && clockMode !== "EFFECTIVE" && (
           <button

@@ -1,5 +1,6 @@
 import { IneffectiveAggregates, Match, Player, Team } from "./types";
 import { MatchEvent } from "../../store/useMatchLogStore";
+import { formatPlayerName } from "../../lib/nameFormat";
 
 export type IneffectiveAction =
   | "Goal"
@@ -23,6 +24,10 @@ export interface IneffectiveTotals {
 
 export interface IneffectiveBreakdown {
   totals: IneffectiveTotals;
+  timeout: {
+    totalSeconds: number;
+    active: { startMs: number } | null;
+  };
   active?: {
     teamKey: IneffectiveTeamKey;
     action: IneffectiveAction;
@@ -151,7 +156,11 @@ export const computeIneffectiveBreakdown = (
   let activeStartMs: number | null = null;
   let pausedByVarTeamKey: IneffectiveTeamKey | null = null;
   let pausedByVarAction: IneffectiveAction | null = null;
+  let pausedByTimeoutTeamKey: IneffectiveTeamKey | null = null;
+  let pausedByTimeoutAction: IneffectiveAction | null = null;
   let varStartMs: number | null = null;
+  let timeoutStartMs: number | null = null;
+  let timeoutTotalSeconds = 0;
 
   const addDuration = (
     teamKey: IneffectiveTeamKey,
@@ -205,6 +214,41 @@ export const computeIneffectiveBreakdown = (
       return;
     }
 
+    if (stoppageType === "TimeoutStart") {
+      if (activeTeamKey && activeAction && activeStartMs !== null) {
+        addDuration(
+          activeTeamKey,
+          activeAction,
+          (timestampMs - activeStartMs) / 1000,
+        );
+        pausedByTimeoutTeamKey = activeTeamKey;
+        pausedByTimeoutAction = activeAction;
+        activeTeamKey = null;
+        activeAction = null;
+        activeStartMs = null;
+      }
+      timeoutStartMs = timestampMs;
+      return;
+    }
+
+    if (stoppageType === "TimeoutStop") {
+      if (timeoutStartMs !== null) {
+        timeoutTotalSeconds += Math.max(
+          0,
+          (timestampMs - timeoutStartMs) / 1000,
+        );
+      }
+      timeoutStartMs = null;
+      if (!activeTeamKey && pausedByTimeoutTeamKey && pausedByTimeoutAction) {
+        activeTeamKey = pausedByTimeoutTeamKey;
+        activeAction = pausedByTimeoutAction;
+        activeStartMs = timestampMs;
+      }
+      pausedByTimeoutTeamKey = null;
+      pausedByTimeoutAction = null;
+      return;
+    }
+
     const action = normalizeIneffectiveAction(
       event.data?.trigger_action || event.data?.reason,
     );
@@ -242,6 +286,10 @@ export const computeIneffectiveBreakdown = (
     addDuration("neutral", "VAR", (nowMs - varStartMs) / 1000);
   }
 
+  if (timeoutStartMs !== null) {
+    timeoutTotalSeconds += Math.max(0, (nowMs - timeoutStartMs) / 1000);
+  }
+
   const active =
     activeTeamKey && activeAction && activeStartMs !== null
       ? {
@@ -258,7 +306,22 @@ export const computeIneffectiveBreakdown = (
         }
       : null;
 
-  return { totals, active, varActive };
+  const timeoutActive =
+    timeoutStartMs !== null
+      ? {
+          startMs: timeoutStartMs,
+        }
+      : null;
+
+  return {
+    totals,
+    timeout: {
+      totalSeconds: timeoutTotalSeconds,
+      active: timeoutActive,
+    },
+    active,
+    varActive,
+  };
 };
 
 export const buildIneffectiveBreakdownFromAggregates = (
@@ -321,7 +384,15 @@ export const buildIneffectiveBreakdownFromAggregates = (
     }
   }
 
-  return { totals, active, varActive };
+  return {
+    totals,
+    timeout: {
+      totalSeconds: 0,
+      active: null,
+    },
+    active,
+    varActive,
+  };
 };
 
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
@@ -347,11 +418,13 @@ const coercePlayers = (team: any, teamId: string): Player[] => {
 
     return {
       id: player?.id ?? player?.player_id ?? `${teamId}-${index + 1}`,
-      full_name:
+      full_name: formatPlayerName(
         player?.full_name ?? player?.player_name ?? `Player ${index + 1}`,
+      ),
       short_name: player?.short_name ?? player?.shortName,
       jersey_number: player?.jersey_number ?? index + 1,
       position: player?.position ?? "MF",
+      birth_date: player?.birth_date ?? null,
       is_starter: Boolean(isStarter),
     };
   });

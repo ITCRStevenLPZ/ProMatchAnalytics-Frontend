@@ -7,6 +7,7 @@ export interface Player {
   short_name?: string;
   jersey_number: number;
   position: string;
+  birth_date?: string | null;
   is_starter?: boolean;
 }
 

@@ -429,7 +429,7 @@ test.describe("Logger ineffective time breakdown", () => {
 
     const cells = otherRow.locator("div");
     await expect(cells.nth(1)).toHaveText(/00:00/);
-    await expect(cells.nth(2)).not.toHaveText("00:00");
+    await expect(cells.nth(3)).not.toHaveText("00:00");
   });
 
   test("manual substitution ineffective uses selected team attribution", async ({
@@ -476,7 +476,7 @@ test.describe("Logger ineffective time breakdown", () => {
 
     const cells = substitutionRow.locator("div");
     await expect(cells.nth(1)).toHaveText(/00:00/);
-    await expect(cells.nth(2)).not.toHaveText("00:00");
+    await expect(cells.nth(3)).not.toHaveText("00:00");
   });
 
   test("shows offside offender on stoppage feed", async ({ page }) => {
@@ -705,7 +705,7 @@ test.describe("Logger ineffective time breakdown", () => {
     // Home column should show time for OutOfBounds
     await expect(outCells.nth(1)).not.toHaveText("00:00");
     // Away column should show time for Goal
-    await expect(goalCells.nth(2)).not.toHaveText("00:00");
+    await expect(goalCells.nth(3)).not.toHaveText("00:00");
     await expect(varStat).toContainText(/00:0[1-9]/);
   });
 

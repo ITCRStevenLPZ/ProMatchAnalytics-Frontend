@@ -76,13 +76,13 @@ test.describe("Admin team roster UI", () => {
         .click();
 
       await expect(
-        page.getByText(extraPlayer.name, { exact: false }).first(),
+        page.getByText(new RegExp(extraPlayer.name, "i")).first(),
       ).toBeVisible({ timeout: 10000 });
 
       await page.getByTestId("roster-filter-position-toggle").click();
       await page.getByTestId("roster-filter-position-option-ST").click();
       await expect(
-        page.getByText(extraPlayer.name, { exact: false }).first(),
+        page.getByText(new RegExp(extraPlayer.name, "i")).first(),
       ).toBeVisible();
     } finally {
       const rosterResponse = await api.get(
@@ -166,6 +166,60 @@ test.describe("Admin team roster UI", () => {
         await cleanupResource(api, `players/${playerId}`).catch(() => {});
       }
 
+      await cleanupResource(api, `teams/${seededTeam.team_id}`).catch(() => {});
+    }
+  });
+
+  test("roster player labels render uppercase names in normal capitalization", async ({
+    page,
+  }) => {
+    const seededTeam = await seedTeam(api, {
+      name: `Roster Name Case ${uniqueId("TEAM")}`,
+      rosterTemplate: [{ position: "GK" }],
+    });
+
+    const uppercasePlayer = await seedPlayer(api, {
+      name: "JUAN CARLOS LOPEZ",
+      position: "CM",
+    });
+
+    try {
+      await page.goto("/teams");
+      const searchInput = page.getByPlaceholder(/Search|Buscar/i).first();
+      await searchInput.fill(seededTeam.name);
+
+      const teamRow = page.locator("tr", { hasText: seededTeam.name }).first();
+      await expect(teamRow).toBeVisible({ timeout: 15000 });
+
+      await teamRow
+        .locator('button[title="Roster"], button[title="Plantel"]')
+        .first()
+        .click();
+
+      await expect(
+        page.locator("h2", { hasText: seededTeam.name }).first(),
+      ).toBeVisible({ timeout: 10000 });
+
+      await page.getByTestId("roster-player-picker-toggle").click();
+
+      const formattedName = "Juan Carlos Lopez";
+      await expect(
+        page.getByText(`${formattedName} -`, { exact: false }).first(),
+      ).toBeVisible({ timeout: 10000 });
+    } finally {
+      for (const rosterEntry of seededTeam.roster) {
+        await cleanupResource(
+          api,
+          `teams/${seededTeam.team_id}/players/${rosterEntry.player_id}`,
+        ).catch(() => {});
+        await cleanupResource(api, `players/${rosterEntry.player_id}`).catch(
+          () => {},
+        );
+      }
+
+      await cleanupResource(api, `players/${uppercasePlayer.player_id}`).catch(
+        () => {},
+      );
       await cleanupResource(api, `teams/${seededTeam.team_id}`).catch(() => {});
     }
   });

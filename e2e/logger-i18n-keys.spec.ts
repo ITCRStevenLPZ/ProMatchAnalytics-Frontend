@@ -24,8 +24,15 @@ const getNestedValue = (obj: JsonRecord, dottedPath: string): unknown =>
 const REQUIRED_LOGGER_KEYS = [
   "homeTeam",
   "awayTeam",
+  "timeOffStart",
+  "timeOffStop",
+  "timeOffActive",
+  "timeOffInactive",
   "analytics.score",
   "analytics.effectiveTimePercent",
+  "analytics.averageAge",
+  "analytics.exportCsv",
+  "analytics.exportPdf",
 ] as const;
 
 test.describe("Logger locale key coverage", () => {

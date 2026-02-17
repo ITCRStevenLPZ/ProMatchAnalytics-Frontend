@@ -194,6 +194,72 @@ async function seedTeamWithRoster(label: string): Promise<SeededTeam> {
   return { teamId, name: teamName, manager, lineup };
 }
 
+async function seedTeamWithCustomLineup(
+  label: string,
+  starterPositions: string[],
+): Promise<SeededTeam> {
+  const teamId = uniqueId(`TEAM${label}`);
+  const teamName = `${label} FC ${teamId.slice(-4)}`;
+  const manager = `${label} Manager`;
+
+  const teamResponse = await apiRequest.post("teams/", {
+    data: {
+      team_id: teamId,
+      name: teamName,
+      short_name: label.slice(0, 3).toUpperCase(),
+      gender: "male",
+      country_name: "USA",
+      managers: [],
+      technical_staff: [],
+      i18n_names: {},
+    },
+  });
+  expect(teamResponse.status()).toBe(201);
+
+  const lineup: SeededTeam["lineup"] = [];
+  for (let idx = 0; idx < starterPositions.length; idx += 1) {
+    const playerId = uniqueId(`${label}PLY${idx}`);
+    const playerName = `${label} Creative ${idx + 1}`;
+    const rosterPosition = starterPositions[idx];
+    const playerResp = await apiRequest.post("players/", {
+      data: buildPlayerPayload(playerId, playerName, rosterPosition),
+    });
+    if (playerResp.status() !== 201) {
+      const body = await playerResp.text();
+      throw new Error(
+        `Failed to create custom lineup player ${playerId}: ${playerResp.status()} ${body}`,
+      );
+    }
+
+    const rosterResp = await apiRequest.post(`teams/${teamId}/players`, {
+      data: {
+        team_id: teamId,
+        player_id: playerId,
+        jersey_number: idx + 1,
+        position: rosterPosition,
+        is_active: true,
+      },
+    });
+    if (rosterResp.status() !== 201) {
+      const body = await rosterResp.text();
+      throw new Error(
+        `Failed to attach custom lineup player ${playerId}: ${rosterResp.status()} ${body}`,
+      );
+    }
+
+    lineup.push({
+      player_id: playerId,
+      player_name: playerName,
+      jersey_number: idx + 1,
+      position: rosterPosition,
+      is_starter: true,
+      is_captain: idx === 0,
+    });
+  }
+
+  return { teamId, name: teamName, manager, lineup };
+}
+
 function buildMatchPayload(params: {
   matchId: string;
   competitionId: string;
@@ -254,8 +320,8 @@ test.describe("Admin matches CRUD & status transitions", () => {
     await createVenue(venueId, `Venue ${venueId.slice(-4)}`);
     await createReferee(refereeId, `Ref ${refereeId.slice(-4)}`);
 
-    const homeTeam = await seedTeamWithRoster("HOME-DUP");
-    const awayTeam = await seedTeamWithRoster("AWAY-DUP");
+    const homeTeam = await seedTeamWithRoster("HD");
+    const awayTeam = await seedTeamWithRoster("AD");
     const duplicateMatchId = uniqueId("MATCHDUPID");
 
     const firstPayload = buildMatchPayload({
@@ -306,6 +372,80 @@ test.describe("Admin matches CRUD & status transitions", () => {
     expect(String(secondCreated.match_id)).toMatch(
       new RegExp(`^${duplicateMatchId}_[0-9]+$`),
     );
+  });
+
+  test("allows creative starting lineups without defender or forward minimums", async () => {
+    const competitionId = uniqueId("COMP");
+    const venueId = uniqueId("VEN");
+    const refereeId = uniqueId("REF");
+
+    await createCompetition(
+      competitionId,
+      `Creative Competition ${competitionId.slice(-4)}`,
+    );
+    await createVenue(venueId, `Creative Venue ${venueId.slice(-4)}`);
+    await createReferee(refereeId, `Creative Ref ${refereeId.slice(-4)}`);
+
+    const homeCreativePositions = [
+      "GK",
+      "CB",
+      "LB",
+      "CM",
+      "CM",
+      "CM",
+      "CAM",
+      "RM",
+      "LM",
+      "CM",
+      "CM",
+    ];
+    const awayCreativePositions = [
+      "GK",
+      "CB",
+      "RB",
+      "CM",
+      "CM",
+      "CM",
+      "CAM",
+      "RM",
+      "LM",
+      "CM",
+      "CM",
+    ];
+
+    const homeTeam = await seedTeamWithCustomLineup(
+      "HC",
+      homeCreativePositions,
+    );
+    const awayTeam = await seedTeamWithCustomLineup(
+      "AC",
+      awayCreativePositions,
+    );
+
+    const creativePayload = buildMatchPayload({
+      matchId: uniqueId("MATCHCREATIVE"),
+      competitionId,
+      venueId,
+      venueName: `Creative Venue ${venueId.slice(-4)}`,
+      refereeId,
+      refereeName: `Creative Ref ${refereeId.slice(-4)}`,
+      home: homeTeam,
+      away: awayTeam,
+    });
+
+    const createResponse = await apiRequest.post("matches/", {
+      data: creativePayload,
+    });
+
+    if (![200, 201].includes(createResponse.status())) {
+      const body = await createResponse.text();
+      throw new Error(
+        `Creative lineup match rejected: ${createResponse.status()} ${body}`,
+      );
+    }
+
+    const createdMatch = await json<any>(createResponse);
+    expect(createdMatch.match_id).toBe(creativePayload.match_id);
   });
 
   test("creates matches, walks status transitions, and exposes stats", async () => {

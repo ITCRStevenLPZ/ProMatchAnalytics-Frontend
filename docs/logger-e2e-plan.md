@@ -12,10 +12,18 @@ Update as specs are added/modified._
 - New: `logger-substitution-windows` (substitution validation,
   windows/sub counts, concussion flag).
 - New: `logger-substitution-rules` (extra-time allowances and re-entry block).
+- New: `logger-ultimate-disciplinary-stress` (heavy-volume substitution/card edge-chain validation).
 - New: `logger-lifecycle` (clock start/stop, halftime/second half,
   fulltime lock, effective clock toggle, reload persistence).
 - New: `logger-event-taxonomy` (goal + pass coverage with analytics
   persistence).
+
+## Ultimate variants matrix
+
+| Suite                                         | Focus                                             | Key scenarios                                                                                                                                        |
+| --------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `logger-ultimate-cockpit.spec.ts`             | Broad logger/cockpit system coverage              | `ULT-01` movement matrix, `ULT-02` outcomes matrix, `ULT-03` timers interplay, `ULT-04` feed↔analytics consistency                                  |
+| `logger-ultimate-disciplinary-stress.spec.ts` | High-volume disciplinary/substitution edge chains | `UDS-01` second-yellow/red expulsion still blocks substitution under load, `UDS-02` undo + cancellation restores substitution eligibility under load |
 
 ## Planned additions
 

@@ -1,4 +1,5 @@
 import type { PlayerData } from "../types";
+import { formatPlayerName } from "./nameFormat";
 
 type PlayerDataLoose = Omit<
   Partial<PlayerData>,
@@ -40,7 +41,7 @@ export function normalizePlayer(player: PlayerApiResponse): PlayerData {
   return {
     ...rest,
     player_id: player.player_id,
-    name: player.name,
+    name: formatPlayerName(player.name),
     birth_date: trimmedBirthDate,
     player_height: player_height ?? height ?? undefined,
     player_weight: player_weight ?? weight ?? undefined,
@@ -79,9 +80,10 @@ const sanitizeI18nNames = (
  * Build backend-compliant payload for player create/update/change-detection flows.
  */
 export const buildPlayerPayload = (data: Partial<PlayerData>) => {
+  const normalizedName = formatPlayerName(data.name?.trim());
   const payload = {
     player_id: data.player_id?.trim() || undefined,
-    name: data.name?.trim(),
+    name: normalizedName || undefined,
     nickname: data.nickname?.trim() || undefined,
     birth_date: toIsoDate(data.birth_date),
     player_height: toNumberOrUndefined(

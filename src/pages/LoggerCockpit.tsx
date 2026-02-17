@@ -447,6 +447,16 @@ export default function LoggerCockpit() {
     );
   }, [liveEvents, queuedEvents]);
 
+  const hasTimeoutStoppage = useMemo(() => {
+    const combinedEvents = [...liveEvents, ...queuedEvents];
+    return combinedEvents.some(
+      (event) =>
+        event.type === "GameStoppage" &&
+        (event.data?.stoppage_type === "TimeoutStart" ||
+          event.data?.stoppage_type === "TimeoutStop"),
+    );
+  }, [liveEvents, queuedEvents]);
+
   const ineffectiveBreakdown = useMemo(() => {
     if (!match) return null;
     const homeTeamIds = [match.home_team.id, match.home_team.team_id].filter(
@@ -455,7 +465,7 @@ export default function LoggerCockpit() {
     const awayTeamIds = [match.away_team.id, match.away_team.team_id].filter(
       Boolean,
     ) as string[];
-    if (hasVarStoppage) {
+    if (hasVarStoppage || hasTimeoutStoppage) {
       return computeIneffectiveBreakdown(
         [...liveEvents, ...queuedEvents],
         homeTeamIds,
@@ -475,10 +485,23 @@ export default function LoggerCockpit() {
       awayTeamIds,
       Date.now(),
     );
-  }, [match, liveEvents, queuedEvents, ineffectiveTick, hasVarStoppage]);
+  }, [
+    match,
+    liveEvents,
+    queuedEvents,
+    ineffectiveTick,
+    hasVarStoppage,
+    hasTimeoutStoppage,
+  ]);
 
   const breakdownVarActive = Boolean(ineffectiveBreakdown?.varActive);
   const isVarActive = breakdownVarActive || isVarActiveLocal;
+  const isTimeoutActive = Boolean(ineffectiveBreakdown?.timeout?.active);
+  const timeoutTimeSeconds = ineffectiveBreakdown?.timeout?.totalSeconds ?? 0;
+  const timeoutTimeClock = useMemo(
+    () => formatSecondsAsClock(timeoutTimeSeconds),
+    [timeoutTimeSeconds],
+  );
 
   const {
     globalClock,
@@ -494,6 +517,8 @@ export default function LoggerCockpit() {
     isVarActive,
     varPauseStartMs,
     varPausedSeconds,
+    timeoutSeconds: timeoutTimeSeconds,
+    isTimeoutActive,
   });
 
   const globalClockSeconds = useMemo(
@@ -550,7 +575,8 @@ export default function LoggerCockpit() {
       !match ||
       (!hasActiveIneffective &&
         clockMode !== "INEFFECTIVE" &&
-        !isVarActiveLocal)
+        !isVarActiveLocal &&
+        !isTimeoutActive)
     ) {
       return undefined;
     }
@@ -558,7 +584,13 @@ export default function LoggerCockpit() {
       setIneffectiveTick(Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [clockMode, hasActiveIneffective, isVarActiveLocal, match]);
+  }, [
+    clockMode,
+    hasActiveIneffective,
+    isVarActiveLocal,
+    isTimeoutActive,
+    match,
+  ]);
 
   useEffect(() => {
     setVarPausedSeconds(0);
@@ -644,8 +676,8 @@ export default function LoggerCockpit() {
     [getStoppageTeamId, globalClock, match, operatorPeriod, sendEvent],
   );
 
-  const logVarTimerEvent = useCallback(
-    (stoppageType: "VARStart" | "VARStop") => {
+  const logNeutralTimerEvent = useCallback(
+    (stoppageType: "VARStart" | "VARStop" | "TimeoutStart" | "TimeoutStop") => {
       if (!match) return;
       const baseClock = globalClock || "00:00.000";
       const adjustedClock =
@@ -660,8 +692,14 @@ export default function LoggerCockpit() {
         type: "GameStoppage",
         data: {
           stoppage_type: stoppageType,
-          reason: "VAR",
-          trigger_action: "VAR",
+          reason:
+            stoppageType === "TimeoutStart" || stoppageType === "TimeoutStop"
+              ? "Timeout"
+              : "VAR",
+          trigger_action:
+            stoppageType === "TimeoutStart" || stoppageType === "TimeoutStop"
+              ? "Timeout"
+              : "VAR",
           trigger_team_id: null,
           trigger_player_id: null,
         },
@@ -1916,7 +1954,7 @@ export default function LoggerCockpit() {
     const nextActive = !isVarActiveLocal;
     const currentVarSeconds = varTimeSeconds;
     const currentGlobalSeconds = parseClockToSeconds(globalClock);
-    logVarTimerEvent(nextActive ? "VARStart" : "VARStop");
+    logNeutralTimerEvent(nextActive ? "VARStart" : "VARStop");
     setIsVarActiveLocal(nextActive);
     setVarStartMs(nextActive ? Date.now() : null);
     setVarStartGlobalSeconds(nextActive ? currentGlobalSeconds : null);
@@ -1933,11 +1971,16 @@ export default function LoggerCockpit() {
     cockpitLocked,
     isVarActiveLocal,
     isGlobalClockRunning,
-    logVarTimerEvent,
+    logNeutralTimerEvent,
     globalClock,
     varTimeSeconds,
     varPauseStartMs,
   ]);
+
+  const handleTimeoutToggle = useCallback(() => {
+    if (cockpitLocked) return;
+    logNeutralTimerEvent(isTimeoutActive ? "TimeoutStop" : "TimeoutStart");
+  }, [cockpitLocked, isTimeoutActive, logNeutralTimerEvent]);
 
   useEffect(() => {
     if (cockpitLocked) {
@@ -2492,7 +2535,7 @@ export default function LoggerCockpit() {
                             onChange={(e) =>
                               setResetConfirmText(e.target.value)
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                             placeholder="RESET"
                             autoFocus
                           />
@@ -3261,6 +3304,7 @@ export default function LoggerCockpit() {
                     effectiveClock={effectiveClock}
                     ineffectiveClock={ineffectiveClock}
                     varClock={varTimeClock}
+                    timeoutClock={timeoutTimeClock}
                     clockMode={clockMode}
                     isClockRunning={isGlobalClockRunning}
                     isBallInPlay={isBallInPlay}
@@ -3270,7 +3314,9 @@ export default function LoggerCockpit() {
                     onGlobalStop={handleGlobalClockStopGuarded}
                     onModeSwitch={handleModeSwitchGuarded}
                     onVarToggle={handleVarToggle}
+                    onTimeoutToggle={handleTimeoutToggle}
                     isVarActive={isVarActive}
+                    isTimeoutActive={isTimeoutActive}
                     hideResumeButton={showFieldResume}
                     t={t}
                   />
