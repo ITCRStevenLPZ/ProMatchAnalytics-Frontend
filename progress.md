@@ -49,6 +49,11 @@
 
 ## What Was Completed
 
+- [x] Hardened substitution replay in [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) so on-field reconstruction survives delayed rehydration by:
+  - resolving team side via `id`/`team_id` aliases plus `HOME`/`AWAY` literals,
+  - accepting substitution payload key variants (`player_off_id`/`playerOffId`/`player_out_id` and `player_on_id`/`playerOnId`/`player_in_id`),
+  - replaying substitution events in deterministic chronological order before rebuilding on-field sets.
+- [x] Added E2E regression in [e2e/logger-substitution-rules.spec.ts](e2e/logger-substitution-rules.spec.ts): `keeps substitution applied after timeline rehydration`, which confirms substituted-off players do not reappear after page reload/hydration.
 - [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to add `stat-ineffective-time-percent`, computing each team percentage from `home_ineffective + away_ineffective` (team-only ineffective total denominator).
 - [x] Added locale parity for the new analytics label in [public/locales/en/logger.json](public/locales/en/logger.json) and [public/locales/es/logger.json](public/locales/es/logger.json): `analytics.ineffectiveTimePercent`.
 - [x] Added E2E regression [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-27` validating ineffective-team percentages are numeric, sum to ~100%, and reflect larger share for the team with longer stoppage.
@@ -249,6 +254,10 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `CI=1 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (6 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-ultimate-disciplinary-stress.spec.ts e2e/logger-advanced.spec.ts` -> PASS (5 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-*.spec.ts` -> PASS with known flakes (109 passed, 2 flaky unrelated logger tests)
+- [x] Hooks: `pre-commit run --all-files` -> PASS
 - [x] E2E: `CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-27"` -> PASS (1 passed)
 - [x] E2E: `CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts` -> PASS (2 passed)
 - [x] E2E: `CI=1 npx playwright test` -> PASS (165 passed)
