@@ -68,6 +68,7 @@ const resetMatch = async (
   options?: {
     status?: string;
     matchTimeSeconds?: number;
+    periodTimestamps?: Record<string, unknown>;
   },
 ) => {
   const resp = await backendRequest.post("/e2e/reset", {
@@ -75,6 +76,7 @@ const resetMatch = async (
       matchId,
       status: options?.status,
       matchTimeSeconds: options?.matchTimeSeconds,
+      periodTimestamps: options?.periodTimestamps,
     },
   });
   expect(resp.ok()).toBeTruthy();
@@ -156,6 +158,36 @@ test.describe("Logger period transitions", () => {
 
     await page.getByTestId("btn-end-match-final").click();
     await expect(page.getByTestId("clock-locked-banner")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("transition-error")).toHaveCount(0);
+  });
+
+  test("allows halftime at 45+ global even if period 1 start metadata is offset", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+
+    const matchId = makeMatchId();
+    await resetMatch(matchId, {
+      status: "Live_First_Half",
+      matchTimeSeconds: 46 * 60 + 29,
+      periodTimestamps: {
+        "1": {
+          start: new Date().toISOString(),
+          global_start_seconds: 42 * 60 + 33,
+        },
+      },
+    });
+
+    await page.goto(`/matches/${matchId}/logger`);
+    await ensureAdminRole(page);
+
+    const endFirstHalfBtn = page.getByTestId("btn-end-first-half");
+    await expect(endFirstHalfBtn).toBeEnabled({ timeout: 15000 });
+    await endFirstHalfBtn.click();
+
+    await expect(page.getByTestId("period-status-halftime")).toBeVisible({
       timeout: 15000,
     });
     await expect(page.getByTestId("transition-error")).toHaveCount(0);

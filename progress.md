@@ -11,6 +11,7 @@
 - [x] Build an ultimate logger/cockpit E2E suite covering quick-action movement paths, timer interplay behavior, and end-to-end match logging consistency.
 - [x] Add a second ultimate logger variant focused on substitution/card edge-chains under heavy event volume.
 - [x] Add UDS suite coverage entry to logger E2E coverage matrix documentation.
+- [x] Fix first-half transition minimum guard so halftime unlocks correctly when global clock is 45+ even if persisted period-1 start metadata is offset.
 - [x] Add team average age to logger analytics comparison table.
 - [x] Fix reset modal confirm-input text and placeholder contrast.
 - [x] Implement analytics export actions (CSV + detailed PDF) with E2E coverage.
@@ -48,6 +49,12 @@
 
 ## What Was Completed
 
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to add `stat-ineffective-time-percent`, computing each team percentage from `home_ineffective + away_ineffective` (team-only ineffective total denominator).
+- [x] Added locale parity for the new analytics label in [public/locales/en/logger.json](public/locales/en/logger.json) and [public/locales/es/logger.json](public/locales/es/logger.json): `analytics.ineffectiveTimePercent`.
+- [x] Added E2E regression [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-27` validating ineffective-team percentages are numeric, sum to ~100%, and reflect larger share for the team with longer stoppage.
+- [x] Extended locale guardrail in [e2e/logger-i18n-keys.spec.ts](e2e/logger-i18n-keys.spec.ts) to require `analytics.ineffectiveTimePercent` in EN/ES.
+- [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) player normalization to accept birth-date variants (`birth_date`, `birthDate`, `date_of_birth`, `dateOfBirth`) plus BSON-style `{ "$date": ... }`, preventing analytics from dropping valid DOB data.
+- [x] Tightened [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-24` to require numeric average-age values for both teams (no longer accepts `N/D`/`N/A`).
 - [x] Added [e2e/logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts) as a serial regression suite with four end-to-end scenarios:
   - `ULT-01` quick-action movement matrix (quick/action/harness fallback paths)
   - `ULT-02` movement outcomes matrix (teammate, opponent, out-of-bounds)
@@ -58,6 +65,9 @@
   - `UDS-02` validates undo + cancellation chains restore substitution eligibility after 140 high-volume events.
 - [x] Implemented deterministic heavy-volume/card helpers in [e2e/logger-ultimate-disciplinary-stress.spec.ts](e2e/logger-ultimate-disciplinary-stress.spec.ts) with harness raw-event injection and unique card clock seeds to avoid duplicate suppression.
 - [x] Updated [docs/logger-e2e-plan.md](docs/logger-e2e-plan.md) with an explicit ultimate-variants matrix including `logger-ultimate-disciplinary-stress.spec.ts` (`UDS-01`, `UDS-02`) alongside `logger-ultimate-cockpit.spec.ts` coverage.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) period-minimum guard to anchor period 1 at kickoff (`00:00`) and defensively clamp persisted period start seconds for later phases.
+- [x] Updated [src/pages/logger/hooks/usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts) elapsed-period baseline logic to match the same sanitized start-seconds behavior used by transition guards.
+- [x] Added E2E regression in [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts): seeded offset `periodTimestamps["1"].global_start_seconds` with global clock already at 46+ and verified `btn-end-first-half` remains enabled and transitions to halftime without guard error.
 - [x] Hardened [e2e/logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts) for deterministic CI by supporting both UI action-entry modes and harness fallback event injection with unique match-clock seeds.
 - [x] Updated [src/pages/logger/types.ts](src/pages/logger/types.ts) and [src/pages/logger/utils.ts](src/pages/logger/utils.ts) so logger player normalization preserves `birth_date` for analytics computations.
 - [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) to compute and render `analytics.averageAge` (`stat-average-age`) in the team-comparison table.
@@ -239,9 +249,18 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-27"` -> PASS (1 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts` -> PASS (2 passed)
+- [x] E2E: `CI=1 npx playwright test` -> PASS (165 passed)
+- [x] Hooks: `pre-commit run --all-files` -> PASS
+- [x] E2E: `CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-24"` -> PASS (1 passed)
+- [x] E2E: `CI=1 npx playwright test` -> PASS (164 passed)
+- [x] Hooks: `pre-commit run --all-files` -> PASS
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-ultimate-cockpit.spec.ts` -> PASS (4 passed)
 - [x] E2E: `CI=1 npx playwright test e2e/logger-ultimate-disciplinary-stress.spec.ts` -> PASS (2 passed)
 - [x] E2E: `CI=1 npx playwright test --max-failures=0` -> PASS (163 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-period-transitions.spec.ts` -> PASS (7 passed)
+- [x] E2E: `CI=1 npx playwright test` -> PASS (164 passed)
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test --max-failures=0` -> PASS (161 passed)
 - [x] Typecheck: `npx tsc --noEmit` -> PASS
 - [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-i18n-keys.spec.ts e2e/logger-analytics-matrix.spec.ts --grep "ANL-24|ANL-25|ANL-26|required logger keys"` -> PASS (5 passed)

@@ -366,6 +366,7 @@
     "effectiveTime": "Tiempo efectivo",
     "effectiveTimePercent": "% tiempo efectivo",
     "ineffectiveTime": "Tiempo inefectivo",
+    "ineffectiveTimePercent": "% tiempo inefectivo",
     "ineffectiveBreakdown": "Desglose del tiempo inefectivo",
     "ineffectiveTotals": "Totales",
     "ineffectiveGoal": "Gol",

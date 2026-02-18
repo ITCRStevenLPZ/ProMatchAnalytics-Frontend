@@ -521,6 +521,22 @@ export function MatchAnalytics({
       totalMatchSeconds > 0
         ? `${((effectiveTime / totalMatchSeconds) * 100).toFixed(1)}%`
         : "0.0%";
+    const totalTeamIneffectiveSeconds =
+      teamIneffectiveTotals.home + teamIneffectiveTotals.away;
+    const homeIneffectivePercent =
+      totalTeamIneffectiveSeconds > 0
+        ? `${(
+            (teamIneffectiveTotals.home / totalTeamIneffectiveSeconds) *
+            100
+          ).toFixed(1)}%`
+        : "0.0%";
+    const awayIneffectivePercent =
+      totalTeamIneffectiveSeconds > 0
+        ? `${(
+            (teamIneffectiveTotals.away / totalTeamIneffectiveSeconds) *
+            100
+          ).toFixed(1)}%`
+        : "0.0%";
     const mostActiveMinute = Array.from(timelineMap.entries()).reduce(
       (max, [min, counts]) => {
         const total = counts.home + counts.away;
@@ -667,6 +683,12 @@ export function MatchAnalytics({
           home: formatSecondsAsClock(ineffectiveTotals.home),
           away: formatSecondsAsClock(ineffectiveTotals.away),
           testId: "stat-ineffective-time",
+        },
+        {
+          label: t("analytics.ineffectiveTimePercent", "Ineffective Time %"),
+          home: homeIneffectivePercent,
+          away: awayIneffectivePercent,
+          testId: "stat-ineffective-time-percent",
         },
         {
           label: t("analytics.effectiveTime", "Effective Time"),

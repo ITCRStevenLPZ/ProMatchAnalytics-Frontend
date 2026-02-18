@@ -30,6 +30,7 @@ const REQUIRED_LOGGER_KEYS = [
   "timeOffInactive",
   "analytics.score",
   "analytics.effectiveTimePercent",
+  "analytics.ineffectiveTimePercent",
   "analytics.averageAge",
   "analytics.exportCsv",
   "analytics.exportPdf",

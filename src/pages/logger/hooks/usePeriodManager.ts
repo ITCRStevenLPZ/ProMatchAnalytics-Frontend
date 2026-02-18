@@ -182,10 +182,8 @@ export const usePeriodManager = (
             : currentPhase === "SECOND_HALF_EXTRA_TIME"
               ? "4"
               : null;
-    const rawStartSeconds = periodKey
-      ? match?.period_timestamps?.[periodKey]?.global_start_seconds
-      : null;
-    const fallbackStartSeconds =
+    const periodNumber = periodKey ? Number(periodKey) : null;
+    const canonicalStartSeconds =
       currentPhase === "FIRST_HALF"
         ? 0
         : currentPhase === "SECOND_HALF"
@@ -195,10 +193,17 @@ export const usePeriodManager = (
             : currentPhase === "SECOND_HALF_EXTRA_TIME"
               ? EXTRA_FIRST_HALF_END_SECONDS
               : globalTimeSeconds;
+    const rawStartSeconds =
+      periodKey && periodNumber !== 1
+        ? match?.period_timestamps?.[periodKey]?.global_start_seconds
+        : null;
     const startSeconds =
-      typeof rawStartSeconds === "number"
-        ? rawStartSeconds
-        : fallbackStartSeconds;
+      typeof rawStartSeconds === "number" && Number.isFinite(rawStartSeconds)
+        ? Math.max(
+            canonicalStartSeconds,
+            Math.min(rawStartSeconds, globalTimeSeconds),
+          )
+        : canonicalStartSeconds;
     const elapsedSinceStart = Math.max(0, globalTimeSeconds - startSeconds);
 
     const canTransitionToHalftime = currentPhase === "FIRST_HALF";
