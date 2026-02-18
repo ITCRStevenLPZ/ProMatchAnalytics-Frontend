@@ -366,6 +366,7 @@
     "effectiveTime": "Effective Time",
     "effectiveTimePercent": "Effective Time %",
     "ineffectiveTime": "Ineffective Time",
+    "ineffectiveTimePercent": "Ineffective Time %",
     "ineffectiveBreakdown": "Ineffective Breakdown",
     "ineffectiveTotals": "Totals",
     "ineffectiveGoal": "Goal",

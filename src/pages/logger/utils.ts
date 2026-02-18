@@ -398,6 +398,19 @@ export const buildIneffectiveBreakdownFromAggregates = (
 export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
   name?.slice(0, 3).toUpperCase() ?? fallback;
 
+const normalizeBirthDateValue = (value: unknown): string | null => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (typeof value === "object" && "$date" in (value as Record<string, any>)) {
+    const iso = (value as Record<string, any>).$date;
+    return typeof iso === "string" ? iso : null;
+  }
+  return null;
+};
+
 const coercePlayers = (team: any, teamId: string): Player[] => {
   const source = Array.isArray(team?.players)
     ? team.players
@@ -424,7 +437,13 @@ const coercePlayers = (team: any, teamId: string): Player[] => {
       short_name: player?.short_name ?? player?.shortName,
       jersey_number: player?.jersey_number ?? index + 1,
       position: player?.position ?? "MF",
-      birth_date: player?.birth_date ?? null,
+      birth_date: normalizeBirthDateValue(
+        player?.birth_date ??
+          player?.birthDate ??
+          player?.date_of_birth ??
+          player?.dateOfBirth ??
+          null,
+      ),
       is_starter: Boolean(isStarter),
     };
   });

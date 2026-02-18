@@ -968,9 +968,9 @@ test.describe("Logger analytics matrix", () => {
 
     const home = ((await row.locator("div").nth(0).textContent()) || "").trim();
     const away = ((await row.locator("div").nth(2).textContent()) || "").trim();
-    const valuePattern = /^(\d+(\.\d)?)|(N\/?A)|(N\/D)$/;
-    expect(home).toMatch(valuePattern);
-    expect(away).toMatch(valuePattern);
+    const numericPattern = /^\d+(\.\d)?$/;
+    expect(home).toMatch(numericPattern);
+    expect(away).toMatch(numericPattern);
   });
 
   test("ANL-25: analytics export buttons produce CSV and PDF downloads", async ({
@@ -1028,5 +1028,91 @@ test.describe("Logger analytics matrix", () => {
     expect(styles.bgColor).toBe("rgb(255, 255, 255)");
     expect(styles.textColor).toBe("rgb(17, 24, 39)");
     expect(styles.placeholderColor).toBe("rgb(156, 163, 175)");
+  });
+
+  test("ANL-27: ineffective team percentages are based on total ineffective time", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendStoppage(page, {
+      match_clock: "00:40.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+    await page.waitForTimeout(1200);
+    await sendStoppage(page, {
+      match_clock: "00:41.000",
+      team_id: context!.homeTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.homeTeamId,
+        trigger_player_id: "HOME-1",
+      },
+    });
+
+    await sendStoppage(page, {
+      match_clock: "00:42.000",
+      team_id: context!.awayTeamId,
+      data: {
+        stoppage_type: "ClockStop",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.awayTeamId,
+        trigger_player_id: "AWAY-1",
+      },
+    });
+    await page.waitForTimeout(2200);
+    await sendStoppage(page, {
+      match_clock: "00:43.000",
+      team_id: context!.awayTeamId,
+      data: {
+        stoppage_type: "ClockStart",
+        reason: "Other",
+        trigger_action: "OutOfBounds",
+        trigger_team_id: context!.awayTeamId,
+        trigger_player_id: "AWAY-1",
+      },
+    });
+
+    await openAnalytics(page);
+
+    const row = page.getByTestId("stat-ineffective-time-percent");
+    await expect(row).toBeVisible({ timeout: 15000 });
+
+    const homeText = (
+      (await row.locator("div").nth(0).textContent()) || ""
+    ).trim();
+    const awayText = (
+      (await row.locator("div").nth(2).textContent()) || ""
+    ).trim();
+
+    const parsePercent = (value: string) => {
+      const match = value.match(/([0-9]+(?:\.[0-9])?)%/);
+      return match ? Number(match[1]) : NaN;
+    };
+
+    const homePercent = parsePercent(homeText);
+    const awayPercent = parsePercent(awayText);
+
+    expect(Number.isFinite(homePercent)).toBeTruthy();
+    expect(Number.isFinite(awayPercent)).toBeTruthy();
+    expect(homePercent).toBeGreaterThan(0);
+    expect(awayPercent).toBeGreaterThan(0);
+    expect(awayPercent).toBeGreaterThan(homePercent);
+    expect(homePercent + awayPercent).toBeGreaterThanOrEqual(99);
+    expect(homePercent + awayPercent).toBeLessThanOrEqual(101);
   });
 });

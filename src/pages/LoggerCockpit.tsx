@@ -1271,14 +1271,24 @@ export default function LoggerCockpit() {
 
   // Use global time (not effective time) for phase transition validation
   const getPeriodStartSeconds = (period: number) => {
+    if (period === 1) return 0;
+
     const raw =
       match?.period_timestamps?.[String(period)]?.global_start_seconds;
-    if (typeof raw === "number") return raw;
-    if (period === 1) return 0;
-    if (period === 2) return REGULATION_FIRST_HALF_SECONDS;
-    if (period === 3) return REGULATION_SECOND_HALF_SECONDS;
-    if (period === 4) return EXTRA_FIRST_HALF_END_SECONDS;
-    return globalTimeSeconds;
+    const canonicalStart =
+      period === 2
+        ? REGULATION_FIRST_HALF_SECONDS
+        : period === 3
+          ? REGULATION_SECOND_HALF_SECONDS
+          : period === 4
+            ? EXTRA_FIRST_HALF_END_SECONDS
+            : globalTimeSeconds;
+
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      return Math.max(canonicalStart, Math.min(raw, globalTimeSeconds));
+    }
+
+    return canonicalStart;
   };
   const firstHalfElapsed = Math.max(
     0,
