@@ -111,6 +111,29 @@ const compareCardEventOrder = (
   return left.index - right.index;
 };
 
+const compareSubstitutionEventOrder = (
+  left: { event: MatchEvent; index: number },
+  right: { event: MatchEvent; index: number },
+) => {
+  const leftPeriod = Number(left.event.period || 0);
+  const rightPeriod = Number(right.event.period || 0);
+  if (leftPeriod !== rightPeriod) return leftPeriod - rightPeriod;
+
+  const leftClock = parseClockToSeconds(left.event.match_clock);
+  const rightClock = parseClockToSeconds(right.event.match_clock);
+  if (leftClock !== rightClock) return leftClock - rightClock;
+
+  const leftTs = Date.parse(left.event.timestamp || left.event._saved_at || "");
+  const rightTs = Date.parse(
+    right.event.timestamp || right.event._saved_at || "",
+  );
+  const leftHasTs = Number.isFinite(leftTs);
+  const rightHasTs = Number.isFinite(rightTs);
+  if (leftHasTs && rightHasTs && leftTs !== rightTs) return leftTs - rightTs;
+
+  return left.index - right.index;
+};
+
 const formatSecondsAsClock = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -323,29 +346,61 @@ export default function LoggerCockpit() {
       getInitialOnField(match.away_team.players).map((p) => p.id),
     );
 
+    const resolveTeamSideFromId = (
+      teamId?: string | null,
+    ): "home" | "away" | null => {
+      const normalized = String(teamId || "")
+        .trim()
+        .toUpperCase();
+      if (!normalized) return null;
+
+      const homeAliases = new Set(
+        [match.home_team.id, match.home_team.team_id, "HOME"]
+          .filter(Boolean)
+          .map((value) => String(value).trim().toUpperCase()),
+      );
+      const awayAliases = new Set(
+        [match.away_team.id, match.away_team.team_id, "AWAY"]
+          .filter(Boolean)
+          .map((value) => String(value).trim().toUpperCase()),
+      );
+
+      if (homeAliases.has(normalized)) return "home";
+      if (awayAliases.has(normalized)) return "away";
+      return null;
+    };
+
     const applySubstitution = (
-      teamId: string,
+      teamId?: string,
       playerOffId?: string,
       playerOnId?: string,
     ) => {
+      const teamSide = resolveTeamSideFromId(teamId);
       const target =
-        teamId === match.home_team.id
-          ? home
-          : teamId === match.away_team.id
-            ? away
-            : null;
+        teamSide === "home" ? home : teamSide === "away" ? away : null;
       if (!target) return;
       if (playerOffId) target.delete(playerOffId);
       if (playerOnId) target.add(playerOnId);
     };
 
-    liveEvents.forEach((event) => {
-      if (event.type !== "Substitution") return;
-      applySubstitution(
-        event.team_id,
-        event.data?.player_off_id,
-        event.data?.player_on_id,
-      );
+    const substitutionEvents = liveEvents
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.type === "Substitution")
+      .sort(compareSubstitutionEventOrder);
+
+    substitutionEvents.forEach(({ event }) => {
+      const playerOffId =
+        event.data?.player_off_id ??
+        event.data?.playerOffId ??
+        event.data?.player_out_id ??
+        event.data?.playerOutId ??
+        event.player_id;
+      const playerOnId =
+        event.data?.player_on_id ??
+        event.data?.playerOnId ??
+        event.data?.player_in_id ??
+        event.data?.playerInId;
+      applySubstitution(event.team_id, playerOffId, playerOnId);
     });
 
     setOnFieldIds({ home, away });
