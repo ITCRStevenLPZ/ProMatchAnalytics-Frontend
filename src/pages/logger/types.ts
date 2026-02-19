@@ -156,6 +156,12 @@ export interface LoggerHarness {
   undoLastEvent: () => Promise<void> | void;
   getQueueSnapshot: () => QueueSnapshot;
   clearQueue: () => void;
+  getDriftSnapshot: () => {
+    computed: number;
+    forced: number | null;
+    effective: number;
+    show: boolean;
+  };
 }
 
 export interface QueuedEventSummary {

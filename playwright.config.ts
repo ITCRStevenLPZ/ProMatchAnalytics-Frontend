@@ -7,7 +7,9 @@ const BACKEND_PORT = Number(
   process.env.PROMATCH_PLAYWRIGHT_BACKEND_PORT ?? 8000,
 );
 const BACKEND_URL = `http://${HOST}:${BACKEND_PORT}`;
-const BACKEND_PYTHON = "../ProMatchAnalytics-Backend/venv/bin/python";
+const BACKEND_PYTHON =
+  process.env.PROMATCH_E2E_BACKEND_PYTHON ??
+  "../ProMatchAnalytics-Backend/venv/bin/python";
 
 const backendEnv: Record<string, string> = {};
 for (const [key, value] of Object.entries(process.env)) {

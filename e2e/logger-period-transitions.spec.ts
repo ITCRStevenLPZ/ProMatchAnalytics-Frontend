@@ -297,6 +297,38 @@ test.describe("Logger period transitions", () => {
     });
   });
 
+  test("blocks ending regulation at 90+ when period 2 start metadata shows second-half time is still below 45:00", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+
+    const matchId = makeMatchId();
+    await resetMatch(matchId, {
+      status: "Live_Second_Half",
+      matchTimeSeconds: 90 * 60 + 8,
+      periodTimestamps: {
+        "2": {
+          start: new Date().toISOString(),
+          global_start_seconds: 53 * 60,
+        },
+      },
+    });
+
+    await enableMinimumValidation(page);
+    await page.goto(`/matches/${matchId}/logger`);
+    await ensureAdminRole(page);
+
+    const endMatchBtn = page.getByTestId("btn-end-match");
+    await expect(endMatchBtn).toBeDisabled({ timeout: 15000 });
+    await expect(page.getByTestId("period-status-second-half")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("transition-error")).toHaveCount(0);
+    await expect(page.getByTestId("transition-reason")).toContainText(/45:00/, {
+      timeout: 15000,
+    });
+  });
+
   test("walks extra time and penalties transitions", async ({ page }) => {
     test.setTimeout(120000);
 
@@ -420,5 +452,63 @@ test.describe("Logger period transitions", () => {
     await expect(page.getByTestId("period-status-fulltime")).toBeVisible({
       timeout: 15000,
     });
+  });
+
+  test("second half does not carry over extra time from first half", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+
+    const matchId = makeMatchId();
+    // Seed first half with 47 minutes of effective time
+    // (2 minutes of added/extra time beyond the 45' regulation).
+    await resetMatch(matchId, {
+      status: "Live_First_Half",
+      matchTimeSeconds: 47 * 60,
+    });
+
+    await enableMinimumValidation(page);
+    await page.goto(`/matches/${matchId}/logger`);
+    await ensureAdminRole(page);
+
+    // End first half (47:00 > 45:00 minimum → enabled)
+    await expect(page.getByTestId("btn-end-first-half")).toBeEnabled({
+      timeout: 15000,
+    });
+    await page.getByTestId("btn-end-first-half").click();
+    await expect(page.getByTestId("period-status-halftime")).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Start second half
+    await page.getByTestId("btn-start-second-half").click();
+    await expect(page.getByTestId("period-status-second-half")).toBeVisible({
+      timeout: 15000,
+    });
+
+    // The "End Match" button must be disabled — 2H just started
+    const endMatchBtn = page.getByTestId("btn-end-match");
+    await expect(endMatchBtn).toBeDisabled({ timeout: 15000 });
+
+    // The transition reason must show a near-zero elapsed clock.
+    // BUG behaviour: carryover from 1H extra time leaks 2+ minutes into 2H elapsed.
+    // CORRECT behaviour: 2H elapsed begins at ~0.
+    const reason = page.getByTestId("transition-reason");
+    await expect(reason).toBeVisible({ timeout: 15000 });
+
+    // Poll until the elapsed clock stabilises — avoids race with fetchMatch.
+    await expect
+      .poll(
+        async () => {
+          const reasonText = (await reason.textContent()) ?? "";
+          const matches = [...reasonText.matchAll(/(\d+):(\d+)/g)];
+          if (matches.length === 0) return -1;
+          return parseInt(matches[matches.length - 1][1], 10);
+        },
+        { timeout: 15000, interval: 500 },
+      )
+      .toBeLessThan(1);
+
+    await expect(page.getByTestId("transition-error")).toHaveCount(0);
   });
 });

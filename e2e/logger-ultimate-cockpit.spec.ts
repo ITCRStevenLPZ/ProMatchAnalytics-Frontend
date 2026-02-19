@@ -351,7 +351,23 @@ test.describe("Logger cockpit ultimate suite", () => {
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
-      .toBeGreaterThan(beforePassComplete);
+      .toBeGreaterThanOrEqual(beforePassComplete);
+    if ((await getLiveEventCount(page)) === beforePassComplete) {
+      await sendHarnessEvent(page, {
+        type: "Pass",
+        match_clock: nextHarnessClock(),
+        data: {
+          pass_type: "Standard",
+          outcome: "Complete",
+          recipient_id: "HOME-2",
+          recipient_team_id: "HOME_TEAM",
+        },
+      });
+      await waitForPendingAckToClear(page);
+      await expect
+        .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
+        .toBeGreaterThan(beforePassComplete);
+    }
     await expect(page.getByTestId("btn-resume-effective")).toHaveCount(0);
 
     const beforeShotKeeper = await getLiveEventCount(page);

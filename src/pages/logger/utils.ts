@@ -233,10 +233,12 @@ export const computeIneffectiveBreakdown = (
 
     if (stoppageType === "TimeoutStop") {
       if (timeoutStartMs !== null) {
-        timeoutTotalSeconds += Math.max(
+        const timeoutDeltaSeconds = Math.max(
           0,
           (timestampMs - timeoutStartMs) / 1000,
         );
+        timeoutTotalSeconds += timeoutDeltaSeconds;
+        addDuration("neutral", "Other", timeoutDeltaSeconds);
       }
       timeoutStartMs = null;
       if (!activeTeamKey && pausedByTimeoutTeamKey && pausedByTimeoutAction) {
@@ -287,7 +289,9 @@ export const computeIneffectiveBreakdown = (
   }
 
   if (timeoutStartMs !== null) {
-    timeoutTotalSeconds += Math.max(0, (nowMs - timeoutStartMs) / 1000);
+    const timeoutDeltaSeconds = Math.max(0, (nowMs - timeoutStartMs) / 1000);
+    timeoutTotalSeconds += timeoutDeltaSeconds;
+    addDuration("neutral", "Other", timeoutDeltaSeconds);
   }
 
   const active =

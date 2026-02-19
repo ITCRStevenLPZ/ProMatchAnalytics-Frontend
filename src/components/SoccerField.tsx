@@ -125,6 +125,7 @@ interface SoccerFieldProps {
   awayTeamName: string;
   homePlayers: Player[];
   awayPlayers: Player[];
+  expelledPlayerIds?: Set<string>;
   disciplinaryStatusByPlayer?: Record<
     string,
     { yellowCount: number; red: boolean }
@@ -146,6 +147,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   awayTeamName,
   homePlayers,
   awayPlayers,
+  expelledPlayerIds,
   disciplinaryStatusByPlayer,
   onPlayerClick,
   onDestinationClick,
@@ -274,12 +276,15 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     const cardStatus = disciplinaryStatusByPlayer?.[player.id];
     const hasYellow = (cardStatus?.yellowCount || 0) > 0;
     const hasRed = Boolean(cardStatus?.red);
+    const isExpelled = expelledPlayerIds?.has(player.id) ?? false;
 
     return (
       <button
         key={player.id}
         type="button"
+        disabled={isExpelled}
         onClick={(event) => {
+          if (isExpelled) return;
           event.stopPropagation();
           onPlayerClick(player, anchor, location, side);
         }}
@@ -287,9 +292,11 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
         data-player-row="true"
         data-position-group={group}
         className={`pointer-events-auto w-full max-w-[clamp(340px,32vw,520px)] rounded-md border-l-4 px-[clamp(0.72rem,0.58rem+0.42vw,1.35rem)] py-[clamp(0.44rem,0.32rem+0.28vw,1rem)] text-left text-[clamp(0.84rem,0.7rem+0.34vw,1.2rem)] font-semibold shadow-sm transition-colors ${
-          isHome
-            ? "border-red-300 bg-white/95 text-slate-900"
-            : "border-blue-300 bg-white/95 text-slate-900"
+          isExpelled
+            ? "border-slate-400 bg-slate-200 text-slate-500 opacity-70 cursor-not-allowed saturate-50"
+            : isHome
+              ? "border-red-300 bg-white/95 text-slate-900"
+              : "border-blue-300 bg-white/95 text-slate-900"
         } ${meta.border}`}
         title={`${player.full_name} (${player.position})`}
       >
@@ -336,6 +343,14 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
               className="inline-flex items-center rounded-md border border-red-500/70 bg-red-500/20 px-[clamp(0.25rem,0.2rem+0.12vw,0.45rem)] py-[clamp(0.2rem,0.16rem+0.1vw,0.38rem)]"
             >
               <span className="h-[clamp(0.64rem,0.54rem+0.24vw,0.92rem)] w-[clamp(0.24rem,0.2rem+0.1vw,0.38rem)] rounded-sm bg-red-600" />
+            </span>
+          )}
+          {isExpelled && (
+            <span
+              data-testid={`field-player-disabled-badge-${player.id}`}
+              className="inline-flex items-center rounded-md border border-slate-500/80 bg-slate-700/80 px-[clamp(0.25rem,0.2rem+0.12vw,0.45rem)] py-[clamp(0.2rem,0.16rem+0.1vw,0.38rem)] text-[clamp(0.56rem,0.5rem+0.16vw,0.78rem)] font-semibold uppercase tracking-wide text-slate-100"
+            >
+              Disabled
             </span>
           )}
         </div>

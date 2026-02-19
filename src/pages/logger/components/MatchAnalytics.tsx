@@ -869,9 +869,7 @@ export function MatchAnalytics({
 
     autoTable(doc, {
       startY: y + 8,
-      head: [
-        ["Metric", match.home_team.short_name, match.away_team.short_name],
-      ],
+      head: [["Metric", match.home_team.name, match.away_team.name]],
       body: analytics.comparativeRows.map((row) => [
         row.label,
         String(row.home),
@@ -902,9 +900,9 @@ export function MatchAnalytics({
       head: [
         [
           "Metric",
-          match.home_team.short_name,
+          match.home_team.name,
           t("analytics.neutral", "Neutral"),
-          match.away_team.short_name,
+          match.away_team.name,
         ],
       ],
       body: analytics.ineffectiveActionRows.map((row: any) => [

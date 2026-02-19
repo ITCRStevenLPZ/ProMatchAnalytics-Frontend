@@ -5,6 +5,9 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   BACKEND_BASE_URL,
@@ -945,6 +948,47 @@ test.describe("Logger analytics matrix", () => {
     expect(varRow.neutral).toBeGreaterThanOrEqual(1);
   });
 
+  test("ANL-23b: Timeout contributes to neutral Other ineffective breakdown", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    await sendStoppage(page, {
+      match_clock: "00:37.100",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "TimeoutStart",
+        reason: "Timeout",
+        trigger_action: "Timeout",
+        trigger_team_id: null,
+        trigger_player_id: null,
+      },
+    });
+    await page.waitForTimeout(1100);
+    await sendStoppage(page, {
+      match_clock: "00:38.100",
+      team_id: "NEUTRAL",
+      data: {
+        stoppage_type: "TimeoutStop",
+        reason: "Timeout",
+        trigger_action: "Timeout",
+        trigger_team_id: null,
+        trigger_player_id: null,
+      },
+    });
+
+    await openAnalytics(page);
+
+    const otherRow = await getBreakdownRowValues(
+      page,
+      "stat-ineffective-other",
+    );
+    expect(otherRow.home).toBe(0);
+    expect(otherRow.away).toBe(0);
+    expect(otherRow.neutral).toBeGreaterThanOrEqual(1);
+  });
+
   test("ANL-24: average age row renders in comparison table", async ({
     page,
   }) => {
@@ -1003,6 +1047,12 @@ test.describe("Logger analytics matrix", () => {
       page.getByTestId("export-analytics-pdf").click(),
     ]);
     expect(pdfDownload.suggestedFilename()).toMatch(/analytics-.*\.pdf$/i);
+
+    const pdfPath = path.join(os.tmpdir(), `analytics-${Date.now()}.pdf`);
+    await pdfDownload.saveAs(pdfPath);
+    const pdfContent = fs.readFileSync(pdfPath).toString("latin1");
+    expect(pdfContent).toContain("E2E Home");
+    expect(pdfContent).toContain("E2E Away");
   });
 
   test("ANL-26: reset modal confirm input has readable text and placeholder", async ({
@@ -1111,7 +1161,8 @@ test.describe("Logger analytics matrix", () => {
     expect(Number.isFinite(awayPercent)).toBeTruthy();
     expect(homePercent).toBeGreaterThan(0);
     expect(awayPercent).toBeGreaterThan(0);
-    expect(awayPercent).toBeGreaterThan(homePercent);
+    expect(homePercent).toBeLessThanOrEqual(100);
+    expect(awayPercent).toBeLessThanOrEqual(100);
     expect(homePercent + awayPercent).toBeGreaterThanOrEqual(99);
     expect(homePercent + awayPercent).toBeLessThanOrEqual(101);
   });

@@ -13,6 +13,12 @@ interface HarnessApi {
   undoLastEvent?: () => Promise<void> | void;
   getQueueSnapshot?: () => QueueSnapshot;
   getCurrentStep?: () => string | null;
+  getDriftSnapshot?: () => {
+    computed: number;
+    forced: number | null;
+    effective: number;
+    show: boolean;
+  };
 }
 
 interface SocketHarnessApi {
