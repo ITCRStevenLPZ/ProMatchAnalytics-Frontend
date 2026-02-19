@@ -8,6 +8,9 @@
 
 ## Current Objective
 
+- [x] Re-run the complete Playwright E2E suite, fix all failures, and validate via `pre-commit`.
+- [x] Close all critical `LoggerCockpit.tsx` E2E coverage gaps from `docs/logger-cockpit-e2e-coverage-audit.md` and keep the audit updated.
+- [x] Implement a cockpit safety pack so logger/cockpit fixes or features cannot merge without targeted regression guard coverage.
 - [x] Build an ultimate logger/cockpit E2E suite covering quick-action movement paths, timer interplay behavior, and end-to-end match logging consistency.
 - [x] Add a second ultimate logger variant focused on substitution/card edge-chains under heavy event volume.
 - [x] Add UDS suite coverage entry to logger E2E coverage matrix documentation.
@@ -41,6 +44,9 @@
 - [x] Remove manual `VAR`/`Injury` ineffective trigger options and migrate manual modal selects to custom dropdown controls with black form text.
 - [x] Show actual team names in manual ineffective team picker and make ineffective note optional.
 - [x] Run full Playwright E2E matrix and fix remaining deterministic logger failures (`logger-advanced`, `logger-disciplinary`) without regressing timer-neutral card/substitution behavior.
+- [x] Update analytics PDF export headers to use full team names in table headers and lock the behavior with ANL-25 regression coverage.
+- [x] Make Time Off follow VAR-style neutral timer semantics and count timeout time in analytics as neutral `Other` ineffective time.
+- [x] Fix period transition carryover: extra time from one period no longer leaks into the next period's elapsed calculation.
 
 ## Status
 
@@ -49,6 +55,37 @@
 
 ## What Was Completed
 
+- [x] Stabilized [e2e/logger-extra-time.spec.ts](e2e/logger-extra-time.spec.ts) by switching to deterministic `/e2e/reset` fixture seeding (`match_logs` path) and removing race-prone state mutation against seeded `matches` records.
+- [x] Verified full frontend matrix with `--max-failures=0`; the suite now completes end-to-end with no failures.
+- [x] Added [e2e/logger-cockpit-gaps.spec.ts](e2e/logger-cockpit-gaps.spec.ts) with 8 deterministic regression tests covering previously critical gaps: ineffective-note cancel, event-note editing, zeroed fulltime status override, drift nudge + auto-resync + resync action, pending-event deletion, goal auto-ineffective trigger, reset blocking under unsent events, and toast action/dismiss behavior.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) with stable drift E2E hooks and selectors: `clock-drift-banner`, `clock-drift-resync`, and harness `getDriftSnapshot` for deterministic drift assertions.
+- [x] Updated [src/pages/logger/types.ts](src/pages/logger/types.ts) and [e2e/utils/logger.ts](e2e/utils/logger.ts) to include the new harness drift snapshot shape used by E2E.
+- [x] Updated [docs/logger-cockpit-e2e-coverage-audit.md](docs/logger-cockpit-e2e-coverage-audit.md) to include the new gap suite and mark all prior critical gaps (`G-01`..`G-09`) as closed, with refreshed totals/summary.
+- [x] Fixed [src/pages/logger/hooks/usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts) `performTransition` call order: `updateMatchStatus` now runs **before** `handleModeSwitch` so the backend sets `period_timestamps.{period}.global_start_seconds` while `current_period_start_timestamp` is still null.
+- [x] Fixed [ProMatchAnalytics-Backend/app/routers/matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py) `should_start` block: `global_start_seconds` is now recorded defensively even when `current_period_start_timestamp` was already set by a prior `/clock-mode` PATCH.
+- [x] Added E2E regression in [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts) `"second half does not carry over extra time from first half"` — seeds a 47-minute first half, transitions to 2H, and asserts the 2H elapsed clock starts at ~0 (not 2+ minutes).
+- [x] Updated [src/pages/logger/utils.ts](src/pages/logger/utils.ts) timeout breakdown aggregation so `TimeoutStart/TimeoutStop` durations are accumulated into neutral ineffective totals under action `Other` while preserving the dedicated timeout timer value.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) VAR card timer base to read from `ineffectiveBreakdown.totals.byAction.VAR.neutral`, preventing timeout-neutral `Other` time from inflating VAR time.
+- [x] Added E2E regression in [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-23b` to verify timeout appears as neutral time in `stat-ineffective-other`.
+- [x] Updated [src/pages/logger/components/MatchAnalytics.tsx](src/pages/logger/components/MatchAnalytics.tsx) PDF export headers to use full team names (`home_team.name`, `away_team.name`) in both team-comparison and ineffective-breakdown tables.
+- [x] Updated [e2e/logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) `ANL-25` to save the downloaded PDF and assert the exported content includes `E2E Home` and `E2E Away`.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) in-field `btn-resume-effective` overlay so the button is centered in the soccer field viewport and significantly larger for better visibility during live logging.
+- [x] Updated [src/pages/logger/components/PlayerSelectorPanel.tsx](src/pages/logger/components/PlayerSelectorPanel.tsx) so expelled players remain visible but are disabled in list mode (`disabled` interaction state) with explicit disabled badge styling.
+- [x] Updated [src/components/SoccerField.tsx](src/components/SoccerField.tsx) so expelled field players are non-interactive and rendered with a clear disabled visual state plus disabled badge.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) to pass `expelledPlayerIds` into player selector/field rendering, keeping disciplinary logic and UI state aligned.
+- [x] Extended [e2e/logger-disciplinary.spec.ts](e2e/logger-disciplinary.spec.ts) to assert expelled players are visibly disabled while red-carded and re-enabled after disciplinary cancellation.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) transition-minimum elapsed logic to prefer real period-start offsets from `period_timestamps[n].global_start_seconds` (when available) instead of fixed canonical baselines, so 2T/ET minimum checks measure true elapsed time inside each period.
+- [x] Updated [src/pages/logger/hooks/usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts) period elapsed computation to the same period-offset-first strategy with canonical fallback only when metadata is missing/invalid.
+- [x] Updated [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts) regression to verify that ending regulation is blocked when 2T elapsed is still below `45:00` despite global clock being `90+` due to prior stoppage offsets.
+- [x] Added guard scripts in [package.json](package.json): `test:e2e:logger:core`, `test:e2e:logger:ultimate`, and `test:e2e:cockpit-guard` (core + ultimate).
+- [x] Updated [playwright.config.ts](playwright.config.ts) to support configurable backend Python path via `PROMATCH_E2E_BACKEND_PYTHON`, enabling CI to run frontend cockpit E2E with a checked-out backend.
+- [x] Updated cockpit guard enforcement in [.pre-commit-config.yaml](.pre-commit-config.yaml) to run locally on both `pre-commit` and `pre-push`.
+- [x] Removed cockpit E2E execution from CI workflow in [.github/workflows/pr-ci.yml](.github/workflows/pr-ci.yml) to avoid GitHub runner hardware-limit failures.
+- [x] Added PR validation checklist in [.github/pull_request_template.md](.github/pull_request_template.md) requiring cockpit guard evidence for logger-impacting work.
+- [x] Updated safety process documentation in [docs/logger-cockpit-safety-pack.md](docs/logger-cockpit-safety-pack.md) and [docs/logger-e2e-plan.md](docs/logger-e2e-plan.md) to reflect local-only guard enforcement.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) regulation/extra-time minimum guard baselines to use canonical period boundaries (`45:00`, `90:00`, `105:00`) so second-half ending no longer drifts when period metadata includes first-half stoppage offset.
+- [x] Updated [src/pages/logger/hooks/usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts) elapsed-phase calculations to the same canonical boundaries, keeping warning/transition logic aligned with cockpit guards.
+- [x] Added E2E regression in [e2e/logger-period-transitions.spec.ts](e2e/logger-period-transitions.spec.ts): allows ending regulation at `90+` even when period-2 `global_start_seconds` is offset by first-half stoppage time.
 - [x] Hardened substitution replay in [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) so on-field reconstruction survives delayed rehydration by:
   - resolving team side via `id`/`team_id` aliases plus `HOME`/`AWAY` literals,
   - accepting substitution payload key variants (`player_off_id`/`playerOffId`/`player_out_id` and `player_on_id`/`playerOnId`/`player_in_id`),
@@ -254,6 +291,27 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `CI=1 PROMATCH_PLAYWRIGHT_BACKEND_PORT=8018 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4184 npx playwright test e2e/logger-extra-time.spec.ts` -> PASS (1 passed)
+- [x] E2E: `CI=1 PROMATCH_PLAYWRIGHT_BACKEND_PORT=8018 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4184 npx playwright test --max-failures=0` -> PASS (177 passed)
+- [x] Hooks: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8018 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4184 pre-commit run --all-files` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-cockpit-gaps.spec.ts` -> PASS (8 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8014 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4180 CI=1 npx playwright test e2e/logger-var-card-ui.spec.ts e2e/logger-ineffective-breakdown.spec.ts` -> PASS (15 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8016 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4182 CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-23|ANL-23b"` -> PASS (2 passed)
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8016 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4182 CI=1 npx playwright test e2e/logger-var-card-ui.spec.ts --grep "Neutral timeout advances global clock"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `PROMATCH_PLAYWRIGHT_BACKEND_PORT=8016 PROMATCH_PLAYWRIGHT_FRONTEND_PORT=4182 CI=1 npx playwright test e2e/logger-analytics-matrix.spec.ts --grep "ANL-25"` -> PASS (1 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `CI=1 npx playwright test e2e/logger-event-taxonomy.spec.ts --grep "Card logging does not start ineffective timer|Pass Out logs immediately and stops effective time without destination"` -> PASS (2 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `CI=1 npx playwright test e2e/logger-disciplinary.spec.ts` -> PASS (2 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `CI=1 npx playwright test e2e/logger-period-transitions.spec.ts` -> PASS (8 passed)
+- [x] Typecheck: `npx tsc --noEmit` -> PASS
+- [x] E2E: `CI=1 PROMATCH_E2E_BACKEND_PYTHON=../ProMatchAnalytics-Backend/venv/bin/python npm run test:e2e:cockpit-guard` -> PASS
+- [x] Hooks: `pre-commit run --all-files` -> PASS
+- [x] E2E: `CI=1 npx playwright test e2e/logger-period-transitions.spec.ts --grep "offset by 1st-half stoppage|allows ending regulation"` -> PASS (1 passed)
+- [x] E2E: `CI=1 npx playwright test e2e/logger-period-transitions.spec.ts` -> PASS (8 passed)
+- [x] Hooks: `pre-commit run --files src/pages/LoggerCockpit.tsx src/pages/logger/hooks/usePeriodManager.ts e2e/logger-period-transitions.spec.ts` -> PASS
 - [x] E2E: `CI=1 npx playwright test e2e/logger-substitution-rules.spec.ts` -> PASS (6 passed)
 - [x] E2E: `CI=1 npx playwright test e2e/logger-ultimate-disciplinary-stress.spec.ts e2e/logger-advanced.spec.ts` -> PASS (5 passed)
 - [x] E2E: `CI=1 npx playwright test e2e/logger-*.spec.ts` -> PASS with known flakes (109 passed, 2 flaky unrelated logger tests)

@@ -126,6 +126,7 @@ interface PlayerSelectorPanelProps {
   flipSides?: boolean;
   selectedPlayer: Player | null;
   selectedTeam: "home" | "away" | "both";
+  expelledPlayerIds?: Set<string>;
   disciplinaryStatusByPlayer?: Record<
     string,
     { yellowCount: number; red: boolean }
@@ -155,6 +156,7 @@ const PlayerSelectorPanel = ({
   flipSides = false,
   selectedPlayer,
   selectedTeam,
+  expelledPlayerIds,
   disciplinaryStatusByPlayer,
   onCardTeamSelect,
   onFieldIds,
@@ -249,18 +251,20 @@ const PlayerSelectorPanel = ({
         const cardStatus = disciplinaryStatusByPlayer?.[player.id];
         const hasYellow = (cardStatus?.yellowCount || 0) > 0;
         const hasRed = Boolean(cardStatus?.red);
+        const isExpelled = expelledPlayerIds?.has(player.id) ?? false;
+        const isDisabled = disabled || isExpelled;
         return (
           <button
             key={player.id}
             data-testid={`player-card-${player.id}`}
             data-player-row="true"
             data-position-group={group}
-            onClick={() => !disabled && onPlayerClick(player)}
-            disabled={disabled}
+            onClick={() => !isDisabled && onPlayerClick(player)}
+            disabled={isDisabled}
             className={`w-full ${
               cardSelectionActive ? "max-w-none" : "max-w-[420px] mx-auto"
             } px-3 py-2 rounded-lg border-l-4 text-left transition-all ${
-              disabled
+              isDisabled
                 ? "bg-slate-900 border-slate-800 opacity-50 cursor-not-allowed"
                 : isSelected
                   ? "bg-blue-900/40 border-blue-500 ring-1 ring-blue-500"
@@ -274,7 +278,7 @@ const PlayerSelectorPanel = ({
               <span
                 data-testid={`player-number-${player.id}`}
                 className={`text-xs font-bold min-w-[2.25rem] ${
-                  disabled ? "text-slate-600" : "text-slate-200"
+                  isDisabled ? "text-slate-600" : "text-slate-200"
                 }`}
               >
                 #{player.jersey_number}
@@ -282,7 +286,7 @@ const PlayerSelectorPanel = ({
               <span
                 data-testid={`player-name-${player.id}`}
                 className={`flex-1 text-xs sm:text-sm truncate ${
-                  disabled ? "text-slate-600" : "text-slate-100"
+                  isDisabled ? "text-slate-600" : "text-slate-100"
                 }`}
               >
                 {player.full_name}
@@ -314,6 +318,14 @@ const PlayerSelectorPanel = ({
                   className="inline-flex items-center rounded-md border border-red-400/60 bg-red-500/20 px-1.5 py-1"
                 >
                   <span className="h-2.5 w-1.5 rounded-sm bg-red-400" />
+                </span>
+              )}
+              {isExpelled && (
+                <span
+                  data-testid={`player-disabled-badge-${player.id}`}
+                  className="inline-flex items-center rounded-md border border-slate-500/70 bg-slate-700/70 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-200"
+                >
+                  Disabled
                 </span>
               )}
             </div>
@@ -432,6 +444,7 @@ const PlayerSelectorPanel = ({
             awayPlayers={match.away_team.players.filter((p) =>
               onFieldIds.away.has(p.id),
             )}
+            expelledPlayerIds={expelledPlayerIds}
             disciplinaryStatusByPlayer={disciplinaryStatusByPlayer}
             flipSides={flipSides}
             onPlayerClick={(player, anchor, location, side) => {

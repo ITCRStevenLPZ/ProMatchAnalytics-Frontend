@@ -582,7 +582,10 @@ export default function LoggerCockpit() {
   );
 
   const varTimeSeconds = useMemo(() => {
-    const baseVar = ineffectiveBreakdown?.totals.neutral ?? 0;
+    const baseVar =
+      ineffectiveBreakdown?.totals?.byAction?.VAR?.neutral ??
+      ineffectiveBreakdown?.totals.neutral ??
+      0;
     if (isVarActiveLocal && varStartGlobalSeconds !== null) {
       const syncedDeltaSeconds = Math.max(
         0,
@@ -1058,7 +1061,27 @@ export default function LoggerCockpit() {
     () => parseClockToSeconds(globalClock),
     [globalClock],
   );
-  const driftSeconds = Math.abs(localSeconds - serverSeconds);
+  const computedDriftSeconds = Math.abs(localSeconds - serverSeconds);
+  const [forcedDriftSeconds, setForcedDriftSeconds] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateForcedDrift = () => {
+      const raw = (window as any).__PROMATCH_FORCE_DRIFT_SECONDS__;
+      if (typeof raw !== "number" || !Number.isFinite(raw)) {
+        setForcedDriftSeconds(null);
+        return;
+      }
+      setForcedDriftSeconds(Math.max(0, Math.abs(raw)));
+    };
+    updateForcedDrift();
+    const interval = setInterval(updateForcedDrift, 250);
+    return () => clearInterval(interval);
+  }, []);
+
+  const driftSeconds = forcedDriftSeconds ?? computedDriftSeconds;
   const showDriftNudge = driftSeconds > 2;
 
   useEffect(() => {
@@ -1328,8 +1351,6 @@ export default function LoggerCockpit() {
   const getPeriodStartSeconds = (period: number) => {
     if (period === 1) return 0;
 
-    const raw =
-      match?.period_timestamps?.[String(period)]?.global_start_seconds;
     const canonicalStart =
       period === 2
         ? REGULATION_FIRST_HALF_SECONDS
@@ -1339,12 +1360,20 @@ export default function LoggerCockpit() {
             ? EXTRA_FIRST_HALF_END_SECONDS
             : globalTimeSeconds;
 
-    if (typeof raw === "number" && Number.isFinite(raw)) {
-      return Math.max(canonicalStart, Math.min(raw, globalTimeSeconds));
+    const raw =
+      match?.period_timestamps?.[String(period)]?.global_start_seconds;
+    if (
+      typeof raw === "number" &&
+      Number.isFinite(raw) &&
+      raw >= 0 &&
+      raw <= globalTimeSeconds
+    ) {
+      return raw;
     }
 
     return canonicalStart;
   };
+
   const firstHalfElapsed = Math.max(
     0,
     globalTimeSeconds - getPeriodStartSeconds(1),
@@ -1377,17 +1406,17 @@ export default function LoggerCockpit() {
   );
   const minimumSecondHalfReason = t(
     "transitionMinimumSecondHalf",
-    "Need at least 45:00 of global time from 2nd half start (current {{clock}}).",
+    "Need at least 45:00 from 2nd half start (current {{clock}}).",
     { clock: formatSecondsAsClock(secondHalfElapsed) },
   );
   const minimumExtraFirstHalfReason = t(
     "transitionMinimumExtraFirstHalf",
-    "Need at least 15:00 of extra time from ET 1st half start (current {{clock}}).",
+    "Need at least 15:00 from ET 1st half start (current {{clock}}).",
     { clock: formatSecondsAsClock(extraFirstElapsed) },
   );
   const minimumExtraSecondHalfReason = t(
     "transitionMinimumExtraSecondHalf",
-    "Need at least 15:00 of extra time from ET 2nd half start (current {{clock}}).",
+    "Need at least 15:00 from ET 2nd half start (current {{clock}}).",
     { clock: formatSecondsAsClock(extraSecondElapsed) },
   );
 
@@ -2326,6 +2355,12 @@ export default function LoggerCockpit() {
       clearQueue: () => {
         useMatchLogStore.getState().clearQueuedEvents();
       },
+      getDriftSnapshot: () => ({
+        computed: computedDriftSeconds,
+        forced: forcedDriftSeconds,
+        effective: driftSeconds,
+        show: showDriftNudge,
+      }),
     };
 
     return () => {
@@ -2338,6 +2373,10 @@ export default function LoggerCockpit() {
     sendHarnessPassEvent,
     sendHarnessRawEvent,
     handleUndoLastEvent,
+    computedDriftSeconds,
+    forcedDriftSeconds,
+    driftSeconds,
+    showDriftNudge,
   ]);
 
   if (!isLoggerReady) {
@@ -3042,7 +3081,10 @@ export default function LoggerCockpit() {
 
               <div className="mt-4 flex flex-col gap-4">
                 {showDriftNudge && (
-                  <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+                  <div
+                    className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3"
+                    data-testid="clock-drift-banner"
+                  >
                     <div className="text-xs font-medium">
                       {t(
                         "clockDriftDetected",
@@ -3056,6 +3098,7 @@ export default function LoggerCockpit() {
                       type="button"
                       onClick={fetchMatch}
                       className="text-xs font-semibold px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
+                      data-testid="clock-drift-resync"
                     >
                       {t("resync", "Resync")}
                     </button>
@@ -3440,6 +3483,7 @@ export default function LoggerCockpit() {
                       flipSides={manualFieldFlip}
                       selectedPlayer={selectedPlayer}
                       selectedTeam={selectedTeam}
+                      expelledPlayerIds={expelledPlayerIds}
                       disciplinaryStatusByPlayer={cardDisciplinaryStatus}
                       onCardTeamSelect={
                         pendingCardType
@@ -3469,16 +3513,16 @@ export default function LoggerCockpit() {
                               t={t}
                             />
                             {showFieldResume && (
-                              <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <button
                                   type="button"
                                   data-testid="btn-resume-effective"
                                   onClick={() =>
                                     handleModeSwitchGuarded("EFFECTIVE")
                                   }
-                                  className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                                  className="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-black text-sm md:text-base uppercase tracking-wider transition-colors shadow-xl shadow-emerald-900/40"
                                 >
-                                  <Play size={14} />
+                                  <Play size={20} />
                                   {t(
                                     "resumeEffective",
                                     "Resume Effective Time",
@@ -3488,16 +3532,16 @@ export default function LoggerCockpit() {
                             )}
                           </>
                         ) : showFieldResume ? (
-                          <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none">
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <button
                               type="button"
                               data-testid="btn-resume-effective"
                               onClick={() =>
                                 handleModeSwitchGuarded("EFFECTIVE")
                               }
-                              className="pointer-events-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+                              className="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-black text-sm md:text-base uppercase tracking-wider transition-colors shadow-xl shadow-emerald-900/40"
                             >
-                              <Play size={14} />
+                              <Play size={20} />
                               {t("resumeEffective", "Resume Effective Time")}
                             </button>
                           </div>

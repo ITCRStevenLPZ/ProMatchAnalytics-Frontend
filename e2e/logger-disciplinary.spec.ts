@@ -221,6 +221,12 @@ test.describe("logger disciplinary rules", () => {
     ).toBeVisible({
       timeout: 10000,
     });
+    await expect(page.getByTestId(`field-player-${playerId}`)).toBeDisabled({
+      timeout: 10000,
+    });
+    await expect(
+      page.getByTestId(`field-player-disabled-badge-${playerId}`),
+    ).toBeVisible({ timeout: 10000 });
 
     await page.getByTestId("card-select-yellow").click({ timeout: 8000 });
     await expect(
@@ -233,6 +239,12 @@ test.describe("logger disciplinary rules", () => {
     ).toBeVisible({
       timeout: 10000,
     });
+    await expect(page.getByTestId(`player-card-${playerId}`)).toBeDisabled({
+      timeout: 10000,
+    });
+    await expect(
+      page.getByTestId(`player-disabled-badge-${playerId}`),
+    ).toBeVisible({ timeout: 10000 });
     await page.getByTestId("card-selection-cancel").click({ timeout: 8000 });
 
     await resetHarnessFlow(page, "home");
@@ -286,6 +298,12 @@ test.describe("logger disciplinary rules", () => {
     await expect(
       page.getByTestId(`player-card-status-red-${playerId}`),
     ).toHaveCount(0);
+    await expect(page.getByTestId(`player-card-${playerId}`)).toBeEnabled({
+      timeout: 10000,
+    });
+    await expect(
+      page.getByTestId(`player-disabled-badge-${playerId}`),
+    ).toHaveCount(0);
     await expect(
       page.getByTestId(`player-card-status-yellow-${playerId}`),
     ).toBeVisible({
@@ -325,5 +343,11 @@ test.describe("logger disciplinary rules", () => {
     ).toBeVisible({
       timeout: 10000,
     });
+    await expect(page.getByTestId(`field-player-${playerId}`)).toBeEnabled({
+      timeout: 10000,
+    });
+    await expect(
+      page.getByTestId(`field-player-disabled-badge-${playerId}`),
+    ).toHaveCount(0);
   });
 });

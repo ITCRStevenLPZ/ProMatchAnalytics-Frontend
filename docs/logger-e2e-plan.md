@@ -74,6 +74,12 @@ Update as specs are added/modified._
 
 - No config change needed: `playwright.config.ts` already discovers
   `e2e/*.spec.ts`.
+- Cockpit guard command pack:
+  - `npm run test:e2e:logger:core`
+  - `npm run test:e2e:logger:ultimate`
+  - `npm run test:e2e:cockpit-guard`
+- Local pre-commit hooks enforce `test:e2e:cockpit-guard` on `pre-commit` and
+  `pre-push`.
 
 ## Notes
 

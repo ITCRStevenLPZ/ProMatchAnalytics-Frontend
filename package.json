@@ -11,6 +11,9 @@
     "lint:i18n": "node scripts/validate-admin-locales.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test:e2e": "playwright test",
+    "test:e2e:logger:core": "playwright test e2e/logger-period-transitions.spec.ts e2e/logger-substitution-rules.spec.ts e2e/logger-analytics-matrix.spec.ts",
+    "test:e2e:logger:ultimate": "playwright test e2e/logger-ultimate-cockpit.spec.ts e2e/logger-ultimate-disciplinary-stress.spec.ts",
+    "test:e2e:cockpit-guard": "CI=1 npm run test:e2e:logger:core && CI=1 npm run test:e2e:logger:ultimate",
     "prepare": "husky install"
   },
   "dependencies": {

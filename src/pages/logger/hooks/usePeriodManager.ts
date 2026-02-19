@@ -172,17 +172,6 @@ export const usePeriodManager = (
       currentPhase === "SECOND_HALF_EXTRA_TIME";
     let extraTimeSeconds = 0;
     let shouldShowExtraTimeWarning = false;
-    const periodKey =
-      currentPhase === "FIRST_HALF"
-        ? "1"
-        : currentPhase === "SECOND_HALF"
-          ? "2"
-          : currentPhase === "FIRST_HALF_EXTRA_TIME"
-            ? "3"
-            : currentPhase === "SECOND_HALF_EXTRA_TIME"
-              ? "4"
-              : null;
-    const periodNumber = periodKey ? Number(periodKey) : null;
     const canonicalStartSeconds =
       currentPhase === "FIRST_HALF"
         ? 0
@@ -193,16 +182,25 @@ export const usePeriodManager = (
             : currentPhase === "SECOND_HALF_EXTRA_TIME"
               ? EXTRA_FIRST_HALF_END_SECONDS
               : globalTimeSeconds;
-    const rawStartSeconds =
-      periodKey && periodNumber !== 1
-        ? match?.period_timestamps?.[periodKey]?.global_start_seconds
-        : null;
+    const periodKey =
+      currentPhase === "FIRST_HALF"
+        ? "1"
+        : currentPhase === "SECOND_HALF"
+          ? "2"
+          : currentPhase === "FIRST_HALF_EXTRA_TIME"
+            ? "3"
+            : currentPhase === "SECOND_HALF_EXTRA_TIME"
+              ? "4"
+              : null;
+    const rawStartSeconds = periodKey
+      ? match?.period_timestamps?.[periodKey]?.global_start_seconds
+      : null;
     const startSeconds =
-      typeof rawStartSeconds === "number" && Number.isFinite(rawStartSeconds)
-        ? Math.max(
-            canonicalStartSeconds,
-            Math.min(rawStartSeconds, globalTimeSeconds),
-          )
+      typeof rawStartSeconds === "number" &&
+      Number.isFinite(rawStartSeconds) &&
+      rawStartSeconds >= 0 &&
+      rawStartSeconds <= globalTimeSeconds
+        ? rawStartSeconds
         : canonicalStartSeconds;
     const elapsedSinceStart = Math.max(0, globalTimeSeconds - startSeconds);
 
@@ -287,13 +285,19 @@ export const usePeriodManager = (
     setCurrentPhase(targetPhase);
     setShowExtraTimeAlert(false);
 
-    if (targetMode) {
-      await handleModeSwitch(targetMode);
-    }
-
     try {
+      // Call updateMatchStatus FIRST so the backend can properly initialise
+      // period_timestamps.{period}.global_start_seconds while
+      // current_period_start_timestamp is still null.  handleModeSwitch runs
+      // after so it only overwrites the timestamp (minor ms delta) without
+      // preventing the backend from recording the period start metadata.
       await updateMatchStatus(match.id, targetStatus);
       console.log(`✅ Match status updated to ${targetStatus}`);
+
+      if (targetMode) {
+        await handleModeSwitch(targetMode);
+      }
+
       fetchMatch();
       return true;
     } catch (error) {
