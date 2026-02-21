@@ -8,6 +8,7 @@
 
 ## Current Objective
 
+- [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.
 - [x] Fix dashboard data and quick-action buttons by aligning backend dashboard status/event aggregation with current data model and correcting dashboard route links.
 - [x] Ensure every logger hook in `src/pages/logger/hooks` has unit-test coverage and validate with Vitest + typecheck.
@@ -84,6 +85,14 @@
 
 ## What Was Completed
 
+- [x] Updated [src/store/useMatchLogStore.ts](src/store/useMatchLogStore.ts) `setLiveEvents` merge logic to preserve optimistic pending live events (`pendingAcks` with `source: "live"`) during server rehydration, preventing temporary substitution events from being dropped before ACK.
+- [x] Updated [src/pages/logger/hooks/useOnFieldRoster.ts](src/pages/logger/hooks/useOnFieldRoster.ts) to replay both `liveEvents` and `queuedEvents` substitutions when rebuilding on-field players, keeping roster state stable in queued/offline windows.
+- [x] Updated [src/pages/LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) to pass `queuedEvents` into `useOnFieldRoster`.
+- [x] Added unit regressions [src/store/useMatchLogStore.test.ts](src/store/useMatchLogStore.test.ts) (pending-live merge behavior) and [src/pages/logger/hooks/useOnFieldRoster.test.ts](src/pages/logger/hooks/useOnFieldRoster.test.ts) (queued substitution replay).
+- [x] Validation: targeted unit tests passed (`3/3`) and `npx tsc --noEmit` passed.
+- [x] Validation blocker (environment): targeted Playwright substitution rehydration test failed at fixture bootstrap because `POST /e2e/reset` returned `404` (backend E2E route unavailable in current running environment), so E2E could not be completed in this session.
+- [x] Re-ran targeted E2E substitution regression with a clean E2E backend instance (`CI=1`, isolated backend port `8001`) and verified pass for `logger-substitution-rules` case `keeps substitution applied after timeline rehydration`.
+- [x] Ran the full Playwright E2E suite end-to-end with fresh E2E backend startup on isolated port `8002`; result: `177 passed`, `1 flaky` (`logger-undo` retried after transient `ECONNRESET` on `/e2e/reset`) and overall run exited green.
 - [x] Removed the `cockpit-guard` hook from [\.pre-commit-config.yaml](.pre-commit-config.yaml), so Cockpit Guard E2E no longer runs in `pre-commit`/`pre-push`.
 - [x] Preserved and validated local CI gates in pre-commit (`ci-lint`, `tsc`, `ci-test`) after the hook removal.
 - [x] Fixed dashboard quick-action links in [src/pages/Dashboard.tsx](src/pages/Dashboard.tsx) so `Manage Teams` routes to `/teams` and `Manage Players` routes to `/players` (existing app routes), eliminating dead navigation buttons.

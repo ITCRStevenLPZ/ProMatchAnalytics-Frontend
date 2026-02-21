@@ -20,6 +20,7 @@ export interface UseOnFieldRosterResult {
 export const useOnFieldRoster = (
   match: Match | null,
   liveEvents: MatchEvent[],
+  queuedEvents: MatchEvent[],
 ): UseOnFieldRosterResult => {
   const [onFieldIds, setOnFieldIds] = useState<OnFieldIds>({
     home: new Set(),
@@ -78,7 +79,7 @@ export const useOnFieldRoster = (
       if (playerOnId) target.add(playerOnId);
     };
 
-    const substitutionEvents = liveEvents
+    const substitutionEvents = [...liveEvents, ...queuedEvents]
       .map((event, index) => ({ event, index }))
       .filter(({ event }) => event.type === "Substitution")
       .sort(compareSubstitutionEventOrder);
@@ -99,7 +100,7 @@ export const useOnFieldRoster = (
     });
 
     setOnFieldIds({ home, away });
-  }, [getInitialOnField, liveEvents, match]);
+  }, [getInitialOnField, liveEvents, match, queuedEvents]);
 
   const applyOnFieldChange = useCallback(
     (team: "home" | "away", playerOffId?: string, playerOnId?: string) => {

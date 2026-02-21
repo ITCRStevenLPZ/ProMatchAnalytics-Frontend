@@ -115,6 +115,7 @@ export default function LoggerCockpit() {
   const { onFieldIds, applyOnFieldChange } = useOnFieldRoster(
     match,
     liveEvents,
+    queuedEvents,
   );
   const [manualFieldFlip, setManualFieldFlip] = useState(false);
   const [viewMode, setViewMode] = useState<"logger" | "analytics">("logger");
