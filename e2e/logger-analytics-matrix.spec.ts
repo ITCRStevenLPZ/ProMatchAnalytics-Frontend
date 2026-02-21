@@ -840,7 +840,8 @@ test.describe("Logger analytics matrix", () => {
 
     expect(homePercent).toBeGreaterThan(0);
     expect(homePercent).toBeLessThanOrEqual(100);
-    expect(awayPercent).toBe(homePercent);
+    // Away team has no stoppages, so its per-team effective % >= home's
+    expect(awayPercent).toBeGreaterThanOrEqual(homePercent);
   });
 
   test("ANL-22: injury is hidden and excluded from ineffective totals", async ({

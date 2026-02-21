@@ -212,7 +212,16 @@ export const useMatchLogStore = create<MatchLogState>()(
           }
 
           const queued = state.queuedEventsByMatch[currentMatchId] || [];
-          if (queued.length === 0) {
+          const pendingLive = Object.values(state.pendingAcks)
+            .filter(
+              (entry) =>
+                entry.source === "live" &&
+                entry.event.match_id === currentMatchId,
+            )
+            .map((entry) => entry.event);
+          const localOptimistic = [...queued, ...pendingLive];
+
+          if (localOptimistic.length === 0) {
             return { liveEvents: events };
           }
 
@@ -220,7 +229,7 @@ export const useMatchLogStore = create<MatchLogState>()(
           // Avoid duplicates based on client_id or timestamp+type
           const merged = [...events];
 
-          queued.forEach((qEvent) => {
+          localOptimistic.forEach((qEvent) => {
             const exists = merged.some((e) => {
               if (e.client_id && qEvent.client_id) {
                 return e.client_id === qEvent.client_id;

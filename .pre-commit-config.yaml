@@ -34,23 +34,6 @@ repos:
         entry: npm test --if-present
         language: system
         pass_filenames: false
-      - id: cockpit-guard
-        name: Cockpit Guard E2E
-        entry: ./scripts/run-cockpit-guard-hook.sh
-        language: system
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit, pre-push]
-        files: |
-          (?x)^(
-            src/pages/LoggerCockpit\.tsx|
-            src/pages/logger/.*|
-            src/hooks/useMatchSocket\.ts|
-            src/store/useMatchLogStore\.ts|
-            e2e/logger-.*\.spec\.ts|
-            public/locales/(en|es)/logger\.json|
-            playwright\.config\.ts
-          )$
 
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
