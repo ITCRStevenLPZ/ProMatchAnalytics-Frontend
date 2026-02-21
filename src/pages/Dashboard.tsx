@@ -304,10 +304,7 @@ export default function Dashboard() {
           <p className="text-sm text-gray-600">{t("viewAllMatches")}</p>
         </Link>
 
-        <Link
-          to="/admin/teams"
-          className="card hover:shadow-lg transition-shadow"
-        >
+        <Link to="/teams" className="card hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-gray-900">
               {t("manageTeams")}
@@ -317,10 +314,7 @@ export default function Dashboard() {
           <p className="text-sm text-gray-600">{t("manageTeamsDesc")}</p>
         </Link>
 
-        <Link
-          to="/admin/players"
-          className="card hover:shadow-lg transition-shadow"
-        >
+        <Link to="/players" className="card hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-gray-900">
               {t("managePlayers")}
