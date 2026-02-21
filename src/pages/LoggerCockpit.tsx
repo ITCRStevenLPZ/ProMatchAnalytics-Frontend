@@ -785,6 +785,7 @@ export default function LoggerCockpit() {
                 globalClock={globalClock}
                 effectiveTime={effectiveTime}
                 varTimeSeconds={varTimeSeconds}
+                timeoutTimeSeconds={timeoutTimeSeconds}
                 ineffectiveBreakdown={ineffectiveBreakdown}
                 t={t}
               />

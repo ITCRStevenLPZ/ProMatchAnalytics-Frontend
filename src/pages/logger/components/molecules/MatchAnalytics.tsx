@@ -37,6 +37,7 @@ import {
   Shield,
   Award,
   Clock,
+  Info,
 } from "lucide-react";
 
 interface MatchAnalyticsProps {
@@ -44,6 +45,7 @@ interface MatchAnalyticsProps {
   events: MatchEvent[];
   effectiveTime: number;
   varTimeSeconds?: number;
+  timeoutSeconds?: number;
   ineffectiveSeconds?: number;
   ineffectiveBreakdown?: IneffectiveBreakdown | null;
   t: any;
@@ -80,6 +82,7 @@ interface ComparativeRow {
   home: string | number;
   away: string | number;
   testId: string;
+  tooltip?: string;
 }
 
 interface TeamCardTotals {
@@ -270,6 +273,7 @@ export function MatchAnalytics({
   events,
   effectiveTime,
   varTimeSeconds = 0,
+  timeoutSeconds = 0,
   ineffectiveSeconds = 0,
   ineffectiveBreakdown,
   t,
@@ -516,11 +520,28 @@ export function MatchAnalytics({
     const totalEvents = events.length;
     const avgEventsPerMinute =
       maxMinute > 0 ? (totalEvents / maxMinute).toFixed(1) : "0.0";
-    const totalMatchSeconds = effectiveTime + ineffectiveSeconds;
-    const effectiveTimePercent =
-      totalMatchSeconds > 0
-        ? `${((effectiveTime / totalMatchSeconds) * 100).toFixed(1)}%`
+    const globalSeconds =
+      effectiveTime + ineffectiveSeconds + varTimeSeconds + timeoutSeconds;
+    const totalMatchSeconds = globalSeconds;
+
+    // Per-team effective time = effective - that team's ineffective stoppages
+    const homeEffectiveSeconds = Math.max(
+      0,
+      effectiveTime - teamIneffectiveTotals.home,
+    );
+    const awayEffectiveSeconds = Math.max(
+      0,
+      effectiveTime - teamIneffectiveTotals.away,
+    );
+    const homeEffectivePercent =
+      globalSeconds > 0
+        ? `${((homeEffectiveSeconds / globalSeconds) * 100).toFixed(1)}%`
         : "0.0%";
+    const awayEffectivePercent =
+      globalSeconds > 0
+        ? `${((awayEffectiveSeconds / globalSeconds) * 100).toFixed(1)}%`
+        : "0.0%";
+
     const totalTeamIneffectiveSeconds =
       teamIneffectiveTotals.home + teamIneffectiveTotals.away;
     const homeIneffectivePercent =
@@ -623,12 +644,20 @@ export function MatchAnalytics({
           home: `${homePossession}%`,
           away: `${100 - homePossession}%`,
           testId: "stat-possession",
+          tooltip: t(
+            "analytics.tooltipPossession",
+            "Estimated from total completed passes per team. Not a direct time-based measurement.",
+          ),
         },
         {
           label: t("analytics.accuratePasses", "Passes (Total/Accurate)"),
           home: `${homePasses.total} (${homePasses.accurate})`,
           away: `${awayPasses.total} (${awayPasses.accurate})`,
           testId: "stat-accurate-passes",
+          tooltip: t(
+            "analytics.tooltipPasses",
+            "Total passes attempted and accurate passes completed (good outcome).",
+          ),
         },
         {
           label: t("analytics.shots", "Total Shots"),
@@ -683,24 +712,40 @@ export function MatchAnalytics({
           home: formatSecondsAsClock(ineffectiveTotals.home),
           away: formatSecondsAsClock(ineffectiveTotals.away),
           testId: "stat-ineffective-time",
+          tooltip: t(
+            "analytics.tooltipIneffectiveTime",
+            "Total clock time attributed to each team's stoppages (goals, fouls, cards, substitutions, out-of-bounds). VAR and injury time are excluded from the per-team split.",
+          ),
         },
         {
           label: t("analytics.ineffectiveTimePercent", "Ineffective Time %"),
           home: homeIneffectivePercent,
           away: awayIneffectivePercent,
           testId: "stat-ineffective-time-percent",
+          tooltip: t(
+            "analytics.tooltipIneffectivePercent",
+            "Each team's share of the total team-attributed ineffective time. Shows which team caused more stoppages.",
+          ),
         },
         {
           label: t("analytics.effectiveTime", "Effective Time"),
-          home: formatSecondsAsClock(effectiveTime),
-          away: formatSecondsAsClock(effectiveTime),
+          home: formatSecondsAsClock(homeEffectiveSeconds),
+          away: formatSecondsAsClock(awayEffectiveSeconds),
           testId: "stat-effective-time",
+          tooltip: t(
+            "analytics.tooltipEffectiveTime",
+            "Per-team ball-in-play time. Calculated as Effective Time minus each team's attributed Ineffective Time.",
+          ),
         },
         {
           label: t("analytics.effectiveTimePercent", "Effective Time %"),
-          home: effectiveTimePercent,
-          away: effectiveTimePercent,
+          home: homeEffectivePercent,
+          away: awayEffectivePercent,
           testId: "stat-effective-time-percent",
+          tooltip: t(
+            "analytics.tooltipEffectivePercent",
+            "Per-team effective time as a percentage of global time (effective + ineffective + VAR + timeout).",
+          ),
         },
         {
           label: t("analytics.averageAge", "Average Age"),
@@ -733,6 +778,7 @@ export function MatchAnalytics({
     ineffectiveBreakdown,
     t,
     varTimeSeconds,
+    timeoutSeconds,
   ]);
 
   if (!match || !analytics) {
@@ -1079,10 +1125,21 @@ export function MatchAnalytics({
                 {row.home}
               </div>
               <div
-                className="text-sm sm:text-base md:text-lg text-emerald-200 text-center font-medium leading-tight px-1 truncate"
+                className="text-sm sm:text-base md:text-lg text-emerald-200 text-center font-medium leading-tight px-1 flex items-center justify-center gap-1"
                 title={row.label}
               >
-                {row.label}
+                <span className="truncate">{row.label}</span>
+                {row.tooltip && (
+                  <span className="group relative flex-shrink-0">
+                    <Info
+                      size={14}
+                      className="text-emerald-400/60 cursor-help"
+                    />
+                    <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-md bg-slate-800 px-3 py-2 text-xs leading-relaxed text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 z-50 normal-case tracking-normal text-left">
+                      {row.tooltip}
+                    </span>
+                  </span>
+                )}
               </div>
               <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right truncate">
                 {row.away}
