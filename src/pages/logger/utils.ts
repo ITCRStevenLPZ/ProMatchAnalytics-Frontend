@@ -546,6 +546,8 @@ export interface TimerFormulaInput {
 
 export interface TimerFormulaResult {
   globalSeconds: number;
+  totalEffectiveTime: number;
+  totalIneffectiveSeconds: number;
   homeEffectiveSeconds: number;
   awayEffectiveSeconds: number;
   homeEffectivePercent: string;
@@ -599,6 +601,8 @@ export const computeTimerFormulas = (
 
   return {
     globalSeconds,
+    totalEffectiveTime: effectiveTime,
+    totalIneffectiveSeconds: ineffectiveSeconds,
     homeEffectiveSeconds,
     awayEffectiveSeconds,
     homeEffectivePercent,

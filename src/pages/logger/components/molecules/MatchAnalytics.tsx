@@ -524,6 +524,8 @@ export function MatchAnalytics({
     // Global time matches useMatchTimer: effective + ineffective + timeout (VAR excluded, shown separately)
     const {
       globalSeconds,
+      totalEffectiveTime,
+      totalIneffectiveSeconds,
       homeEffectiveSeconds,
       awayEffectiveSeconds,
       homeEffectivePercent,
@@ -725,6 +727,26 @@ export function MatchAnalytics({
           tooltip: t(
             "analytics.tooltipEffectivePercent",
             "Effective time as a percentage of (effective + that team's ineffective) time.",
+          ),
+        },
+        {
+          label: t("analytics.totalEffectiveTime", "Total Effective Time"),
+          home: formatSecondsAsClock(totalEffectiveTime),
+          away: formatSecondsAsClock(totalEffectiveTime),
+          testId: "stat-total-effective-time",
+          tooltip: t(
+            "analytics.tooltipTotalEffectiveTime",
+            "Overall ball-in-play time for the match (shared by both teams).",
+          ),
+        },
+        {
+          label: t("analytics.totalIneffectiveTime", "Total Ineffective Time"),
+          home: formatSecondsAsClock(totalIneffectiveSeconds),
+          away: formatSecondsAsClock(totalIneffectiveSeconds),
+          testId: "stat-total-ineffective-time",
+          tooltip: t(
+            "analytics.tooltipTotalIneffectiveTime",
+            "Overall stoppage time for the match (all teams combined).",
           ),
         },
         {

@@ -424,7 +424,11 @@
     "tooltipIneffectiveTime": "Total clock time attributed to each team's stoppages (goals, fouls, cards, substitutions, out-of-bounds). VAR and injury time are excluded from the per-team split.",
     "tooltipIneffectivePercent": "Each team's ineffective time as a percentage of (effective + that team's ineffective) time.",
     "tooltipEffectiveTime": "Ball-in-play time. This is the same for both teams since effective time is shared.",
-    "tooltipEffectivePercent": "Effective time as a percentage of (effective + that team's ineffective) time."
+    "tooltipEffectivePercent": "Effective time as a percentage of (effective + that team's ineffective) time.",
+    "totalEffectiveTime": "Total Effective Time",
+    "tooltipTotalEffectiveTime": "Overall ball-in-play time for the match (shared by both teams).",
+    "totalIneffectiveTime": "Total Ineffective Time",
+    "tooltipTotalIneffectiveTime": "Overall stoppage time for the match (all teams combined)."
   },
   "resetAfterFulltimeTooltip": "Match is completed; reset will wipe data and restart.",
   "resetAfterFulltimeWarning": "Match is fulltime. Resetting will clear logs and restart clocks from zero.",

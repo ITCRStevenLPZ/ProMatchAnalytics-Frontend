@@ -164,4 +164,39 @@ describe("computeTimerFormulas", () => {
       expect(result.awayEffectiveSeconds).toBe(600);
     }
   });
+
+  /* ---------- totalEffectiveTime and totalIneffectiveSeconds ---------- */
+
+  it("totalEffectiveTime equals the effectiveTime input", () => {
+    const result = computeTimerFormulas(make());
+    expect(result.totalEffectiveTime).toBe(600);
+  });
+
+  it("totalIneffectiveSeconds equals the ineffectiveSeconds input", () => {
+    const result = computeTimerFormulas(make());
+    expect(result.totalIneffectiveSeconds).toBe(120);
+  });
+
+  it("totalEffectiveTime + totalIneffectiveSeconds + timeout = globalSeconds", () => {
+    const result = computeTimerFormulas(make());
+    expect(
+      result.totalEffectiveTime +
+        result.totalIneffectiveSeconds +
+        base.timeoutSeconds,
+    ).toBe(result.globalSeconds);
+  });
+
+  it("total fields are zero when all inputs are zero", () => {
+    const result = computeTimerFormulas(
+      make({
+        effectiveTime: 0,
+        ineffectiveSeconds: 0,
+        timeoutSeconds: 0,
+        varTimeSeconds: 0,
+        teamIneffective: { home: 0, away: 0 },
+      }),
+    );
+    expect(result.totalEffectiveTime).toBe(0);
+    expect(result.totalIneffectiveSeconds).toBe(0);
+  });
 });

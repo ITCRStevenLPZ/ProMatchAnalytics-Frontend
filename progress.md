@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Fix effective/ineffective time formula bugs in MatchAnalytics: effective time was decreasing when ineffective events occurred, wrong percentage denominators, incorrect ineffective % formula.
+- [x] Add general (total) Effective Time and Ineffective Time rows in analytics table; move player stats table below match analytics.
 
 ## Status
 
@@ -17,29 +17,25 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] **Bug 1 (Primary) — Effective time subtraction removed**: `effectiveTime` from `useMatchTimer` is already pure ball-in-play seconds (frozen during INEFFECTIVE mode). The old code subtracted `teamIneffectiveTotals` from it, causing effective time to decrease as ineffective events accumulated. Fixed: per-team effective seconds = `effectiveTime` (shared, untouched).
-- [x] **Bug 2 — globalSeconds consistency**: Removed VAR from `globalSeconds` formula to match `useMatchTimer`'s formula (`effective + ineffective + timeout`, VAR excluded and shown separately).
-- [x] **Bug 3 — Ineffective % formula corrected**: Old formula was `teamHome / (teamHome + teamAway)` (share of total team stoppages). New formula per user requirement: `teamHome / (effectiveTime + teamHome)` — percentage of (effective + that team's ineffective) time.
-- [x] **Effective % formula also corrected**: Each team's effective % now uses the same per-team denominator: `effectiveTime / (effectiveTime + teamIneffective)` — so effective % + ineffective % = 100% for each team.
-- [x] Extracted `computeTimerFormulas()` pure function into `utils.ts` for testability & reuse.
-- [x] Updated tooltip strings in MatchAnalytics.tsx, EN and ES locale files.
-- [x] Updated E2E test `logger-analytics-matrix.spec.ts` ANL-25: removed assertion that `homePercent + awayPercent ≈ 100%` since per-team denominators are now independent.
-- [x] Created 14 unit tests in `MatchAnalytics.test.ts` covering all formula properties: globalSeconds, effective seconds, effective %, ineffective %, complementary property, timer independence, and regression guard.
+- [x] **Total Effective Time row**: Added a new "Total Effective Time" row in the analytics comparative table showing overall ball-in-play time (same value for both columns since it's a shared match-level metric).
+- [x] **Total Ineffective Time row**: Added a new "Total Ineffective Time" row showing overall stoppage time for the match (all teams combined).
+- [x] **Player stats table moved below match analytics**: Swapped `PlayerStatsTable` and `MatchAnalytics` in `AnalyticsView.tsx` so analytics appears first, player stats below.
+- [x] Extended `computeTimerFormulas()` with `totalEffectiveTime` and `totalIneffectiveSeconds` return fields.
+- [x] Added i18n keys in EN (`totalEffectiveTime`, `tooltipTotalEffectiveTime`, `totalIneffectiveTime`, `tooltipTotalIneffectiveTime`) and ES locale files.
+- [x] Added 4 new unit tests: totalEffectiveTime equals input, totalIneffectiveSeconds equals input, sum identity check, zero-input edge case.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] Unit: `MatchAnalytics.test.ts` (14 tests) -> ALL PASS
-- [x] E2E: `logger-analytics-matrix.spec.ts` ANL-25 updated -> assertion corrected for independent denominators
-- [x] Full unit suite: 88 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions
+- [x] Unit: `MatchAnalytics.test.ts` (18 tests) -> ALL PASS
+- [x] Full unit suite: 92 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions
 - [x] TypeScript compiler: 0 errors
 
 ## Implementation Notes
 
-- `computeTimerFormulas()` is a pure function that takes effectiveTime, ineffectiveSeconds, timeoutSeconds, varTimeSeconds, and per-team ineffective totals. Returns all display values.
-- Key invariant: for each team, `effectivePercent + ineffectivePercent = 100%` (same denominator: `effective + teamIneffective`).
-- VAR is excluded from globalSeconds (shown in its own timer card); this matches `useMatchTimer`'s global clock formula.
-- Timer independence: changing VAR or timeout does not affect effective/ineffective percentages.
-- The effective time from `useMatchTimer` is frozen during INEFFECTIVE mode, so it never contains stoppage seconds — subtracting team-attributed stoppages from it was a logical error.
+- The two new rows appear after "Effective Time %" and before "Average Age" in the comparative table.
+- Both columns show the same value for these general rows since they are match-level totals, not per-team.
+- `totalEffectiveTime` = `effectiveTime` input (ball-in-play seconds from `useMatchTimer`).
+- `totalIneffectiveSeconds` = `ineffectiveSeconds` input (global accumulated stoppage seconds).
 
 ## Next Steps
 
