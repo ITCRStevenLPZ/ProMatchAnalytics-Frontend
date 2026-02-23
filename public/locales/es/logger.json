@@ -422,9 +422,9 @@
     "tooltipPossession": "Estimada a partir del total de pases completados por equipo. No es una medición directa basada en tiempo.",
     "tooltipPasses": "Total de pases intentados y pases precisos completados (resultado positivo).",
     "tooltipIneffectiveTime": "Tiempo de reloj total atribuido a las detenciones de cada equipo (goles, faltas, tarjetas, sustituciones, balón fuera). El tiempo de VAR y lesiones se excluyen del reparto por equipo.",
-    "tooltipIneffectivePercent": "Participación de cada equipo en el tiempo inefectivo total atribuido. Muestra qué equipo causó más detenciones.",
-    "tooltipEffectiveTime": "Tiempo con balón en juego por equipo. Se calcula como Tiempo Efectivo menos el Tiempo Inefectivo atribuido a cada equipo.",
-    "tooltipEffectivePercent": "Tiempo efectivo por equipo como porcentaje del tiempo global (efectivo + inefectivo + VAR + descanso)."
+    "tooltipIneffectivePercent": "Tiempo inefectivo de cada equipo como porcentaje de (efectivo + inefectivo de ese equipo).",
+    "tooltipEffectiveTime": "Tiempo con balón en juego. Es igual para ambos equipos ya que el tiempo efectivo es compartido.",
+    "tooltipEffectivePercent": "Tiempo efectivo como porcentaje de (efectivo + inefectivo de ese equipo)."
   },
   "resetAfterFulltimeTooltip": "El partido ha terminado; reiniciar borrará los datos y comenzará de nuevo.",
   "resetAfterFulltimeWarning": "El partido está en tiempo completo. El reinicio borrará los registros y reiniciará los relojes desde cero.",

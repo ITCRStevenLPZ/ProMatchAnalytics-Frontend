@@ -1160,11 +1160,11 @@ test.describe("Logger analytics matrix", () => {
 
     expect(Number.isFinite(homePercent)).toBeTruthy();
     expect(Number.isFinite(awayPercent)).toBeTruthy();
+    // Each team's ineffective % uses its own denominator (effective + that team's ineffective),
+    // so they are independent values and do NOT sum to 100%.
     expect(homePercent).toBeGreaterThan(0);
     expect(awayPercent).toBeGreaterThan(0);
     expect(homePercent).toBeLessThanOrEqual(100);
     expect(awayPercent).toBeLessThanOrEqual(100);
-    expect(homePercent + awayPercent).toBeGreaterThanOrEqual(99);
-    expect(homePercent + awayPercent).toBeLessThanOrEqual(101);
   });
 });

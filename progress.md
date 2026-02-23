@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Fix critical home-team substitution queue bug: subs stuck permanently in "en cola" state.
+- [x] Fix effective/ineffective time formula bugs in MatchAnalytics: effective time was decreasing when ineffective events occurred, wrong percentage denominators, incorrect ineffective % formula.
 
 ## Status
 
@@ -17,28 +17,34 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] Diagnosed root cause (backend `record_substitution_in_match` crash → error ack → events permanently queued on frontend).
-- [x] **Fix 1 — useMatchSocket.ts (error ack cleanup)**: Error acks now remove the event from `liveEvents` before adding to `queuedEvents`, preventing phantom timeline entries (event existed in both arrays simultaneously).
-- [x] **Fix 2 — useMatchSocket.ts (periodic queue retry)**: Added `setInterval(syncQueue, 10_000)` while connected, so events stuck in queue get auto-retried instead of being stranded until reconnect.
-- [x] Created new E2E spec `e2e/logger-substitution-queue.spec.ts` with 4 tests: home sub not queued, away sub not queued, 3 consecutive home subs not queued, automatic queue retry while connected.
-- [x] Frontend unit tests: 74 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions.
+- [x] **Bug 1 (Primary) — Effective time subtraction removed**: `effectiveTime` from `useMatchTimer` is already pure ball-in-play seconds (frozen during INEFFECTIVE mode). The old code subtracted `teamIneffectiveTotals` from it, causing effective time to decrease as ineffective events accumulated. Fixed: per-team effective seconds = `effectiveTime` (shared, untouched).
+- [x] **Bug 2 — globalSeconds consistency**: Removed VAR from `globalSeconds` formula to match `useMatchTimer`'s formula (`effective + ineffective + timeout`, VAR excluded and shown separately).
+- [x] **Bug 3 — Ineffective % formula corrected**: Old formula was `teamHome / (teamHome + teamAway)` (share of total team stoppages). New formula per user requirement: `teamHome / (effectiveTime + teamHome)` — percentage of (effective + that team's ineffective) time.
+- [x] **Effective % formula also corrected**: Each team's effective % now uses the same per-team denominator: `effectiveTime / (effectiveTime + teamIneffective)` — so effective % + ineffective % = 100% for each team.
+- [x] Extracted `computeTimerFormulas()` pure function into `utils.ts` for testability & reuse.
+- [x] Updated tooltip strings in MatchAnalytics.tsx, EN and ES locale files.
+- [x] Updated E2E test `logger-analytics-matrix.spec.ts` ANL-25: removed assertion that `homePercent + awayPercent ≈ 100%` since per-team denominators are now independent.
+- [x] Created 14 unit tests in `MatchAnalytics.test.ts` covering all formula properties: globalSeconds, effective seconds, effective %, ineffective %, complementary property, timer independence, and regression guard.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: `e2e/logger-substitution-queue.spec.ts` (4 tests) -> CREATED
-- [x] Unit: No new frontend unit tests needed (changes are in hooks/store, covered by existing tests)
-- [x] Pre-existing: 3 failing `payloadBuilders.test.ts` tests (unchanged by this work)
+- [x] Unit: `MatchAnalytics.test.ts` (14 tests) -> ALL PASS
+- [x] E2E: `logger-analytics-matrix.spec.ts` ANL-25 updated -> assertion corrected for independent denominators
+- [x] Full unit suite: 88 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions
+- [x] TypeScript compiler: 0 errors
 
 ## Implementation Notes
 
-- The periodic retry interval (10s) ensures that even if the backend temporarily returns errors, events will eventually be processed once the backend is healthy.
-- The `removeLiveEventByClientId`/`removeLiveEventByTimestamp` on error ack prevents the same event from appearing in both `liveEvents` and `queuedEvents`.
-- Backend fixes (error isolation in websocket.py, robust substitution_validator.py) are in the backend repo.
+- `computeTimerFormulas()` is a pure function that takes effectiveTime, ineffectiveSeconds, timeoutSeconds, varTimeSeconds, and per-team ineffective totals. Returns all display values.
+- Key invariant: for each team, `effectivePercent + ineffectivePercent = 100%` (same denominator: `effective + teamIneffective`).
+- VAR is excluded from globalSeconds (shown in its own timer card); this matches `useMatchTimer`'s global clock formula.
+- Timer independence: changing VAR or timeout does not affect effective/ineffective percentages.
+- The effective time from `useMatchTimer` is frozen during INEFFECTIVE mode, so it never contains stoppage seconds — subtracting team-attributed stoppages from it was a logical error.
 
 ## Next Steps
 
-- Run E2E suite against live backend E2E server
-- Commit and push both repos
+- Run E2E suite against live backend E2E server for full integration validation
+- Commit and push to `dev` branch
 
 ---
 
