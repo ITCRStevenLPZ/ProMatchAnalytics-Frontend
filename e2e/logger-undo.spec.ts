@@ -47,6 +47,8 @@ test.beforeEach(async () => {
   await resetMatch(UNDO_MATCH_ID);
 });
 
+test.describe.configure({ mode: "serial" });
+
 test.describe("logger undo workflow", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(
@@ -83,6 +85,8 @@ test.describe("logger undo workflow", () => {
         if (!harness || !ctx) return;
         harness.sendRawEvent?.({
           match_id: ctx.matchId,
+          match_clock: "02:00.000",
+          period: 1,
           team_id: ctx.homeTeamId,
           player_id: "HOME-1",
           type: "Pass",
@@ -148,6 +152,8 @@ test.describe("logger undo workflow", () => {
         if (!harness || !ctx) return;
         harness.sendRawEvent?.({
           match_id: ctx.matchId,
+          match_clock: "02:00.000",
+          period: 1,
           team_id: ctx.homeTeamId,
           player_id: "HOME-1",
           type: "Pass",
@@ -170,6 +176,8 @@ test.describe("logger undo workflow", () => {
       if (!harness || !ctx) return;
       harness.sendRawEvent?.({
         match_id: ctx.matchId,
+        match_clock: "02:00.000",
+        period: 1,
         team_id: ctx.homeTeamId,
         player_id: "HOME-1",
         type: "VARDecision",

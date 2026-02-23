@@ -229,7 +229,11 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
             {t("liveEvents", "Live Events")}
           </h2>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-400 bg-slate-700 px-3 py-1 rounded-full border border-slate-600">
+            <span
+              className="text-sm font-medium text-slate-400 bg-slate-700 px-3 py-1 rounded-full border border-slate-600"
+              data-testid="live-events-total"
+              data-count={events.length}
+            >
               {events.length} {t("eventsLabel", "events")}
             </span>
             {pendingCount > 0 && (

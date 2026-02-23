@@ -198,8 +198,11 @@ const openActionListFromEntry = async (page: Page, playerIndex: number = 0) => {
   }
 };
 
-const getLiveEventCount = async (page: Page) =>
-  await page.getByTestId("live-event-item").count();
+const getLiveEventCount = async (page: Page) => {
+  const el = page.getByTestId("live-events-total");
+  const count = await el.getAttribute("data-count");
+  return count ? parseInt(count, 10) : 0;
+};
 
 test.beforeAll(async () => {
   backendRequest = await request.newContext({
