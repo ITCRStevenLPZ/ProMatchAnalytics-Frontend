@@ -528,3 +528,86 @@ export const normalizeMatchClock = (input: string): string | null => {
   // Let's keep it simple: if it looks invalid, return null to signal fallback.
   return null;
 };
+
+/* ── Timer-formula helpers (pure, testable) ──────────────────── */
+
+export interface TimerFormulaInput {
+  /** Pure ball-in-play seconds from useMatchTimer (frozen during INEFFECTIVE mode). */
+  effectiveTime: number;
+  /** Global accumulated ineffective seconds. */
+  ineffectiveSeconds: number;
+  /** Timeout seconds. */
+  timeoutSeconds: number;
+  /** VAR seconds (displayed separately, excluded from global clock). */
+  varTimeSeconds: number;
+  /** Team-attributed ineffective totals (excluding VAR & Injury). */
+  teamIneffective: { home: number; away: number };
+}
+
+export interface TimerFormulaResult {
+  globalSeconds: number;
+  totalEffectiveTime: number;
+  totalIneffectiveSeconds: number;
+  homeEffectiveSeconds: number;
+  awayEffectiveSeconds: number;
+  homeEffectivePercent: string;
+  awayEffectivePercent: string;
+  homeIneffectivePercent: string;
+  awayIneffectivePercent: string;
+}
+
+/**
+ * Compute per-team effective/ineffective display values.
+ *
+ * Rules:
+ * - effectiveTime is already pure ball-in-play; it must NOT be reduced by
+ *   team-attributed stoppages (those seconds were never included in it).
+ * - globalSeconds = effective + ineffective + timeout (VAR excluded, shown separately).
+ * - Per-team denominators = effective + that team's attributed ineffective.
+ * - Effective % = effective / denom.
+ * - Ineffective % = team's ineffective / denom.
+ */
+export const computeTimerFormulas = (
+  input: TimerFormulaInput,
+): TimerFormulaResult => {
+  const { effectiveTime, ineffectiveSeconds, timeoutSeconds, teamIneffective } =
+    input;
+
+  const globalSeconds = effectiveTime + ineffectiveSeconds + timeoutSeconds;
+
+  const homeEffectiveSeconds = effectiveTime;
+  const awayEffectiveSeconds = effectiveTime;
+
+  const homeDenom = effectiveTime + teamIneffective.home;
+  const awayDenom = effectiveTime + teamIneffective.away;
+
+  const homeEffectivePercent =
+    homeDenom > 0
+      ? `${((effectiveTime / homeDenom) * 100).toFixed(1)}%`
+      : "0.0%";
+  const awayEffectivePercent =
+    awayDenom > 0
+      ? `${((effectiveTime / awayDenom) * 100).toFixed(1)}%`
+      : "0.0%";
+
+  const homeIneffectivePercent =
+    homeDenom > 0
+      ? `${((teamIneffective.home / homeDenom) * 100).toFixed(1)}%`
+      : "0.0%";
+  const awayIneffectivePercent =
+    awayDenom > 0
+      ? `${((teamIneffective.away / awayDenom) * 100).toFixed(1)}%`
+      : "0.0%";
+
+  return {
+    globalSeconds,
+    totalEffectiveTime: effectiveTime,
+    totalIneffectiveSeconds: ineffectiveSeconds,
+    homeEffectiveSeconds,
+    awayEffectiveSeconds,
+    homeEffectivePercent,
+    awayEffectivePercent,
+    homeIneffectivePercent,
+    awayIneffectivePercent,
+  };
+};

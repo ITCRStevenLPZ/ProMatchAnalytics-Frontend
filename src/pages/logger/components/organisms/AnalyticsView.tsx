@@ -57,12 +57,6 @@ export default function AnalyticsView({
           <span className="font-mono font-semibold">{globalClock}</span>
         </div>
       </div>
-      <PlayerStatsTable
-        stats={playerStats}
-        homeTeamName={match.home_team.short_name}
-        awayTeamName={match.away_team.short_name}
-        t={t}
-      />
       <MatchAnalytics
         match={match}
         events={allEvents}
@@ -71,6 +65,12 @@ export default function AnalyticsView({
         timeoutSeconds={timeoutTimeSeconds}
         ineffectiveSeconds={match?.ineffective_time_seconds || 0}
         ineffectiveBreakdown={ineffectiveBreakdown}
+        t={t}
+      />
+      <PlayerStatsTable
+        stats={playerStats}
+        homeTeamName={match.home_team.short_name}
+        awayTeamName={match.away_team.short_name}
         t={t}
       />
     </div>

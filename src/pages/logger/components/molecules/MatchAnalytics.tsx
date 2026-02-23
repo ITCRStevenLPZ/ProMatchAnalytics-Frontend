@@ -25,6 +25,7 @@ import { MatchEvent } from "../../../../store/useMatchLogStore";
 import { Match } from "../../types";
 import {
   computeIneffectiveBreakdown,
+  computeTimerFormulas,
   IneffectiveBreakdown,
   IneffectiveAction,
 } from "../../utils";
@@ -520,44 +521,25 @@ export function MatchAnalytics({
     const totalEvents = events.length;
     const avgEventsPerMinute =
       maxMinute > 0 ? (totalEvents / maxMinute).toFixed(1) : "0.0";
-    const globalSeconds =
-      effectiveTime + ineffectiveSeconds + varTimeSeconds + timeoutSeconds;
+    // Global time matches useMatchTimer: effective + ineffective + timeout (VAR excluded, shown separately)
+    const {
+      globalSeconds,
+      totalEffectiveTime,
+      totalIneffectiveSeconds,
+      homeEffectiveSeconds,
+      awayEffectiveSeconds,
+      homeEffectivePercent,
+      awayEffectivePercent,
+      homeIneffectivePercent,
+      awayIneffectivePercent,
+    } = computeTimerFormulas({
+      effectiveTime,
+      ineffectiveSeconds,
+      timeoutSeconds,
+      varTimeSeconds,
+      teamIneffective: teamIneffectiveTotals,
+    });
     const totalMatchSeconds = globalSeconds;
-
-    // Per-team effective time = effective - that team's ineffective stoppages
-    const homeEffectiveSeconds = Math.max(
-      0,
-      effectiveTime - teamIneffectiveTotals.home,
-    );
-    const awayEffectiveSeconds = Math.max(
-      0,
-      effectiveTime - teamIneffectiveTotals.away,
-    );
-    const homeEffectivePercent =
-      globalSeconds > 0
-        ? `${((homeEffectiveSeconds / globalSeconds) * 100).toFixed(1)}%`
-        : "0.0%";
-    const awayEffectivePercent =
-      globalSeconds > 0
-        ? `${((awayEffectiveSeconds / globalSeconds) * 100).toFixed(1)}%`
-        : "0.0%";
-
-    const totalTeamIneffectiveSeconds =
-      teamIneffectiveTotals.home + teamIneffectiveTotals.away;
-    const homeIneffectivePercent =
-      totalTeamIneffectiveSeconds > 0
-        ? `${(
-            (teamIneffectiveTotals.home / totalTeamIneffectiveSeconds) *
-            100
-          ).toFixed(1)}%`
-        : "0.0%";
-    const awayIneffectivePercent =
-      totalTeamIneffectiveSeconds > 0
-        ? `${(
-            (teamIneffectiveTotals.away / totalTeamIneffectiveSeconds) *
-            100
-          ).toFixed(1)}%`
-        : "0.0%";
     const mostActiveMinute = Array.from(timelineMap.entries()).reduce(
       (max, [min, counts]) => {
         const total = counts.home + counts.away;
@@ -724,7 +706,7 @@ export function MatchAnalytics({
           testId: "stat-ineffective-time-percent",
           tooltip: t(
             "analytics.tooltipIneffectivePercent",
-            "Each team's share of the total team-attributed ineffective time. Shows which team caused more stoppages.",
+            "Each team's ineffective time as a percentage of (effective + that team's ineffective) time.",
           ),
         },
         {
@@ -734,7 +716,7 @@ export function MatchAnalytics({
           testId: "stat-effective-time",
           tooltip: t(
             "analytics.tooltipEffectiveTime",
-            "Per-team ball-in-play time. Calculated as Effective Time minus each team's attributed Ineffective Time.",
+            "Ball-in-play time. This is the same for both teams since effective time is shared.",
           ),
         },
         {
@@ -744,7 +726,27 @@ export function MatchAnalytics({
           testId: "stat-effective-time-percent",
           tooltip: t(
             "analytics.tooltipEffectivePercent",
-            "Per-team effective time as a percentage of global time (effective + ineffective + VAR + timeout).",
+            "Effective time as a percentage of (effective + that team's ineffective) time.",
+          ),
+        },
+        {
+          label: t("analytics.totalEffectiveTime", "Total Effective Time"),
+          home: formatSecondsAsClock(totalEffectiveTime),
+          away: formatSecondsAsClock(totalEffectiveTime),
+          testId: "stat-total-effective-time",
+          tooltip: t(
+            "analytics.tooltipTotalEffectiveTime",
+            "Overall ball-in-play time for the match (shared by both teams).",
+          ),
+        },
+        {
+          label: t("analytics.totalIneffectiveTime", "Total Ineffective Time"),
+          home: formatSecondsAsClock(totalIneffectiveSeconds),
+          away: formatSecondsAsClock(totalIneffectiveSeconds),
+          testId: "stat-total-ineffective-time",
+          tooltip: t(
+            "analytics.tooltipTotalIneffectiveTime",
+            "Overall stoppage time for the match (all teams combined).",
           ),
         },
         {

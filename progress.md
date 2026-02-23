@@ -8,6 +8,40 @@
 
 ## Current Objective
 
+- [x] Run full E2E suite, fix failures, commit and push.
+
+## Status
+
+- Phase: Handoff
+- Overall: On track
+
+## What Was Completed (Latest Session)
+
+- [x] **Full E2E suite run**: 192 tests, all passing.
+- [x] **Fix logger-undo.spec.ts**: Added `match_clock` and `period` to all `sendRawEvent` harness calls — backend `MatchEvent` Pydantic model requires both fields; without them events were rejected with error ack and moved to queue instead of appearing in live feed. Also configured `test.describe.configure({ mode: "serial" })` to prevent parallel reset interference on shared match ID.
+- [x] **Fix logger-ultimate-cockpit.spec.ts (ULT-02)**: Changed `getLiveEventCount` from counting paginated `live-event-item` DOM elements (capped at page size 20) to reading `data-count` attribute from new `live-events-total` testid—fixes assertion failure when total events exceed the feed's page size.
+- [x] **LiveEventFeed.tsx**: Added `data-testid="live-events-total"` with `data-count` attribute exposing the true total event count for reliable E2E assertions.
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-undo.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: Full suite (192 tests) -> ALL PASS
+- [x] Pre-commit hooks: Prettier, Lint, TSC, Unit Tests -> ALL PASS
+
+## Implementation Notes
+
+- Root cause of logger-undo failure: `sendRawEvent` payloads missing `match_clock`/`period` fields required by backend `MatchEvent` model. Backend returns `{"status": "error"}` ack, frontend moves event from `liveEvents` to `queuedEvents`, so live count never increases.
+- Root cause of ULT-02 failure: `LiveEventFeed` paginates at 20 items; `getLiveEventCount` was counting DOM elements (max 20). Once 20+ events exist, event additions never increase the visible count.
+
+## Next Steps
+
+- No immediate follow-up required
+
+---
+
+## Previous Objectives (Completed)
+
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.
 - [x] Fix dashboard data and quick-action buttons by aligning backend dashboard status/event aggregation with current data model and correcting dashboard route links.
