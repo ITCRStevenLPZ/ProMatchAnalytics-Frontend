@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Run full E2E suite, fix failures, commit and push.
+- [x] Implement per-period clock display (each half starts from 0 instead of cumulative)
 
 ## Status
 
@@ -17,26 +17,31 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] **Full E2E suite run**: 192 tests, all passing.
-- [x] **Fix logger-undo.spec.ts**: Added `match_clock` and `period` to all `sendRawEvent` harness calls — backend `MatchEvent` Pydantic model requires both fields; without them events were rejected with error ack and moved to queue instead of appearing in live feed. Also configured `test.describe.configure({ mode: "serial" })` to prevent parallel reset interference on shared match ID.
-- [x] **Fix logger-ultimate-cockpit.spec.ts (ULT-02)**: Changed `getLiveEventCount` from counting paginated `live-event-item` DOM elements (capped at page size 20) to reading `data-count` attribute from new `live-events-total` testid—fixes assertion failure when total events exceed the feed's page size.
-- [x] **LiveEventFeed.tsx**: Added `data-testid="live-events-total"` with `data-count` attribute exposing the true total event count for reliable E2E assertions.
+- [x] **Per-period clock display**: Main timer in `MatchTimerDisplay` now shows time elapsed within the current period (0→45:00+ for regular halves, 0→15:00+ for extra time halves) instead of cumulative global time. Global clock is shown as a secondary display below.
+- [x] **`usePeriodManager.ts`**: Added `periodElapsedSeconds` and `periodMinimumSeconds` to `PeriodInfo` interface. `periodElapsedSeconds` is derived from `globalTimeSeconds - period_timestamps.{period}.global_start_seconds`, resetting to 0 at each period start. `periodMinimumSeconds` is 2700s (45 min) for regular halves and 900s (15 min) for extra time halves.
+- [x] **`MatchTimerDisplay.tsx`**: Replaced cumulative regulation-limit stoppage display with per-period logic. Main clock shows `MM:SS` within the period; when over the period minimum, shows `45:00 + MM:SS` (or `15:00 + MM:SS` for extra time). Added secondary global cumulative clock row with `data-testid="global-cumulative-clock"`.
+- [x] **Prop chain**: Threaded `periodElapsedSeconds` and `periodMinimumSeconds` through `LoggerCockpit` → `LoggerView` → `MatchTimerDisplay`.
+- [x] **No backend changes needed**: `match_time_seconds` remains cumulative on the server. Per-period display is a pure frontend concern.
+- [x] **Full E2E suite**: 192 tests, 0 real failures (1 timing flake in ULT-03 that passes on re-run).
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: `logger-undo.spec.ts` (2 tests) -> ALL PASS
-- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
-- [x] E2E: Full suite (192 tests) -> ALL PASS
-- [x] Pre-commit hooks: Prettier, Lint, TSC, Unit Tests -> ALL PASS
+- [x] E2E: Full suite (192 tests) -> ALL PASS (no regressions)
+- [x] TypeScript compile: PASS (clean `tsc --noEmit`)
+- [x] Unit tests: 92 passed, 3 pre-existing failures in `payloadBuilders.test.ts` (unrelated)
 
 ## Implementation Notes
 
-- Root cause of logger-undo failure: `sendRawEvent` payloads missing `match_clock`/`period` fields required by backend `MatchEvent` model. Backend returns `{"status": "error"}` ack, frontend moves event from `liveEvents` to `queuedEvents`, so live count never increases.
-- Root cause of ULT-02 failure: `LiveEventFeed` paginates at 20 items; `getLiveEventCount` was counting DOM elements (max 20). Once 20+ events exist, event additions never increase the visible count.
+- The main "Period Clock" in `MatchTimerDisplay` now uses `periodElapsedSeconds` from `usePeriodManager` instead of parsing cumulative `globalClock` seconds.
+- Stoppage time display uses per-period limits (45 min for P1/P2, 15 min for P3/P4) instead of cumulative limits (90 min for P2, 105 min for P3, 120 min for P4).
+- `period_timestamps.{period}.global_start_seconds` from the backend determines the period start point. Falls back to canonical values (0, 2700, 5400, 6300) when timestamps are unavailable.
+- The `operatorClock` used for event `match_clock` values remains cumulative — standard soccer analytics convention.
+- `CockpitHeader` small timer still shows cumulative `match.match_time_seconds` (static DB value, not live-ticking) — low-priority secondary display.
 
 ## Next Steps
 
-- No immediate follow-up required
+- Consider updating `CockpitHeader` small timer to show per-period time (requires threading through `CockpitTopSection`)
+- Consider adding a dedicated E2E test for per-period clock display across period transitions
 
 ---
 

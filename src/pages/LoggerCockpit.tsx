@@ -811,6 +811,8 @@ export default function LoggerCockpit() {
                 isVarActive={isVarActive}
                 isTimeoutActive={isTimeoutActive}
                 showFieldResume={showFieldResume}
+                periodElapsedSeconds={periodInfo.periodElapsedSeconds}
+                periodMinimumSeconds={periodInfo.periodMinimumSeconds}
                 currentStep={currentStep}
                 selectedPlayer={selectedPlayer}
                 selectedAction={selectedAction}

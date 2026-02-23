@@ -38,6 +38,10 @@ interface PeriodInfo {
   canTransitionToExtraTimeSecond: boolean;
   canTransitionToPenalties: boolean;
   canFinishMatch: boolean;
+  /** Seconds elapsed since the current period started (resets to 0 each period) */
+  periodElapsedSeconds: number;
+  /** Minimum regulation seconds for the current period (2700 for regular halves, 900 for extra time halves) */
+  periodMinimumSeconds: number;
 }
 
 // Map match status to phase
@@ -204,6 +208,13 @@ export const usePeriodManager = (
         : canonicalStartSeconds;
     const elapsedSinceStart = Math.max(0, globalTimeSeconds - startSeconds);
 
+    // Per-period minimum regulation seconds
+    const periodMinimumSeconds =
+      currentPhase === "FIRST_HALF_EXTRA_TIME" ||
+      currentPhase === "SECOND_HALF_EXTRA_TIME"
+        ? EXTRA_HALF_MINUTES * 60
+        : REGULATION_FIRST_HALF_SECONDS;
+
     const canTransitionToHalftime = currentPhase === "FIRST_HALF";
     const canTransitionToSecondHalf = currentPhase === "HALFTIME";
     const canTransitionToFulltime = currentPhase === "SECOND_HALF"; // End of Regulation
@@ -216,7 +227,6 @@ export const usePeriodManager = (
       currentPhase === "SECOND_HALF_EXTRA_TIME" || currentPhase === "PENALTIES";
 
     // Calculate extra time based on current phase and standard durations
-    // P1: 45m, P2: 90m, P3: 105m, P4: 120m
     if (currentPhase === "FIRST_HALF") {
       period = 1;
       if (elapsedSinceStart >= REGULATION_FIRST_HALF_SECONDS) {
@@ -257,6 +267,8 @@ export const usePeriodManager = (
       canTransitionToExtraTimeSecond,
       canTransitionToPenalties,
       canFinishMatch,
+      periodElapsedSeconds: elapsedSinceStart,
+      periodMinimumSeconds,
     };
   }, [effectiveTime, currentPhase, operatorPeriod, globalTimeSeconds, match]);
 

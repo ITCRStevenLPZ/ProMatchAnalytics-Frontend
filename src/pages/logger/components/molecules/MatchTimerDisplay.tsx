@@ -23,6 +23,10 @@ interface MatchTimerDisplayProps {
   isVarActive: boolean;
   isTimeoutActive: boolean;
   hideResumeButton?: boolean;
+  /** Seconds elapsed since the current period started (resets to 0 each period) */
+  periodElapsedSeconds: number;
+  /** Minimum regulation seconds for the current period (2700 for regular, 900 for extra time) */
+  periodMinimumSeconds: number;
   t: any;
 }
 
@@ -47,6 +51,8 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   isVarActive,
   isTimeoutActive,
   hideResumeButton = false,
+  periodElapsedSeconds,
+  periodMinimumSeconds,
   t,
 }) => {
   const clockLocked =
@@ -79,7 +85,7 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-slate-400">
-            {t("globalClock", "Global Clock")}
+            {t("periodClock", "Period Clock")}
           </p>
           {isClockRunning && (
             <span className="relative flex h-2 w-2">
@@ -95,23 +101,16 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
           }`}
         >
           {(() => {
-            const [mm, ss] = globalClockDisplay.split(":").map(Number);
-            const totalSeconds = mm * 60 + (ss || 0);
+            // Per-period clock: show time elapsed since current period started
+            const elapsed = Math.max(0, Math.floor(periodElapsedSeconds));
+            const regLimit = Math.max(0, Math.floor(periodMinimumSeconds));
 
-            let regulationLimit = 0;
-            if (operatorPeriod === 1) regulationLimit = 45 * 60;
-            else if (operatorPeriod === 2) regulationLimit = 90 * 60;
-            else if (operatorPeriod === 3) regulationLimit = (90 + 15) * 60;
-            // Extra Time 1st Half (105 mins)
-            else if (operatorPeriod === 4)
-              regulationLimit = (90 + 15 + 15) * 60; // Extra Time 2nd Half (120 mins)
-
-            // Only split if we are significantly over (e.g. > 0 seconds over) and in a relevant period
-            if (regulationLimit > 0 && totalSeconds > regulationLimit) {
-              const stoppageSeconds = totalSeconds - regulationLimit;
-              const regM = Math.floor(regulationLimit / 60)
+            if (regLimit > 0 && elapsed > regLimit) {
+              // Stoppage / additional time display: "45:00 + 06:12"
+              const regM = Math.floor(regLimit / 60)
                 .toString()
                 .padStart(2, "0");
+              const stoppageSeconds = elapsed - regLimit;
               const stopM = Math.floor(stoppageSeconds / 60)
                 .toString()
                 .padStart(2, "0");
@@ -126,8 +125,27 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
                 </div>
               );
             }
-            return globalClockDisplay;
+
+            // Normal per-period display: "MM:SS"
+            const m = Math.floor(elapsed / 60)
+              .toString()
+              .padStart(2, "0");
+            const s = (elapsed % 60).toString().padStart(2, "0");
+            return `${m}:${s}`;
           })()}
+        </span>
+      </div>
+
+      {/* Global (cumulative) clock — secondary display */}
+      <div className="flex items-center justify-between mb-4 bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          {t("globalClock", "Global Clock")}
+        </span>
+        <span
+          data-testid="global-cumulative-clock"
+          className="text-sm font-mono font-bold text-slate-400"
+        >
+          {globalClockDisplay}
         </span>
       </div>
 
