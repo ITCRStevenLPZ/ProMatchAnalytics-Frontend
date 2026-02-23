@@ -28,6 +28,8 @@ interface LoggerViewProps {
   isVarActive: boolean;
   isTimeoutActive: boolean;
   showFieldResume: boolean;
+  periodElapsedSeconds: number;
+  periodMinimumSeconds: number;
   currentStep: any;
   selectedPlayer: any;
   selectedAction: string | null;
@@ -90,6 +92,8 @@ export default function LoggerView({
   isVarActive,
   isTimeoutActive,
   showFieldResume,
+  periodElapsedSeconds,
+  periodMinimumSeconds,
   currentStep,
   selectedPlayer,
   selectedAction,
@@ -154,6 +158,8 @@ export default function LoggerView({
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
           hideResumeButton={showFieldResume}
+          periodElapsedSeconds={periodElapsedSeconds}
+          periodMinimumSeconds={periodMinimumSeconds}
           t={t}
         />
       </div>
