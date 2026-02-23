@@ -8,6 +8,42 @@
 
 ## Current Objective
 
+- [x] Fix critical home-team substitution queue bug: subs stuck permanently in "en cola" state.
+
+## Status
+
+- Phase: Handoff
+- Overall: On track
+
+## What Was Completed (Latest Session)
+
+- [x] Diagnosed root cause (backend `record_substitution_in_match` crash → error ack → events permanently queued on frontend).
+- [x] **Fix 1 — useMatchSocket.ts (error ack cleanup)**: Error acks now remove the event from `liveEvents` before adding to `queuedEvents`, preventing phantom timeline entries (event existed in both arrays simultaneously).
+- [x] **Fix 2 — useMatchSocket.ts (periodic queue retry)**: Added `setInterval(syncQueue, 10_000)` while connected, so events stuck in queue get auto-retried instead of being stranded until reconnect.
+- [x] Created new E2E spec `e2e/logger-substitution-queue.spec.ts` with 4 tests: home sub not queued, away sub not queued, 3 consecutive home subs not queued, automatic queue retry while connected.
+- [x] Frontend unit tests: 74 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions.
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `e2e/logger-substitution-queue.spec.ts` (4 tests) -> CREATED
+- [x] Unit: No new frontend unit tests needed (changes are in hooks/store, covered by existing tests)
+- [x] Pre-existing: 3 failing `payloadBuilders.test.ts` tests (unchanged by this work)
+
+## Implementation Notes
+
+- The periodic retry interval (10s) ensures that even if the backend temporarily returns errors, events will eventually be processed once the backend is healthy.
+- The `removeLiveEventByClientId`/`removeLiveEventByTimestamp` on error ack prevents the same event from appearing in both `liveEvents` and `queuedEvents`.
+- Backend fixes (error isolation in websocket.py, robust substitution_validator.py) are in the backend repo.
+
+## Next Steps
+
+- Run E2E suite against live backend E2E server
+- Commit and push both repos
+
+---
+
+## Previous Objectives (Completed)
+
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.
 - [x] Fix dashboard data and quick-action buttons by aligning backend dashboard status/event aggregation with current data model and correcting dashboard route links.

@@ -324,7 +324,13 @@ export const useMatchSocket = ({
           "⚠ Duplicate event acknowledged, removed optimistic entry",
         );
       } else {
+        // Error ack: move event from liveEvents → queuedEvents for retry
         if (source === "live") {
+          if (event.client_id) {
+            removeLiveEventByClientId(event.client_id);
+          } else {
+            removeLiveEventByTimestamp(event.timestamp);
+          }
           addQueuedEvent(event);
         }
         console.warn("✗ Event failed, re-queued for retry", status);
@@ -621,6 +627,14 @@ export const useMatchSocket = ({
       syncQueue();
     }
   }, [isConnected, matchId, syncQueue]);
+
+  // Periodic retry — re-send queued events every 10 s while connected so
+  // that a transient backend error does not permanently strand events.
+  useEffect(() => {
+    if (!isConnected) return;
+    const id = setInterval(syncQueue, 10_000);
+    return () => clearInterval(id);
+  }, [isConnected, syncQueue]);
 
   useEffect(() => {
     if (!IS_E2E_TEST_MODE) {
