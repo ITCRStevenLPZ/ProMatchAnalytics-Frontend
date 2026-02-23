@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Add general (total) Effective Time and Ineffective Time rows in analytics table; move player stats table below match analytics.
+- [x] Run full E2E suite, fix failures, commit and push.
 
 ## Status
 
@@ -17,30 +17,26 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] **Total Effective Time row**: Added a new "Total Effective Time" row in the analytics comparative table showing overall ball-in-play time (same value for both columns since it's a shared match-level metric).
-- [x] **Total Ineffective Time row**: Added a new "Total Ineffective Time" row showing overall stoppage time for the match (all teams combined).
-- [x] **Player stats table moved below match analytics**: Swapped `PlayerStatsTable` and `MatchAnalytics` in `AnalyticsView.tsx` so analytics appears first, player stats below.
-- [x] Extended `computeTimerFormulas()` with `totalEffectiveTime` and `totalIneffectiveSeconds` return fields.
-- [x] Added i18n keys in EN (`totalEffectiveTime`, `tooltipTotalEffectiveTime`, `totalIneffectiveTime`, `tooltipTotalIneffectiveTime`) and ES locale files.
-- [x] Added 4 new unit tests: totalEffectiveTime equals input, totalIneffectiveSeconds equals input, sum identity check, zero-input edge case.
+- [x] **Full E2E suite run**: 192 tests, all passing.
+- [x] **Fix logger-undo.spec.ts**: Added `match_clock` and `period` to all `sendRawEvent` harness calls — backend `MatchEvent` Pydantic model requires both fields; without them events were rejected with error ack and moved to queue instead of appearing in live feed. Also configured `test.describe.configure({ mode: "serial" })` to prevent parallel reset interference on shared match ID.
+- [x] **Fix logger-ultimate-cockpit.spec.ts (ULT-02)**: Changed `getLiveEventCount` from counting paginated `live-event-item` DOM elements (capped at page size 20) to reading `data-count` attribute from new `live-events-total` testid—fixes assertion failure when total events exceed the feed's page size.
+- [x] **LiveEventFeed.tsx**: Added `data-testid="live-events-total"` with `data-count` attribute exposing the true total event count for reliable E2E assertions.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] Unit: `MatchAnalytics.test.ts` (18 tests) -> ALL PASS
-- [x] Full unit suite: 92 passed, 3 pre-existing failures (payloadBuilders) — 0 new regressions
-- [x] TypeScript compiler: 0 errors
+- [x] E2E: `logger-undo.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: Full suite (192 tests) -> ALL PASS
+- [x] Pre-commit hooks: Prettier, Lint, TSC, Unit Tests -> ALL PASS
 
 ## Implementation Notes
 
-- The two new rows appear after "Effective Time %" and before "Average Age" in the comparative table.
-- Both columns show the same value for these general rows since they are match-level totals, not per-team.
-- `totalEffectiveTime` = `effectiveTime` input (ball-in-play seconds from `useMatchTimer`).
-- `totalIneffectiveSeconds` = `ineffectiveSeconds` input (global accumulated stoppage seconds).
+- Root cause of logger-undo failure: `sendRawEvent` payloads missing `match_clock`/`period` fields required by backend `MatchEvent` model. Backend returns `{"status": "error"}` ack, frontend moves event from `liveEvents` to `queuedEvents`, so live count never increases.
+- Root cause of ULT-02 failure: `LiveEventFeed` paginates at 20 items; `getLiveEventCount` was counting DOM elements (max 20). Once 20+ events exist, event additions never increase the visible count.
 
 ## Next Steps
 
-- Run E2E suite against live backend E2E server for full integration validation
-- Commit and push to `dev` branch
+- No immediate follow-up required
 
 ---
 
