@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { TFunction } from "i18next";
-import { Users, LayoutGrid, Map } from "lucide-react";
+import { Users, LayoutGrid, Map, Crosshair } from "lucide-react";
 import SoccerField from "../../../../components/SoccerField";
+import TacticalField from "./TacticalField";
+import type { TacticalPosition } from "../../hooks/useTacticalPositions";
 import { FieldCoordinate, Match, Player } from "../../types";
 
 type PositionGroup = "goalkeeper" | "defense" | "midfield" | "attack" | "other";
@@ -144,10 +146,23 @@ interface PlayerSelectorPanelProps {
   fieldOverlay?: React.ReactNode;
   forceFieldMode?: boolean;
   forceListMode?: boolean;
+  forceTacticalMode?: boolean;
   priorityPlayerId?: string | null;
   isReadOnly?: boolean;
   showDestinationControls?: boolean;
   cardSelectionActive?: boolean;
+  /** Tactical field support */
+  getDisplayPosition?: (
+    playerId: string,
+    flipSides: boolean,
+  ) => TacticalPosition;
+  onPlayerDragEnd?: (
+    playerId: string,
+    displayX: number,
+    displayY: number,
+    playerPosition: string | undefined,
+    side: "home" | "away",
+  ) => void;
   t: TFunction<"logger">;
 }
 
@@ -166,29 +181,38 @@ const PlayerSelectorPanel = ({
   fieldOverlay,
   forceFieldMode = false,
   forceListMode = false,
+  forceTacticalMode = false,
   priorityPlayerId = null,
   isReadOnly = false,
   showDestinationControls = false,
   cardSelectionActive = false,
+  getDisplayPosition,
+  onPlayerDragEnd,
   t,
 }: PlayerSelectorPanelProps) => {
-  const [viewMode, setViewMode] = useState<"list" | "field">(
-    forceFieldMode ? "field" : "list",
+  const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
+    forceTacticalMode ? "tactical" : forceFieldMode ? "field" : "list",
   );
   const resolvedViewMode = forceListMode
     ? "list"
-    : forceFieldMode
-      ? "field"
-      : viewMode;
+    : forceTacticalMode
+      ? "tactical"
+      : forceFieldMode
+        ? "field"
+        : viewMode;
 
   useEffect(() => {
     if (forceListMode) {
       setViewMode("list");
       return;
     }
+    if (forceTacticalMode) {
+      setViewMode("tactical");
+      return;
+    }
     if (!forceFieldMode) return;
     setViewMode("field");
-  }, [forceFieldMode, forceListMode]);
+  }, [forceFieldMode, forceListMode, forceTacticalMode]);
   const prioritizePlayers = (players: Player[]) => {
     if (!priorityPlayerId) return players;
     const index = players.findIndex((p) => p.id === priorityPlayerId);
@@ -373,7 +397,7 @@ const PlayerSelectorPanel = ({
           <Users size={20} />
           {t("selectPlayer", "Select Player")}
         </h2>
-        {!forceFieldMode && !forceListMode && (
+        {!forceFieldMode && !forceListMode && !forceTacticalMode && (
           <div className="flex bg-slate-900 rounded-lg p-1">
             <button
               onClick={() => setViewMode("list")}
@@ -397,6 +421,20 @@ const PlayerSelectorPanel = ({
             >
               <Map size={18} />
             </button>
+            {getDisplayPosition && (
+              <button
+                onClick={() => setViewMode("tactical")}
+                data-testid="btn-tactical-view"
+                className={`p-1.5 rounded-md ${
+                  viewMode === "tactical"
+                    ? "bg-slate-700 shadow text-blue-400"
+                    : "text-slate-500 hover:text-slate-300"
+                }`}
+                title="Tactical View"
+              >
+                <Crosshair size={18} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -433,7 +471,40 @@ const PlayerSelectorPanel = ({
         </div>
       )}
 
-      {resolvedViewMode === "field" ? (
+      {resolvedViewMode === "tactical" &&
+      getDisplayPosition &&
+      onPlayerDragEnd ? (
+        <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
+          <TacticalField
+            homeTeamName={match.home_team.name}
+            awayTeamName={match.away_team.name}
+            homePlayers={match.home_team.players.filter((p) =>
+              onFieldIds.home.has(p.id),
+            )}
+            awayPlayers={match.away_team.players.filter((p) =>
+              onFieldIds.away.has(p.id),
+            )}
+            expelledPlayerIds={expelledPlayerIds}
+            disciplinaryStatusByPlayer={disciplinaryStatusByPlayer}
+            flipSides={flipSides}
+            getDisplayPosition={getDisplayPosition}
+            onPlayerDragEnd={onPlayerDragEnd}
+            onPlayerClick={(player, anchor, location, side) => {
+              if (selectionLocked) return;
+              if (onFieldPlayerClick) {
+                onFieldPlayerClick(player, anchor, location, side);
+                return;
+              }
+              onPlayerClick(player);
+            }}
+            onDestinationClick={
+              selectionLocked ? undefined : onFieldDestinationClick
+            }
+            overlay={resolvedFieldOverlay}
+            showDestinationControls={showDestinationControls}
+          />
+        </div>
+      ) : resolvedViewMode === "field" ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
           <SoccerField
             homeTeamName={match.home_team.name}

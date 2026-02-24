@@ -17,7 +17,7 @@ import {
   waitForPendingAckToClear,
 } from "./utils/logger";
 
-const MATCH_ID = "E2E-MATCH-TAXONOMY";
+const MATCH_ID = "E2E-MATCH-ULT-STRESS";
 
 let backendRequest: APIRequestContext;
 let cardEventSequence = 0;

@@ -68,6 +68,7 @@ export const useMatchTimer = (
 
     const updateTimers = () => {
       const now = Date.now();
+
       const isStatusStopped =
         match.status === "Halftime" ||
         match.status === "Extra_Halftime" ||
@@ -99,32 +100,31 @@ export const useMatchTimer = (
         // IMPORTANT: Only accumulate if the backend match state matches our local optimistic clockMode.
         // Otherwise, we might calculate elapsed time using a timestamp from the WRONG mode (e.g. previous mode start),
         // leading to massive time jumps (phantom accumulation) which can be permanently saved if a save triggers during the glitch.
-        if (!isTimeoutActive) {
-          if (clockMode === "EFFECTIVE") {
-            if (match.clock_mode === "EFFECTIVE") {
-              currentEffectiveSeconds =
-                (match.clock_seconds_at_period_start || 0) +
-                Math.max(0, elapsed - varPauseTotal);
-            } else {
-              currentEffectiveSeconds =
-                match.clock_seconds_at_period_start ||
-                match.match_time_seconds ||
-                0;
-            }
-          } else if (clockMode === "INEFFECTIVE") {
-            if (
-              match.clock_mode === "INEFFECTIVE" &&
-              match.last_mode_change_timestamp
-            ) {
-              const lastChange = parseTimestamp(
-                match.last_mode_change_timestamp,
-              );
-              const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
-              currentIneffectiveSeconds += Math.max(
-                0,
-                elapsedSinceChange - varPauseTotal,
-              );
-            }
+        if (clockMode === "EFFECTIVE" && !isTimeoutActive) {
+          if (match.clock_mode === "EFFECTIVE") {
+            currentEffectiveSeconds =
+              (match.clock_seconds_at_period_start || 0) +
+              Math.max(0, elapsed - varPauseTotal);
+          } else {
+            currentEffectiveSeconds =
+              match.clock_seconds_at_period_start ||
+              match.match_time_seconds ||
+              0;
+          }
+        } else if (clockMode === "INEFFECTIVE") {
+          // Ineffective time always accumulates when in INEFFECTIVE mode,
+          // regardless of isTimeoutActive — a timeout cannot logically be
+          // active during an ineffective period (e.g. offside).
+          if (
+            match.clock_mode === "INEFFECTIVE" &&
+            match.last_mode_change_timestamp
+          ) {
+            const lastChange = parseTimestamp(match.last_mode_change_timestamp);
+            const elapsedSinceChange = Math.max(0, (now - lastChange) / 1000);
+            currentIneffectiveSeconds += Math.max(
+              0,
+              elapsedSinceChange - varPauseTotal,
+            );
           }
         }
 

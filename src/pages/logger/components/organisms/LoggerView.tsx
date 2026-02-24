@@ -6,6 +6,7 @@ import TeamSelector from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
 import LiveEventFeed from "../molecules/LiveEventFeed";
 import ActionStage from "./ActionStage";
+import type { TacticalPosition } from "../../hooks/useTacticalPositions";
 
 interface LoggerViewProps {
   match: any;
@@ -68,6 +69,17 @@ interface LoggerViewProps {
   handleDeleteLoggedEvent: (...args: any[]) => void;
   isAdmin: boolean;
   handleUpdateEventNotes: (...args: any[]) => Promise<void> | void;
+  getDisplayPosition?: (
+    playerId: string,
+    flipSides: boolean,
+  ) => TacticalPosition;
+  onTacticalPlayerDragEnd?: (
+    playerId: string,
+    displayX: number,
+    displayY: number,
+    playerPosition: string | undefined,
+    side: "home" | "away",
+  ) => void;
   t: any;
 }
 
@@ -132,6 +144,8 @@ export default function LoggerView({
   handleDeleteLoggedEvent,
   isAdmin,
   handleUpdateEventNotes,
+  getDisplayPosition,
+  onTacticalPlayerDragEnd,
   t,
 }: LoggerViewProps) {
   return (
@@ -244,6 +258,8 @@ export default function LoggerView({
         currentTeam={currentTeam}
         eligibleRecipients={eligibleRecipients}
         handleRecipientSelect={handleRecipientSelect}
+        getDisplayPosition={getDisplayPosition}
+        onTacticalPlayerDragEnd={onTacticalPlayerDragEnd}
         t={t}
       />
 

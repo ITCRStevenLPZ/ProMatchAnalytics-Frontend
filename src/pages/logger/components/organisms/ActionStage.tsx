@@ -8,6 +8,7 @@ import QuickCardPanel, { CardSelection } from "../molecules/QuickCardPanel";
 import ActionSelectionPanel from "../molecules/ActionSelectionPanel";
 import OutcomeSelectionPanel from "../molecules/OutcomeSelectionPanel";
 import RecipientSelectionPanel from "../molecules/RecipientSelectionPanel";
+import type { TacticalPosition } from "../../hooks/useTacticalPositions";
 
 interface ActionStageProps {
   match: any;
@@ -46,6 +47,17 @@ interface ActionStageProps {
   currentTeam: any;
   eligibleRecipients: any[];
   handleRecipientSelect: (...args: any[]) => void;
+  getDisplayPosition?: (
+    playerId: string,
+    flipSides: boolean,
+  ) => TacticalPosition;
+  onTacticalPlayerDragEnd?: (
+    playerId: string,
+    displayX: number,
+    displayY: number,
+    playerPosition: string | undefined,
+    side: "home" | "away",
+  ) => void;
   t: any;
 }
 
@@ -86,6 +98,8 @@ export default function ActionStage({
   currentTeam,
   eligibleRecipients,
   handleRecipientSelect,
+  getDisplayPosition,
+  onTacticalPlayerDragEnd,
   t,
 }: ActionStageProps) {
   return (
@@ -151,7 +165,10 @@ export default function ActionStage({
               </div>
             ) : null
           }
-          forceFieldMode
+          forceFieldMode={!getDisplayPosition}
+          forceTacticalMode={Boolean(getDisplayPosition)}
+          getDisplayPosition={getDisplayPosition}
+          onPlayerDragEnd={onTacticalPlayerDragEnd}
           priorityPlayerId={priorityPlayerId}
           isReadOnly={
             !IS_E2E_TEST_MODE &&

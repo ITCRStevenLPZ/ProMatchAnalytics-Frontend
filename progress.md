@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Implement per-period clock display (each half starts from 0 instead of cumulative)
+- [x] Implement tactical soccer field with drag-and-drop player positioning, fix ULT-03 regression, and fix backend GameStoppage dedup
 
 ## Status
 
@@ -17,31 +17,38 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] **Per-period clock display**: Main timer in `MatchTimerDisplay` now shows time elapsed within the current period (0→45:00+ for regular halves, 0→15:00+ for extra time halves) instead of cumulative global time. Global clock is shown as a secondary display below.
-- [x] **`usePeriodManager.ts`**: Added `periodElapsedSeconds` and `periodMinimumSeconds` to `PeriodInfo` interface. `periodElapsedSeconds` is derived from `globalTimeSeconds - period_timestamps.{period}.global_start_seconds`, resetting to 0 at each period start. `periodMinimumSeconds` is 2700s (45 min) for regular halves and 900s (15 min) for extra time halves.
-- [x] **`MatchTimerDisplay.tsx`**: Replaced cumulative regulation-limit stoppage display with per-period logic. Main clock shows `MM:SS` within the period; when over the period minimum, shows `45:00 + MM:SS` (or `15:00 + MM:SS` for extra time). Added secondary global cumulative clock row with `data-testid="global-cumulative-clock"`.
-- [x] **Prop chain**: Threaded `periodElapsedSeconds` and `periodMinimumSeconds` through `LoggerCockpit` → `LoggerView` → `MatchTimerDisplay`.
-- [x] **No backend changes needed**: `match_time_seconds` remains cumulative on the server. Per-period display is a pure frontend concern.
-- [x] **Full E2E suite**: 192 tests, 0 real failures (1 timing flake in ULT-03 that passes on re-run).
+### Tactical Field Feature
+
+- [x] **`useTacticalPositions.ts`** (~363 lines): Per-match position state management hook. Multi-column layout for large groups (MAX_PER_COL=5). Position groups: GK (x=5), DF (x=20), MF (x=40), FW (x=60). Substitution position inheritance. Side-switching support.
+- [x] **`TacticalPlayerNode.tsx`** (~252 lines): Draggable player node with pointer event handling, bounds enforcement, visual states (home/away/selected), backward-compat attributes. Click stopPropagation to prevent field-level click interference.
+- [x] **`TacticalField.tsx`** (~341 lines): Main field container with SVG pitch, drag-and-drop support, 12 edge-bar destination buttons, field click handler for destination selection.
+- [x] **Wiring**: TacticalField replaces SoccerField in `ActionStage.tsx`. `LoggerCockpit.tsx` integrates `useTacticalPositions` hook with `homeOnFieldPlayers`/`awayOnFieldPlayers` memos.
+
+### ULT-03 Regression Fix
+
+- [x] **Root cause identified**: Backend WebSocket dedup filter for `GameStoppage` events did not include `data.stoppage_type`, causing `TimeoutStop` to be flagged as duplicate of `TimeoutStart` (they share same `type`, `team_id`, `period`).
+- [x] **Backend fix (websocket.py)**: Added `client_id` to dedup filter as primary discriminator (matching events.py pattern). Added `data.stoppage_type` fallback for non-client_id events. Applied same fix to `events.py` and `sync.py`.
+- [x] **Frontend defense (useMatchTimer.ts)**: Restructured timer accumulation so INEFFECTIVE mode always ticks regardless of `isTimeoutActive` state — a timeout cannot logically be active during an ineffective period (e.g., offside).
+- [x] **Test isolation fix**: Gave unique match IDs to `logger-ultimate-cockpit.spec.ts` (`E2E-MATCH-ULT-COCKPIT`) and `logger-ultimate-disciplinary-stress.spec.ts` (`E2E-MATCH-ULT-STRESS`) to prevent parallel test interference via shared `E2E-MATCH-TAXONOMY`.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: Full suite (192 tests) -> ALL PASS (no regressions)
-- [x] TypeScript compile: PASS (clean `tsc --noEmit`)
-- [x] Unit tests: 92 passed, 3 pre-existing failures in `payloadBuilders.test.ts` (unrelated)
+- [x] E2E: `logger-field-flow.spec.ts` — 7 new tactical field tests -> ALL PASS
+- [x] E2E: Full suite (199 tests) -> ALL PASS, EXIT 0
+- [x] Backend: 121 tests -> ALL PASS
+- [x] ULT-03 regression: RESOLVED (passes in isolation and full suite)
 
 ## Implementation Notes
 
-- The main "Period Clock" in `MatchTimerDisplay` now uses `periodElapsedSeconds` from `usePeriodManager` instead of parsing cumulative `globalClock` seconds.
-- Stoppage time display uses per-period limits (45 min for P1/P2, 15 min for P3/P4) instead of cumulative limits (90 min for P2, 105 min for P3, 120 min for P4).
-- `period_timestamps.{period}.global_start_seconds` from the backend determines the period start point. Falls back to canonical values (0, 2700, 5400, 6300) when timestamps are unavailable.
-- The `operatorClock` used for event `match_clock` values remains cumulative — standard soccer analytics convention.
-- `CockpitHeader` small timer still shows cumulative `match.match_time_seconds` (static DB value, not live-ticking) — low-priority secondary display.
+- TacticalField is always rendered (forceTacticalMode=true) because `getDisplayPosition` is always a function.
+- The dedup filter now checks `client_id` first (unique per event), then falls back to `player_id`, then to base fields + `data.stoppage_type`/`data.action_type`.
+- Timer code uses `clockMode === "EFFECTIVE" && !isTimeoutActive` for effective accumulation, and `clockMode === "INEFFECTIVE"` (no `isTimeoutActive` guard) for ineffective accumulation.
+- Three parallel test files previously shared `E2E-MATCH-TAXONOMY` causing match state corruption under parallel execution.
 
 ## Next Steps
 
-- Consider updating `CockpitHeader` small timer to show per-period time (requires threading through `CockpitTopSection`)
-- Consider adding a dedicated E2E test for per-period clock display across period transitions
+- Consider adding unit tests for dedup filter changes in backend
+- Consider visual regression tests for tactical field layout
 
 ---
 
