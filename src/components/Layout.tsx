@@ -42,6 +42,8 @@ function ProfileAvatar({ user }: { user: any }) {
   );
 }
 
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "1.0.0";
+
 export default function Layout() {
   const { t, ready } = useTranslation("common");
   const { user, logout } = useAuthStore();
@@ -312,6 +314,14 @@ export default function Layout() {
       >
         <Outlet />
       </main>
+
+      {/* App version */}
+      <span
+        data-testid="app-version"
+        className="fixed bottom-2 right-3 text-[10px] font-mono text-gray-400/60 pointer-events-none select-none z-50"
+      >
+        v{APP_VERSION}
+      </span>
     </div>
   );
 }
