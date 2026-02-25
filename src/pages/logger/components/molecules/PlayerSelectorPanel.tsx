@@ -3,7 +3,11 @@ import { TFunction } from "i18next";
 import { Users, LayoutGrid, Map, Crosshair } from "lucide-react";
 import SoccerField from "../../../../components/SoccerField";
 import TacticalField from "./TacticalField";
-import type { TacticalPosition } from "../../hooks/useTacticalPositions";
+import FormationPicker from "./FormationPicker";
+import type {
+  TacticalPosition,
+  Formation,
+} from "../../hooks/useTacticalPositions";
 import { FieldCoordinate, Match, Player } from "../../types";
 
 type PositionGroup = "goalkeeper" | "defense" | "midfield" | "attack" | "other";
@@ -151,6 +155,8 @@ interface PlayerSelectorPanelProps {
   isReadOnly?: boolean;
   showDestinationControls?: boolean;
   cardSelectionActive?: boolean;
+  /** The active card type when card selection is active (e.g. "Cancelled"). */
+  pendingCardType?: "Yellow" | "Red" | "Cancelled" | null;
   /** Tactical field support */
   getDisplayPosition?: (
     playerId: string,
@@ -163,6 +169,13 @@ interface PlayerSelectorPanelProps {
     playerPosition: string | undefined,
     side: "home" | "away",
   ) => void;
+  draggingPlayerId?: string | null;
+  onTacticalDragStart?: (playerId: string) => void;
+  onTacticalDragStop?: () => void;
+  allTacticalPositions?: Map<string, TacticalPosition>;
+  homeFormation?: Formation | null;
+  awayFormation?: Formation | null;
+  applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   t: TFunction<"logger">;
 }
 
@@ -186,8 +199,16 @@ const PlayerSelectorPanel = ({
   isReadOnly = false,
   showDestinationControls = false,
   cardSelectionActive = false,
+  pendingCardType = null,
   getDisplayPosition,
   onPlayerDragEnd,
+  draggingPlayerId,
+  onTacticalDragStart,
+  onTacticalDragStop,
+  allTacticalPositions,
+  homeFormation,
+  awayFormation,
+  applyFormation,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
@@ -276,7 +297,10 @@ const PlayerSelectorPanel = ({
         const hasYellow = (cardStatus?.yellowCount || 0) > 0;
         const hasRed = Boolean(cardStatus?.red);
         const isExpelled = expelledPlayerIds?.has(player.id) ?? false;
-        const isDisabled = disabled || isExpelled;
+        // When the active card type is "Cancelled", expelled players must be
+        // clickable so the user can revoke their card.
+        const isDisabled =
+          disabled || (isExpelled && pendingCardType !== "Cancelled");
         return (
           <button
             key={player.id}
@@ -475,6 +499,36 @@ const PlayerSelectorPanel = ({
       getDisplayPosition &&
       onPlayerDragEnd ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
+          {/* Formation pickers — one per side */}
+          {applyFormation && (
+            <div
+              className="flex items-center justify-between mb-2 px-1"
+              data-testid="formation-pickers-row"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {match.home_team.short_name}
+                </span>
+                <FormationPicker
+                  currentFormation={homeFormation ?? null}
+                  onFormationChange={(f) => applyFormation("home", f)}
+                  side="home"
+                  t={t}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {match.away_team.short_name}
+                </span>
+                <FormationPicker
+                  currentFormation={awayFormation ?? null}
+                  onFormationChange={(f) => applyFormation("away", f)}
+                  side="away"
+                  t={t}
+                />
+              </div>
+            </div>
+          )}
           <TacticalField
             homeTeamName={match.home_team.name}
             awayTeamName={match.away_team.name}
@@ -502,6 +556,10 @@ const PlayerSelectorPanel = ({
             }
             overlay={resolvedFieldOverlay}
             showDestinationControls={showDestinationControls}
+            draggingPlayerId={draggingPlayerId}
+            onDragStart={onTacticalDragStart}
+            onDragStop={onTacticalDragStop}
+            allPositions={allTacticalPositions}
           />
         </div>
       ) : resolvedViewMode === "field" ? (

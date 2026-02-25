@@ -6,7 +6,10 @@ import TeamSelector from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
 import LiveEventFeed from "../molecules/LiveEventFeed";
 import ActionStage from "./ActionStage";
-import type { TacticalPosition } from "../../hooks/useTacticalPositions";
+import type {
+  TacticalPosition,
+  Formation,
+} from "../../hooks/useTacticalPositions";
 
 interface LoggerViewProps {
   match: any;
@@ -80,6 +83,13 @@ interface LoggerViewProps {
     playerPosition: string | undefined,
     side: "home" | "away",
   ) => void;
+  draggingPlayerId?: string | null;
+  onTacticalDragStart?: (playerId: string) => void;
+  onTacticalDragStop?: () => void;
+  allTacticalPositions?: Map<string, TacticalPosition>;
+  homeFormation?: Formation | null;
+  awayFormation?: Formation | null;
+  applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   t: any;
 }
 
@@ -146,6 +156,13 @@ export default function LoggerView({
   handleUpdateEventNotes,
   getDisplayPosition,
   onTacticalPlayerDragEnd,
+  draggingPlayerId,
+  onTacticalDragStart,
+  onTacticalDragStop,
+  allTacticalPositions,
+  homeFormation,
+  awayFormation,
+  applyFormation,
   t,
 }: LoggerViewProps) {
   return (
@@ -260,6 +277,13 @@ export default function LoggerView({
         handleRecipientSelect={handleRecipientSelect}
         getDisplayPosition={getDisplayPosition}
         onTacticalPlayerDragEnd={onTacticalPlayerDragEnd}
+        draggingPlayerId={draggingPlayerId}
+        onTacticalDragStart={onTacticalDragStart}
+        onTacticalDragStop={onTacticalDragStop}
+        allTacticalPositions={allTacticalPositions}
+        homeFormation={homeFormation}
+        awayFormation={awayFormation}
+        applyFormation={applyFormation}
         t={t}
       />
 

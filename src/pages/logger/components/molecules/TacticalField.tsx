@@ -1,6 +1,11 @@
 import React, { useCallback, useRef, useState } from "react";
 import TacticalPlayerNode from "./TacticalPlayerNode";
 import type { TacticalPosition } from "../../hooks/useTacticalPositions";
+import {
+  getBoundsForPlayer,
+  getPositionGroup,
+  MIN_PLAYER_SEPARATION,
+} from "../../hooks/useTacticalPositions";
 import type { FieldAnchor, FieldCoordinate } from "../../types";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +55,13 @@ interface TacticalFieldProps {
   showDestinationControls?: boolean;
   overlay?: React.ReactNode;
   flipSides?: boolean;
+  /** Currently-dragged player id — used for bounds overlay + collision ghosts. */
+  draggingPlayerId?: string | null;
+  /** Setter so inner TacticalPlayerNode can propagate drag‑start/end. */
+  onDragStart?: (playerId: string) => void;
+  onDragStop?: () => void;
+  /** All canonical positions — used for collision‑avoidance proximity rings. */
+  allPositions?: Map<string, TacticalPosition>;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +122,10 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   showDestinationControls = false,
   overlay,
   flipSides = false,
+  draggingPlayerId = null,
+  onDragStart,
+  onDragStop,
+  allPositions,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
 
@@ -142,16 +158,18 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
     (playerId: string, playerPosition: string, side: "home" | "away") =>
       (displayX: number, displayY: number) => {
         setDragPreview(null);
+        onDragStop?.();
         onPlayerDragEnd(playerId, displayX, displayY, playerPosition, side);
       },
-    [onPlayerDragEnd],
+    [onPlayerDragEnd, onDragStop],
   );
 
   const makePlayerDragMove = useCallback(
     (playerId: string) => (displayX: number, displayY: number) => {
       setDragPreview({ id: playerId, x: displayX, y: displayY });
+      onDragStart?.(playerId);
     },
-    [],
+    [onDragStart],
   );
 
   const renderPlayerNode = useCallback(
@@ -233,6 +251,91 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
           <div className="absolute top-2 right-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">
             {flipSides ? `${homeTeamName} (Home)` : `${awayTeamName} (Away)`}
           </div>
+
+          {/* ─── Drag bounds overlay ─── */}
+          {draggingPlayerId &&
+            (() => {
+              // Find the dragged player's position and side
+              const allPlayers = [
+                ...homePlayers.map((p) => ({ ...p, side: "home" as const })),
+                ...awayPlayers.map((p) => ({ ...p, side: "away" as const })),
+              ];
+              const draggedPlayer = allPlayers.find(
+                (p) => p.id === draggingPlayerId,
+              );
+              if (!draggedPlayer) return null;
+              const bounds = getBoundsForPlayer(
+                draggedPlayer.position,
+                draggedPlayer.side,
+              );
+              // Convert bounds to display space (may need flip)
+              const displayBounds = flipSides
+                ? {
+                    xMin: 100 - bounds.xMax,
+                    xMax: 100 - bounds.xMin,
+                    yMin: bounds.yMin,
+                    yMax: bounds.yMax,
+                  }
+                : bounds;
+              const group = getPositionGroup(draggedPlayer.position);
+              const colorMap: Record<string, string> = {
+                goalkeeper: "rgba(255, 220, 0, 0.15)",
+                defense: "rgba(59, 130, 246, 0.12)",
+                midfield: "rgba(34, 197, 94, 0.12)",
+                attack: "rgba(239, 68, 68, 0.12)",
+                other: "rgba(255, 255, 255, 0.08)",
+              };
+              const borderColorMap: Record<string, string> = {
+                goalkeeper: "rgba(255, 220, 0, 0.6)",
+                defense: "rgba(59, 130, 246, 0.5)",
+                midfield: "rgba(34, 197, 94, 0.5)",
+                attack: "rgba(239, 68, 68, 0.5)",
+                other: "rgba(255, 255, 255, 0.3)",
+              };
+              return (
+                <div
+                  data-testid="drag-bounds-overlay"
+                  className="absolute pointer-events-none z-[5] transition-opacity duration-150"
+                  style={{
+                    left: `${displayBounds.xMin}%`,
+                    top: `${displayBounds.yMin}%`,
+                    width: `${displayBounds.xMax - displayBounds.xMin}%`,
+                    height: `${displayBounds.yMax - displayBounds.yMin}%`,
+                    backgroundColor: colorMap[group] ?? colorMap.other,
+                    border: `2px dashed ${
+                      borderColorMap[group] ?? borderColorMap.other
+                    }`,
+                    borderRadius: "8px",
+                  }}
+                />
+              );
+            })()}
+
+          {/* ─── Collision proximity rings (shown during drag) ─── */}
+          {draggingPlayerId &&
+            allPositions &&
+            (() => {
+              const rings: React.ReactNode[] = [];
+              for (const [pid, pos] of allPositions) {
+                if (pid === draggingPlayerId) continue;
+                const display = flipSides ? { x: 100 - pos.x, y: pos.y } : pos;
+                rings.push(
+                  <div
+                    key={`ring-${pid}`}
+                    className="absolute pointer-events-none z-[4] rounded-full border border-white/20"
+                    style={{
+                      left: `${display.x}%`,
+                      top: `${display.y}%`,
+                      width: `${MIN_PLAYER_SEPARATION * 2}%`,
+                      height: `${MIN_PLAYER_SEPARATION * 2}%`,
+                      transform: "translate(-50%, -50%)",
+                      backgroundColor: "rgba(255, 255, 255, 0.04)",
+                    }}
+                  />,
+                );
+              }
+              return rings;
+            })()}
 
           {/* ─── Player Nodes ─── */}
           <div className="absolute inset-0 pointer-events-none">

@@ -321,4 +321,134 @@ test.describe("Tactical Field", () => {
     // Reset for clean state
     await resetHarnessFlow(page);
   });
+
+  test("dragged position persists across page navigation", async ({ page }) => {
+    test.setTimeout(90000);
+    await gotoLoggerPage(page, MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const gkPlayer = page.getByTestId("field-player-HOME-1");
+    await expect(gkPlayer).toBeVisible({ timeout: 15000 });
+
+    // Get initial position
+    const beforeCoords = await getTacticalCoords(page, "HOME-1");
+
+    // Drag the GK slightly (stay within bounds: xMax=20)
+    await gkPlayer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await gkPlayer.boundingBox();
+    if (!box) throw new Error("GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 40, startY + 25, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(800); // Wait for debounced IDB write (500ms)
+
+    const afterCoords = await getTacticalCoords(page, "HOME-1");
+    expect(afterCoords.x).not.toBeCloseTo(beforeCoords.x, 0);
+
+    // Navigate away, then come back (preserves same browser context + IDB)
+    await page.goto("/dashboard");
+    await page.waitForTimeout(500);
+
+    // Navigate back to the logger
+    await page.goto(`/matches/${MATCH_ID}/logger`);
+    await expect(page.getByTestId("soccer-field")).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByTestId("field-player-HOME-1")).toBeVisible({
+      timeout: 15000,
+    });
+    await page.waitForTimeout(500);
+
+    // Position should be restored from IndexedDB
+    const restoredCoords = await getTacticalCoords(page, "HOME-1");
+    expect(restoredCoords.x).toBeCloseTo(afterCoords.x, 0);
+    expect(restoredCoords.y).toBeCloseTo(afterCoords.y, 0);
+  });
+
+  test("drag bounds overlay appears during drag", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const gkPlayer = page.getByTestId("field-player-HOME-1");
+    await expect(gkPlayer).toBeVisible({ timeout: 15000 });
+
+    // Before dragging — no bounds overlay should exist
+    await expect(page.getByTestId("drag-bounds-overlay")).toBeHidden();
+
+    // Start dragging the GK
+    await gkPlayer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await gkPlayer.boundingBox();
+    if (!box) throw new Error("GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    // Move enough to trigger drag threshold
+    await page.mouse.move(startX + 20, startY, { steps: 5 });
+    await page.waitForTimeout(200);
+
+    // Bounds overlay should now be visible
+    const overlay = page.getByTestId("drag-bounds-overlay");
+    await expect(overlay).toBeVisible({ timeout: 5000 });
+
+    // Release
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    // Overlay should disappear after drag ends
+    await expect(overlay).toBeHidden({ timeout: 5000 });
+  });
+
+  test("collision detection — players repel on overlap", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    // HOME-2 (MF) and HOME-3 (MF) should both be visible
+    const p2 = page.getByTestId("field-player-HOME-2");
+    const p3 = page.getByTestId("field-player-HOME-3");
+    await expect(p2).toBeVisible({ timeout: 15000 });
+    await expect(p3).toBeVisible({ timeout: 15000 });
+
+    // Record HOME-3's position
+    const p3Before = await getTacticalCoords(page, "HOME-3");
+
+    // Drag HOME-2 exactly onto HOME-3's position
+    await p2.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box2 = await p2.boundingBox();
+    const box3 = await p3.boundingBox();
+    if (!box2 || !box3) throw new Error("Player bounding boxes unavailable");
+
+    const start2X = box2.x + box2.width / 2;
+    const start2Y = box2.y + box2.height / 2;
+    const target3X = box3.x + box3.width / 2;
+    const target3Y = box3.y + box3.height / 2;
+
+    await page.mouse.move(start2X, start2Y);
+    await page.mouse.down();
+    await page.mouse.move(target3X, target3Y, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    // After collision resolution, HOME-2 should NOT be at the exact same
+    // coordinates as HOME-3 — there should be at least MIN_PLAYER_SEPARATION
+    const p2After = await getTacticalCoords(page, "HOME-2");
+    const p3After = await getTacticalCoords(page, "HOME-3");
+    const distance = Math.hypot(p2After.x - p3After.x, p2After.y - p3After.y);
+
+    // MIN_PLAYER_SEPARATION = 6, allow a small tolerance
+    expect(distance).toBeGreaterThanOrEqual(4);
+  });
 });

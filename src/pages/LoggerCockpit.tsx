@@ -133,9 +133,15 @@ export default function LoggerCockpit() {
   );
 
   const {
+    positions: tacticalPositions,
     getDisplayPosition,
     movePlayerFromDisplay,
     applySubstitution: applyTacticalSubstitution,
+    draggingPlayerId,
+    setDraggingPlayerId,
+    homeFormation,
+    awayFormation,
+    applyFormation,
   } = useTacticalPositions({
     matchId,
     homePlayers: homeOnFieldPlayers,
@@ -904,6 +910,13 @@ export default function LoggerCockpit() {
                 handleUpdateEventNotes={handleUpdateEventNotes}
                 getDisplayPosition={getDisplayPosition}
                 onTacticalPlayerDragEnd={handleTacticalPlayerDragEnd}
+                draggingPlayerId={draggingPlayerId}
+                onTacticalDragStart={setDraggingPlayerId}
+                onTacticalDragStop={() => setDraggingPlayerId(null)}
+                allTacticalPositions={tacticalPositions}
+                homeFormation={homeFormation}
+                awayFormation={awayFormation}
+                applyFormation={applyFormation}
                 t={t}
               />
             )}

@@ -8,7 +8,10 @@ import QuickCardPanel, { CardSelection } from "../molecules/QuickCardPanel";
 import ActionSelectionPanel from "../molecules/ActionSelectionPanel";
 import OutcomeSelectionPanel from "../molecules/OutcomeSelectionPanel";
 import RecipientSelectionPanel from "../molecules/RecipientSelectionPanel";
-import type { TacticalPosition } from "../../hooks/useTacticalPositions";
+import type {
+  TacticalPosition,
+  Formation,
+} from "../../hooks/useTacticalPositions";
 
 interface ActionStageProps {
   match: any;
@@ -58,6 +61,13 @@ interface ActionStageProps {
     playerPosition: string | undefined,
     side: "home" | "away",
   ) => void;
+  draggingPlayerId?: string | null;
+  onTacticalDragStart?: (playerId: string) => void;
+  onTacticalDragStop?: () => void;
+  allTacticalPositions?: Map<string, TacticalPosition>;
+  homeFormation?: Formation | null;
+  awayFormation?: Formation | null;
+  applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   t: any;
 }
 
@@ -100,6 +110,13 @@ export default function ActionStage({
   handleRecipientSelect,
   getDisplayPosition,
   onTacticalPlayerDragEnd,
+  draggingPlayerId,
+  onTacticalDragStart,
+  onTacticalDragStop,
+  allTacticalPositions,
+  homeFormation,
+  awayFormation,
+  applyFormation,
   t,
 }: ActionStageProps) {
   return (
@@ -124,6 +141,7 @@ export default function ActionStage({
           }
           forceListMode={Boolean(pendingCardType)}
           cardSelectionActive={Boolean(pendingCardType)}
+          pendingCardType={pendingCardType}
           fieldOverlay={
             currentStep === "selectQuickAction" &&
             selectedPlayer &&
@@ -169,6 +187,13 @@ export default function ActionStage({
           forceTacticalMode={Boolean(getDisplayPosition)}
           getDisplayPosition={getDisplayPosition}
           onPlayerDragEnd={onTacticalPlayerDragEnd}
+          draggingPlayerId={draggingPlayerId}
+          onTacticalDragStart={onTacticalDragStart}
+          onTacticalDragStop={onTacticalDragStop}
+          allTacticalPositions={allTacticalPositions}
+          homeFormation={homeFormation}
+          awayFormation={awayFormation}
+          applyFormation={applyFormation}
           priorityPlayerId={priorityPlayerId}
           isReadOnly={
             !IS_E2E_TEST_MODE &&

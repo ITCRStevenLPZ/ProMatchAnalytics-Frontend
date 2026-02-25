@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Implement tactical soccer field with drag-and-drop player positioning, fix ULT-03 regression, and fix backend GameStoppage dedup
+- [x] Add formation system for tactical field player positioning (predefined + custom formations)
 
 ## Status
 
@@ -17,43 +17,64 @@
 
 ## What Was Completed (Latest Session)
 
-### Tactical Field Feature
+### Formation System
 
-- [x] **`useTacticalPositions.ts`** (~363 lines): Per-match position state management hook. Multi-column layout for large groups (MAX_PER_COL=5). Position groups: GK (x=5), DF (x=20), MF (x=40), FW (x=60). Substitution position inheritance. Side-switching support.
-- [x] **`TacticalPlayerNode.tsx`** (~252 lines): Draggable player node with pointer event handling, bounds enforcement, visual states (home/away/selected), backward-compat attributes. Click stopPropagation to prevent field-level click interference.
-- [x] **`TacticalField.tsx`** (~341 lines): Main field container with SVG pitch, drag-and-drop support, 12 edge-bar destination buttons, field click handler for destination selection.
-- [x] **Wiring**: TacticalField replaces SoccerField in `ActionStage.tsx`. `LoggerCockpit.tsx` integrates `useTacticalPositions` hook with `homeOnFieldPlayers`/`awayOnFieldPlayers` memos.
+- [x] **`useTacticalPositions.ts`**: Added `Formation` type (number array), `FormationPreset` interface, and 13 predefined formations (4-4-2, 4-3-3, 4-2-3-1, 4-4-1-1, 3-5-2, 3-4-3, 4-1-4-1, 4-3-2-1, 4-5-1, 5-3-2, 5-4-1, 4-1-2-1-2, 3-4-1-2). Validator `isValidFormation()` ensures sum=10, 2-6 lines, integers ≥1. Parser `parseFormationString()` converts "4-3-3" strings.
+- [x] **`useTacticalPositions.ts`**: Added `resolveFormationPositions()` — places GK at fixed spot (x=5 home / x=95 away, y=50), sorts outfield by positional depth (defense→midfield→attack→other), distributes across formation lines at x 15%→80% (home), spreads vertically within each line, mirrors for away side.
+- [x] **`useTacticalPositions.ts`**: Added formation IDB persistence (`saveFormationsToIDB`, `loadFormationsFromIDB`) with key pattern `tactical-formation-{matchId}`. `FormationState = { home: Formation | null; away: Formation | null }`.
+- [x] **`useTacticalPositions.ts`**: Integrated formation state into hook — `homeFormation`, `awayFormation` useState, loaded from IDB on init alongside positions, `applyFormation(side, formation)` callback that recalculates positions for that side and persists both formations and positions.
+- [x] **`FormationPicker.tsx`** (new): Dropdown component with custom input field + preset list. Validates format and sum=10. Shows current formation or "No Formation". Clear button to revert. Proper data-testids for E2E.
+- [x] **Prop threading**: `homeFormation`, `awayFormation`, `applyFormation` threaded through `LoggerCockpit → LoggerView → ActionStage → PlayerSelectorPanel`. FormationPickers rendered above TacticalField with team labels.
 
-### ULT-03 Regression Fix
+### UI Enhancements
 
-- [x] **Root cause identified**: Backend WebSocket dedup filter for `GameStoppage` events did not include `data.stoppage_type`, causing `TimeoutStop` to be flagged as duplicate of `TimeoutStart` (they share same `type`, `team_id`, `period`).
-- [x] **Backend fix (websocket.py)**: Added `client_id` to dedup filter as primary discriminator (matching events.py pattern). Added `data.stoppage_type` fallback for non-client_id events. Applied same fix to `events.py` and `sync.py`.
-- [x] **Frontend defense (useMatchTimer.ts)**: Restructured timer accumulation so INEFFECTIVE mode always ticks regardless of `isTimeoutActive` state — a timeout cannot logically be active during an ineffective period (e.g., offside).
-- [x] **Test isolation fix**: Gave unique match IDs to `logger-ultimate-cockpit.spec.ts` (`E2E-MATCH-ULT-COCKPIT`) and `logger-ultimate-disciplinary-stress.spec.ts` (`E2E-MATCH-ULT-STRESS`) to prevent parallel test interference via shared `E2E-MATCH-TAXONOMY`.
+- [x] **`TacticalPlayerNode.tsx`**: Bigger player nodes (w-10 h-10 → w-14 h-14, text-sm → text-lg). Full name display instead of just last name. Name label widened (max-w-[120px]) with ellipsis overflow.
+
+### Card Cancel Bug Fix
+
+- [x] **`PlayerSelectorPanel.tsx`**: Added `pendingCardType` prop. Changed expelled player disabled logic from `disabled || isExpelled` to `disabled || (isExpelled && pendingCardType !== "Cancelled")` so expelled players are clickable when cancelling cards.
+- [x] **`ActionStage.tsx`**: Passes `pendingCardType` to PlayerSelectorPanel.
+
+### i18n Keys
+
+- [x] Added `common.cancel`, `period.1-4` keys to `en/logger.json` and `es/logger.json`.
+- [x] Added `formation.*` keys (none, invalidFormat, mustSumTen, invalidFormation, customPlaceholder, apply, clear) to both locales.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: `logger-field-flow.spec.ts` — 7 new tactical field tests -> ALL PASS
-- [x] E2E: Full suite (199 tests) -> ALL PASS, EXIT 0
-- [x] Backend: 121 tests -> ALL PASS
-- [x] ULT-03 regression: RESOLVED (passes in isolation and full suite)
+- [x] E2E: `formation-system.spec.ts` — 10 new tests -> ALL PASS
+  - "formation pickers are visible in tactical view" -> PASS
+  - "selecting a preset formation repositions outfield players" -> PASS
+  - "custom formation input with valid input applies the formation" -> PASS
+  - "custom formation that does not sum to 10 shows error" -> PASS
+  - "invalid format shows error" -> PASS
+  - "clearing a formation reverts to default positions" -> PASS
+  - "formation persists across page reload" -> PASS
+  - "both teams can have independent formations" -> PASS
+  - "GK stays fixed when formation is applied" -> PASS
+  - "Enter key submits custom formation" -> PASS
+- [x] E2E: Full suite (211 tests) -> ALL PASS (1 flaky ULT-03 timer test passes on retry — ECONNRESET, not code issue)
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
 
 ## Implementation Notes
 
-- TacticalField is always rendered (forceTacticalMode=true) because `getDisplayPosition` is always a function.
-- The dedup filter now checks `client_id` first (unique per event), then falls back to `player_id`, then to base fields + `data.stoppage_type`/`data.action_type`.
-- Timer code uses `clockMode === "EFFECTIVE" && !isTimeoutActive` for effective accumulation, and `clockMode === "INEFFECTIVE"` (no `isTimeoutActive` guard) for ineffective accumulation.
-- Three parallel test files previously shared `E2E-MATCH-TAXONOMY` causing match state corruption under parallel execution.
+- Position persistence uses `idb-keyval` (already a dependency via `useMatchLogStore`). No new packages added.
+- IDB key is per-match (`tactical-positions-{matchId}`), so different matches have independent saved positions.
+- Collision detection uses Euclidean distance with `MIN_PLAYER_SEPARATION = 6%` threshold. The repulsion vector pushes the moved player away from stationary ones, not vice versa.
+- Bounds overlay auto-hides when drag ends (`onDragStop` sets `draggingPlayerId` to `null`).
+- The `draggingPlayerId` state is lifted into `useTacticalPositions` and threaded down via props.
 
 ## Next Steps
 
-- Consider adding unit tests for dedup filter changes in backend
-- Consider visual regression tests for tactical field layout
+- Consider backend-side formation persistence (API endpoint) for cross-device sync
+- Consider visual regression tests for formation UI rendering
+- Consider adding "popular formation" suggestions based on team's typical position distribution
 
 ---
 
 ## Previous Objectives (Completed)
 
+- [x] Add tactical field persistence (IndexedDB), visual drag bounds, collision detection, and fix missing i18n key
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.
 - [x] Fix dashboard data and quick-action buttons by aligning backend dashboard status/event aggregation with current data model and correcting dashboard route links.

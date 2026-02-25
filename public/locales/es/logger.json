@@ -114,6 +114,7 @@
   "operatorClock": "Reloj del operador",
   "manualControl": "Control manual",
   "clockHelp": "Ajusta o inicia el reloj para que coincida con el tiempo en campo que estás registrando.",
+  "periodClock": "Reloj del periodo",
   "periodControl": "Periodo del partido",
   "periods": {
     "firstHalf": "1.er Tiempo",
@@ -432,5 +433,23 @@
   },
   "resetAfterFulltimeTooltip": "El partido ha terminado; reiniciar borrará los datos y comenzará de nuevo.",
   "resetAfterFulltimeWarning": "El partido está en tiempo completo. El reinicio borrará los registros y reiniciará los relojes desde cero.",
-  "substitutionAction": "Sustitución {{team}}"
+  "substitutionAction": "Sustitución {{team}}",
+  "common": {
+    "cancel": "Cancelar"
+  },
+  "period": {
+    "1": "Periodo 1",
+    "2": "Periodo 2",
+    "3": "Prórroga 1",
+    "4": "Prórroga 2"
+  },
+  "formation": {
+    "none": "Sin Formación",
+    "invalidFormat": "Usa el formato como 4-3-3",
+    "mustSumTen": "Debe sumar 10 (tienes {{sum}})",
+    "invalidFormation": "Formación inválida",
+    "customPlaceholder": "ej. 4-3-3",
+    "apply": "Aplicar",
+    "clear": "Quitar Formación"
+  }
 }
