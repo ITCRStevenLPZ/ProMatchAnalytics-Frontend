@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Implement per-period clock display (each half starts from 0 instead of cumulative)
+- [x] Add formation system for tactical field player positioning (predefined + custom formations)
 
 ## Status
 
@@ -17,36 +17,64 @@
 
 ## What Was Completed (Latest Session)
 
-- [x] **Per-period clock display**: Main timer in `MatchTimerDisplay` now shows time elapsed within the current period (0→45:00+ for regular halves, 0→15:00+ for extra time halves) instead of cumulative global time. Global clock is shown as a secondary display below.
-- [x] **`usePeriodManager.ts`**: Added `periodElapsedSeconds` and `periodMinimumSeconds` to `PeriodInfo` interface. `periodElapsedSeconds` is derived from `globalTimeSeconds - period_timestamps.{period}.global_start_seconds`, resetting to 0 at each period start. `periodMinimumSeconds` is 2700s (45 min) for regular halves and 900s (15 min) for extra time halves.
-- [x] **`MatchTimerDisplay.tsx`**: Replaced cumulative regulation-limit stoppage display with per-period logic. Main clock shows `MM:SS` within the period; when over the period minimum, shows `45:00 + MM:SS` (or `15:00 + MM:SS` for extra time). Added secondary global cumulative clock row with `data-testid="global-cumulative-clock"`.
-- [x] **Prop chain**: Threaded `periodElapsedSeconds` and `periodMinimumSeconds` through `LoggerCockpit` → `LoggerView` → `MatchTimerDisplay`.
-- [x] **No backend changes needed**: `match_time_seconds` remains cumulative on the server. Per-period display is a pure frontend concern.
-- [x] **Full E2E suite**: 192 tests, 0 real failures (1 timing flake in ULT-03 that passes on re-run).
+### Formation System
+
+- [x] **`useTacticalPositions.ts`**: Added `Formation` type (number array), `FormationPreset` interface, and 13 predefined formations (4-4-2, 4-3-3, 4-2-3-1, 4-4-1-1, 3-5-2, 3-4-3, 4-1-4-1, 4-3-2-1, 4-5-1, 5-3-2, 5-4-1, 4-1-2-1-2, 3-4-1-2). Validator `isValidFormation()` ensures sum=10, 2-6 lines, integers ≥1. Parser `parseFormationString()` converts "4-3-3" strings.
+- [x] **`useTacticalPositions.ts`**: Added `resolveFormationPositions()` — places GK at fixed spot (x=5 home / x=95 away, y=50), sorts outfield by positional depth (defense→midfield→attack→other), distributes across formation lines at x 15%→80% (home), spreads vertically within each line, mirrors for away side.
+- [x] **`useTacticalPositions.ts`**: Added formation IDB persistence (`saveFormationsToIDB`, `loadFormationsFromIDB`) with key pattern `tactical-formation-{matchId}`. `FormationState = { home: Formation | null; away: Formation | null }`.
+- [x] **`useTacticalPositions.ts`**: Integrated formation state into hook — `homeFormation`, `awayFormation` useState, loaded from IDB on init alongside positions, `applyFormation(side, formation)` callback that recalculates positions for that side and persists both formations and positions.
+- [x] **`FormationPicker.tsx`** (new): Dropdown component with custom input field + preset list. Validates format and sum=10. Shows current formation or "No Formation". Clear button to revert. Proper data-testids for E2E.
+- [x] **Prop threading**: `homeFormation`, `awayFormation`, `applyFormation` threaded through `LoggerCockpit → LoggerView → ActionStage → PlayerSelectorPanel`. FormationPickers rendered above TacticalField with team labels.
+
+### UI Enhancements
+
+- [x] **`TacticalPlayerNode.tsx`**: Bigger player nodes (w-10 h-10 → w-14 h-14, text-sm → text-lg). Full name display instead of just last name. Name label widened (max-w-[120px]) with ellipsis overflow.
+
+### Card Cancel Bug Fix
+
+- [x] **`PlayerSelectorPanel.tsx`**: Added `pendingCardType` prop. Changed expelled player disabled logic from `disabled || isExpelled` to `disabled || (isExpelled && pendingCardType !== "Cancelled")` so expelled players are clickable when cancelling cards.
+- [x] **`ActionStage.tsx`**: Passes `pendingCardType` to PlayerSelectorPanel.
+
+### i18n Keys
+
+- [x] Added `common.cancel`, `period.1-4` keys to `en/logger.json` and `es/logger.json`.
+- [x] Added `formation.*` keys (none, invalidFormat, mustSumTen, invalidFormation, customPlaceholder, apply, clear) to both locales.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: Full suite (192 tests) -> ALL PASS (no regressions)
-- [x] TypeScript compile: PASS (clean `tsc --noEmit`)
-- [x] Unit tests: 92 passed, 3 pre-existing failures in `payloadBuilders.test.ts` (unrelated)
+- [x] E2E: `formation-system.spec.ts` — 10 new tests -> ALL PASS
+  - "formation pickers are visible in tactical view" -> PASS
+  - "selecting a preset formation repositions outfield players" -> PASS
+  - "custom formation input with valid input applies the formation" -> PASS
+  - "custom formation that does not sum to 10 shows error" -> PASS
+  - "invalid format shows error" -> PASS
+  - "clearing a formation reverts to default positions" -> PASS
+  - "formation persists across page reload" -> PASS
+  - "both teams can have independent formations" -> PASS
+  - "GK stays fixed when formation is applied" -> PASS
+  - "Enter key submits custom formation" -> PASS
+- [x] E2E: Full suite (211 tests) -> ALL PASS (1 flaky ULT-03 timer test passes on retry — ECONNRESET, not code issue)
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
 
 ## Implementation Notes
 
-- The main "Period Clock" in `MatchTimerDisplay` now uses `periodElapsedSeconds` from `usePeriodManager` instead of parsing cumulative `globalClock` seconds.
-- Stoppage time display uses per-period limits (45 min for P1/P2, 15 min for P3/P4) instead of cumulative limits (90 min for P2, 105 min for P3, 120 min for P4).
-- `period_timestamps.{period}.global_start_seconds` from the backend determines the period start point. Falls back to canonical values (0, 2700, 5400, 6300) when timestamps are unavailable.
-- The `operatorClock` used for event `match_clock` values remains cumulative — standard soccer analytics convention.
-- `CockpitHeader` small timer still shows cumulative `match.match_time_seconds` (static DB value, not live-ticking) — low-priority secondary display.
+- Position persistence uses `idb-keyval` (already a dependency via `useMatchLogStore`). No new packages added.
+- IDB key is per-match (`tactical-positions-{matchId}`), so different matches have independent saved positions.
+- Collision detection uses Euclidean distance with `MIN_PLAYER_SEPARATION = 6%` threshold. The repulsion vector pushes the moved player away from stationary ones, not vice versa.
+- Bounds overlay auto-hides when drag ends (`onDragStop` sets `draggingPlayerId` to `null`).
+- The `draggingPlayerId` state is lifted into `useTacticalPositions` and threaded down via props.
 
 ## Next Steps
 
-- Consider updating `CockpitHeader` small timer to show per-period time (requires threading through `CockpitTopSection`)
-- Consider adding a dedicated E2E test for per-period clock display across period transitions
+- Consider backend-side formation persistence (API endpoint) for cross-device sync
+- Consider visual regression tests for formation UI rendering
+- Consider adding "popular formation" suggestions based on team's typical position distribution
 
 ---
 
 ## Previous Objectives (Completed)
 
+- [x] Add tactical field persistence (IndexedDB), visual drag bounds, collision detection, and fix missing i18n key
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.
 - [x] Fix dashboard data and quick-action buttons by aligning backend dashboard status/event aggregation with current data model and correcting dashboard route links.

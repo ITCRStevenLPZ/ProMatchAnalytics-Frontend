@@ -6,6 +6,10 @@ import TeamSelector from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
 import LiveEventFeed from "../molecules/LiveEventFeed";
 import ActionStage from "./ActionStage";
+import type {
+  TacticalPosition,
+  Formation,
+} from "../../hooks/useTacticalPositions";
 
 interface LoggerViewProps {
   match: any;
@@ -68,6 +72,24 @@ interface LoggerViewProps {
   handleDeleteLoggedEvent: (...args: any[]) => void;
   isAdmin: boolean;
   handleUpdateEventNotes: (...args: any[]) => Promise<void> | void;
+  getDisplayPosition?: (
+    playerId: string,
+    flipSides: boolean,
+  ) => TacticalPosition;
+  onTacticalPlayerDragEnd?: (
+    playerId: string,
+    displayX: number,
+    displayY: number,
+    playerPosition: string | undefined,
+    side: "home" | "away",
+  ) => void;
+  draggingPlayerId?: string | null;
+  onTacticalDragStart?: (playerId: string) => void;
+  onTacticalDragStop?: () => void;
+  allTacticalPositions?: Map<string, TacticalPosition>;
+  homeFormation?: Formation | null;
+  awayFormation?: Formation | null;
+  applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   t: any;
 }
 
@@ -132,6 +154,15 @@ export default function LoggerView({
   handleDeleteLoggedEvent,
   isAdmin,
   handleUpdateEventNotes,
+  getDisplayPosition,
+  onTacticalPlayerDragEnd,
+  draggingPlayerId,
+  onTacticalDragStart,
+  onTacticalDragStop,
+  allTacticalPositions,
+  homeFormation,
+  awayFormation,
+  applyFormation,
   t,
 }: LoggerViewProps) {
   return (
@@ -244,6 +275,15 @@ export default function LoggerView({
         currentTeam={currentTeam}
         eligibleRecipients={eligibleRecipients}
         handleRecipientSelect={handleRecipientSelect}
+        getDisplayPosition={getDisplayPosition}
+        onTacticalPlayerDragEnd={onTacticalPlayerDragEnd}
+        draggingPlayerId={draggingPlayerId}
+        onTacticalDragStart={onTacticalDragStart}
+        onTacticalDragStop={onTacticalDragStop}
+        allTacticalPositions={allTacticalPositions}
+        homeFormation={homeFormation}
+        awayFormation={awayFormation}
+        applyFormation={applyFormation}
         t={t}
       />
 

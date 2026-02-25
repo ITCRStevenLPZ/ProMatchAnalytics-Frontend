@@ -114,6 +114,7 @@
   "operatorClock": "Operator clock",
   "manualControl": "Manual control",
   "clockHelp": "Adjust or start the clock to match the on-field time you are logging.",
+  "periodClock": "Period Clock",
   "periodControl": "Match period",
   "periods": {
     "firstHalf": "1st Half",
@@ -432,5 +433,23 @@
   },
   "resetAfterFulltimeTooltip": "Match is completed; reset will wipe data and restart.",
   "resetAfterFulltimeWarning": "Match is fulltime. Resetting will clear logs and restart clocks from zero.",
-  "substitutionAction": "{{team}} Substitution"
+  "substitutionAction": "{{team}} Substitution",
+  "common": {
+    "cancel": "Cancel"
+  },
+  "period": {
+    "1": "Period 1",
+    "2": "Period 2",
+    "3": "Extra Time 1",
+    "4": "Extra Time 2"
+  },
+  "formation": {
+    "none": "No Formation",
+    "invalidFormat": "Use format like 4-3-3",
+    "mustSumTen": "Must add up to 10 (got {{sum}})",
+    "invalidFormation": "Invalid formation",
+    "customPlaceholder": "e.g. 4-3-3",
+    "apply": "Apply",
+    "clear": "Clear Formation"
+  }
 }

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useMatchLogStore } from "../store/useMatchLogStore";
@@ -41,6 +41,7 @@ import { useCockpitExpelledPlayerEffect } from "./logger/hooks/useCockpitExpelle
 import { useCockpitTransitionState } from "./logger/hooks/useCockpitTransitionState";
 import { useCockpitToast } from "./logger/hooks/useCockpitToast";
 import { useCockpitSubstitutionFlow } from "./logger/hooks/useCockpitSubstitutionFlow";
+import { useTacticalPositions } from "./logger/hooks/useTacticalPositions";
 import type { LoggerHarness } from "./logger/types";
 import { parseClockToSeconds } from "./logger/lib/clockHelpers";
 
@@ -118,6 +119,53 @@ export default function LoggerCockpit() {
     queuedEvents,
   );
   const [manualFieldFlip, setManualFieldFlip] = useState(false);
+
+  // Tactical field — compute on-field player lists for position management
+  const homeOnFieldPlayers = useMemo(
+    () =>
+      (match?.home_team.players ?? []).filter((p) => onFieldIds.home.has(p.id)),
+    [match, onFieldIds.home],
+  );
+  const awayOnFieldPlayers = useMemo(
+    () =>
+      (match?.away_team.players ?? []).filter((p) => onFieldIds.away.has(p.id)),
+    [match, onFieldIds.away],
+  );
+
+  const {
+    positions: tacticalPositions,
+    getDisplayPosition,
+    movePlayerFromDisplay,
+    applySubstitution: applyTacticalSubstitution,
+    draggingPlayerId,
+    setDraggingPlayerId,
+    homeFormation,
+    awayFormation,
+    applyFormation,
+  } = useTacticalPositions({
+    matchId,
+    homePlayers: homeOnFieldPlayers,
+    awayPlayers: awayOnFieldPlayers,
+  });
+
+  const handleTacticalPlayerDragEnd = useCallback(
+    (
+      playerId: string,
+      displayX: number,
+      displayY: number,
+      playerPosition: string | undefined,
+      side: "home" | "away",
+    ) => {
+      movePlayerFromDisplay(
+        playerId,
+        { x: displayX, y: displayY },
+        manualFieldFlip,
+        playerPosition,
+        side,
+      );
+    },
+    [movePlayerFromDisplay, manualFieldFlip],
+  );
   const [viewMode, setViewMode] = useState<"logger" | "analytics">("logger");
   const [priorityPlayerId, setPriorityPlayerId] = useState<string | null>(null);
   const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
@@ -423,7 +471,7 @@ export default function LoggerCockpit() {
     modalTeam: substitutionModalTeam,
     availablePlayers: substitutionAvailablePlayers,
     onField: substitutionOnField,
-    onSubmit: handleSubstitutionSubmit,
+    onSubmit: handleSubstitutionSubmitBase,
     onCancel: handleSubstitutionCancel,
   } = useCockpitSubstitutionFlow({
     match,
@@ -439,6 +487,15 @@ export default function LoggerCockpit() {
     showTimedToast,
     t,
   });
+
+  // Wrap substitution submit to also update tactical field positions
+  const handleSubstitutionSubmit = useCallback(
+    (playerOffId: string, playerOnId: string, isConcussion: boolean) => {
+      handleSubstitutionSubmitBase(playerOffId, playerOnId, isConcussion);
+      applyTacticalSubstitution(playerOffId, playerOnId);
+    },
+    [handleSubstitutionSubmitBase, applyTacticalSubstitution],
+  );
 
   const { buffer } = useCockpitKeyboardHandlers({
     isSubmitting,
@@ -851,6 +908,15 @@ export default function LoggerCockpit() {
                 handleDeleteLoggedEvent={handleDeleteLoggedEvent}
                 isAdmin={isAdmin}
                 handleUpdateEventNotes={handleUpdateEventNotes}
+                getDisplayPosition={getDisplayPosition}
+                onTacticalPlayerDragEnd={handleTacticalPlayerDragEnd}
+                draggingPlayerId={draggingPlayerId}
+                onTacticalDragStart={setDraggingPlayerId}
+                onTacticalDragStop={() => setDraggingPlayerId(null)}
+                allTacticalPositions={tacticalPositions}
+                homeFormation={homeFormation}
+                awayFormation={awayFormation}
+                applyFormation={applyFormation}
                 t={t}
               />
             )}
