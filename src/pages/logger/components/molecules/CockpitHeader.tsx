@@ -1,4 +1,4 @@
-import { BarChart3, Clock, List, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import { Clock, RotateCcw, Wifi, WifiOff } from "lucide-react";
 
 interface CockpitHeaderProps {
   t: any;
@@ -10,8 +10,8 @@ interface CockpitHeaderProps {
   resetBlocked: boolean;
   resetTooltip?: string;
   undoError: string | null;
-  viewMode: "logger" | "analytics";
-  setViewMode: (mode: "logger" | "analytics") => void;
+  viewMode?: "logger" | "analytics";
+  setViewMode?: (mode: "logger" | "analytics") => void;
   matchTimeSeconds: number;
   statusOverride?: string | null;
   matchStatus?: string;
@@ -27,8 +27,6 @@ export default function CockpitHeader({
   resetBlocked,
   resetTooltip,
   undoError,
-  viewMode,
-  setViewMode,
   matchTimeSeconds,
   statusOverride,
   matchStatus,
@@ -99,31 +97,6 @@ export default function CockpitHeader({
         )}
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1 border border-slate-700">
-            <button
-              onClick={() => setViewMode("logger")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-                viewMode === "logger"
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <List size={16} />
-              {t("logger.view", "Logger")}
-            </button>
-            <button
-              onClick={() => setViewMode("analytics")}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${
-                viewMode === "analytics"
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-              data-testid="toggle-analytics"
-            >
-              <BarChart3 size={16} />
-              {t("logger.analytics", "Analytics")}
-            </button>
-          </div>
           <div className="text-sm text-slate-400 font-mono font-bold">
             <Clock className="inline mr-1" size={16} />
             {Math.floor((matchTimeSeconds || 0) / 60)}:

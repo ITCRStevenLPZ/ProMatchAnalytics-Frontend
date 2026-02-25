@@ -32,7 +32,7 @@ const REQUIRED_LOGGER_KEYS = [
   "analytics.effectiveTimePercent",
   "analytics.ineffectiveTimePercent",
   "analytics.averageAge",
-  "analytics.exportCsv",
+  "analytics.exportJpg",
   "analytics.exportPdf",
 ] as const;
 

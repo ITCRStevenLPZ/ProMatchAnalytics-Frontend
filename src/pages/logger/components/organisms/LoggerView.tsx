@@ -90,6 +90,10 @@ interface LoggerViewProps {
   homeFormation?: Formation | null;
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
+  viewMode?: "logger" | "analytics";
+  setViewMode?: (mode: "logger" | "analytics") => void;
+  dragLocked?: boolean;
+  onToggleDragLock?: () => void;
   t: any;
 }
 
@@ -163,6 +167,10 @@ export default function LoggerView({
   homeFormation,
   awayFormation,
   applyFormation,
+  viewMode,
+  setViewMode,
+  dragLocked,
+  onToggleDragLock,
   t,
 }: LoggerViewProps) {
   return (
@@ -202,6 +210,10 @@ export default function LoggerView({
           onUndo={handleUndoLastEvent}
           undoDisabled={undoDisabled}
           disabled={cockpitLocked}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          dragLocked={dragLocked}
+          onToggleDragLock={onToggleDragLock}
           t={t}
         />
       </div>
@@ -284,6 +296,7 @@ export default function LoggerView({
         homeFormation={homeFormation}
         awayFormation={awayFormation}
         applyFormation={applyFormation}
+        dragLocked={dragLocked}
         t={t}
       />
 

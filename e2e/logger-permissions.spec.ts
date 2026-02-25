@@ -84,6 +84,7 @@ test.describe("Logger permissions", () => {
     await expect(page.getByTestId("btn-end-first-half")).toBeDisabled({
       timeout: 2000,
     });
+    // Toggle to analytics view
     await analyticsToggle.click();
     await expect(analyticsPanel).toBeVisible({ timeout: 15000 });
 
@@ -95,10 +96,12 @@ test.describe("Logger permissions", () => {
     await expect(page.getByTestId("btn-end-first-half")).toBeDisabled({
       timeout: 2000,
     });
-    await analyticsToggle.click();
+    // Already in analytics, verify panel stays visible
     await expect(analyticsPanel).toBeVisible({ timeout: 15000 });
 
-    // Admin: admin-only controls available/enabled
+    // Admin: admin-only controls available/enabled — toggle back to logger first
+    await analyticsToggle.click();
+    await expect(analyticsPanel).not.toBeVisible({ timeout: 5000 });
     await setRole(page, "admin");
     await expect(page.getByTestId("btn-reset-clock")).toBeVisible({
       timeout: 2000,

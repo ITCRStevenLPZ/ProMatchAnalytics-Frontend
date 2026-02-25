@@ -765,10 +765,15 @@ export default function TeamsManager() {
     return matchesSearch && matchesGender;
   });
 
-  const filteredRoster =
+  const filteredRoster = (
     rosterPositionFilter === "ALL"
       ? teamRoster
-      : teamRoster.filter((tp) => tp.position === rosterPositionFilter);
+      : teamRoster.filter((tp) => tp.position === rosterPositionFilter)
+  )
+    .slice()
+    .sort(
+      (a, b) => (a.jersey_number ?? Infinity) - (b.jersey_number ?? Infinity),
+    );
 
   const rosterPlayerCandidates = availablePlayers.filter((player) => {
     const query = rosterPlayerSearch.toLowerCase().trim();

@@ -153,6 +153,7 @@ interface PlayerSelectorPanelProps {
   forceTacticalMode?: boolean;
   priorityPlayerId?: string | null;
   isReadOnly?: boolean;
+  dragLocked?: boolean;
   showDestinationControls?: boolean;
   cardSelectionActive?: boolean;
   /** The active card type when card selection is active (e.g. "Cancelled"). */
@@ -197,6 +198,7 @@ const PlayerSelectorPanel = ({
   forceTacticalMode = false,
   priorityPlayerId = null,
   isReadOnly = false,
+  dragLocked = true,
   showDestinationControls = false,
   cardSelectionActive = false,
   pendingCardType = null,
@@ -384,6 +386,7 @@ const PlayerSelectorPanel = ({
   );
 
   const selectionLocked = isReadOnly && !cardSelectionActive;
+  const fullOverlayBlocked = selectionLocked && dragLocked;
   const resolvedFieldOverlay = fieldOverlay;
 
   return (
@@ -391,7 +394,7 @@ const PlayerSelectorPanel = ({
       className="bg-slate-800 rounded-lg shadow p-6 border border-slate-700 relative overflow-visible"
       data-testid="player-grid"
     >
-      {selectionLocked && (
+      {fullOverlayBlocked && (
         <div className="absolute inset-0 z-10 bg-slate-900/70 backdrop-blur-sm border border-amber-500/40">
           <div className="p-4 flex items-start gap-3 text-amber-200">
             <div className="mt-0.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
@@ -414,6 +417,21 @@ const PlayerSelectorPanel = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+      {selectionLocked && !dragLocked && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-900/40 border border-amber-500/30 flex items-center gap-2 text-amber-200 text-sm">
+          <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+          <span className="font-medium">
+            {t("dragOnlyMode", "Drag-only mode")}
+          </span>
+          <span className="text-amber-200/70">
+            —{" "}
+            {t(
+              "dragOnlyHint",
+              "You can reposition players. Start the clock to log actions.",
+            )}
+          </span>
         </div>
       )}
       <div className="flex items-center justify-between mb-4">
