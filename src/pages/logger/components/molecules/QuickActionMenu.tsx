@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TFunction } from "i18next";
 import { FieldAnchor } from "../../types";
 
@@ -26,6 +26,19 @@ const QuickActionMenu = ({
   } | null>(null);
   const anchorX = anchor.xPercent ?? 0;
   const anchorY = anchor.yPercent ?? 0;
+
+  // ── Mount guard ──────────────────────────────────────────────────────
+  // Prevent stale click/pointer events from the interaction that triggered
+  // this menu (e.g. player-select tap) from accidentally hitting an action
+  // button.  We mount with pointer-events disabled and enable after the
+  // browser has flushed any queued events.
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setInteractive(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
@@ -76,7 +89,11 @@ const QuickActionMenu = ({
   return (
     <div
       ref={menuRef}
-      className="absolute z-20 flex flex-col gap-[clamp(0.45rem,0.35rem+0.2vw,0.9rem)] bg-slate-900/95 border border-slate-700 rounded-lg p-[clamp(0.7rem,0.55rem+0.45vw,1.4rem)] shadow-xl pointer-events-auto min-w-[clamp(260px,26vw,420px)]"
+      className={`absolute z-20 flex flex-col gap-[clamp(0.45rem,0.35rem+0.2vw,0.9rem)] bg-slate-900/95 border border-slate-700 rounded-lg p-[clamp(0.7rem,0.55rem+0.45vw,1.4rem)] shadow-xl min-w-[clamp(260px,26vw,420px)] transition-opacity ${
+        interactive
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-80"
+      }`}
       data-testid="quick-action-menu"
       style={{ left, top, transform: translate }}
     >

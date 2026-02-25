@@ -165,7 +165,6 @@ export default function TeamsManager() {
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(10);
   const [rosterTotalItems, setRosterTotalItems] = useState(0);
-  const [rosterTotalPages, setRosterTotalPages] = useState(0);
   const [isRosterModalLoading, setIsRosterModalLoading] = useState(false);
   const [isRosterPaginationLoading, setIsRosterPaginationLoading] =
     useState(false);
@@ -305,8 +304,8 @@ export default function TeamsManager() {
   const fetchTeamRoster = async (
     teamId: string,
     mode: "modal" | "pagination" | "refresh" = "refresh",
-    pageOverride?: number,
-    pageSizeOverride?: number,
+    _pageOverride?: number,
+    _pageSizeOverride?: number,
     playerPool?: PlayerData[],
   ) => {
     if (mode === "modal") {
@@ -317,37 +316,24 @@ export default function TeamsManager() {
     }
 
     try {
-      const params: any = {
-        page: pageOverride ?? rosterPage,
-        page_size: pageSizeOverride ?? rosterPageSize,
-      };
-
-      const response = await apiClient.get<PaginatedResponse<TeamPlayer>>(
-        `/teams/${teamId}/players`,
-        { params },
-      );
-      setTeamRoster(response.items);
-      setRosterTotalItems(response.total);
-      setRosterTotalPages(response.total_pages);
-
-      const rosterPlayerIds: string[] = [];
+      // Fetch ALL roster items so we sort globally, not per-page
+      const allItems: TeamPlayer[] = [];
       let page = 1;
       let totalPages = 1;
       do {
-        const fullPage = await apiClient.get<PaginatedResponse<TeamPlayer>>(
+        const resp = await apiClient.get<PaginatedResponse<TeamPlayer>>(
           `/teams/${teamId}/players`,
-          {
-            params: {
-              page,
-              page_size: 100,
-            },
-          },
+          { params: { page, page_size: 100 } },
         );
-        rosterPlayerIds.push(...fullPage.items.map((tp) => tp.player_id));
-        totalPages = Math.max(1, fullPage.total_pages || 1);
+        allItems.push(...resp.items);
+        totalPages = Math.max(1, resp.total_pages || 1);
         page += 1;
       } while (page <= totalPages);
 
+      setTeamRoster(allItems);
+      setRosterTotalItems(allItems.length);
+
+      const rosterPlayerIds = allItems.map((tp) => tp.player_id);
       const sourcePlayers = playerPool ?? players;
       const filtered = sourcePlayers.filter(
         (p) => !rosterPlayerIds.includes(p.player_id),
@@ -774,6 +760,16 @@ export default function TeamsManager() {
     .sort(
       (a, b) => (a.jersey_number ?? Infinity) - (b.jersey_number ?? Infinity),
     );
+
+  // Client-side pagination over the globally-sorted roster
+  const clientRosterTotalPages = Math.max(
+    1,
+    Math.ceil(filteredRoster.length / rosterPageSize),
+  );
+  const paginatedRoster = filteredRoster.slice(
+    (rosterPage - 1) * rosterPageSize,
+    rosterPage * rosterPageSize,
+  );
 
   const rosterPlayerCandidates = availablePlayers.filter((player) => {
     const query = rosterPlayerSearch.toLowerCase().trim();
@@ -1512,7 +1508,7 @@ export default function TeamsManager() {
                   ) : (
                     <div className="relative">
                       <div className="space-y-2">
-                        {filteredRoster.map((tp) => (
+                        {paginatedRoster.map((tp) => (
                           <div
                             key={tp.player_id}
                             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -1554,18 +1550,12 @@ export default function TeamsManager() {
                       <div className="mt-4">
                         <Pagination
                           currentPage={rosterPage}
-                          totalPages={rosterTotalPages}
-                          totalItems={rosterTotalItems}
+                          totalPages={clientRosterTotalPages}
+                          totalItems={filteredRoster.length}
                           pageSize={rosterPageSize}
                           onPageChange={(page) => {
-                            if (page === rosterPage || !selectedTeam) return;
+                            if (page === rosterPage) return;
                             setRosterPage(page);
-                            fetchTeamRoster(
-                              selectedTeam.team_id,
-                              "pagination",
-                              page,
-                              rosterPageSize,
-                            );
                           }}
                           onPageSizeChange={(newPageSize) => {
                             if (
@@ -1576,13 +1566,6 @@ export default function TeamsManager() {
                             }
                             setRosterPageSize(newPageSize);
                             setRosterPage(1);
-                            if (!selectedTeam) return;
-                            fetchTeamRoster(
-                              selectedTeam.team_id,
-                              "pagination",
-                              1,
-                              newPageSize,
-                            );
                           }}
                         />
                       </div>

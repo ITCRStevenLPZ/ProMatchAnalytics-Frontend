@@ -19,6 +19,8 @@ interface TacticalPlayerNodeProps {
   hasYellow?: boolean;
   hasRed?: boolean;
   yellowCount?: number;
+  /** When true, prevent node dragging (clicks still fire). */
+  dragLocked?: boolean;
   /** Called when the user clicks without dragging (player selection). */
   onClick?: () => void;
   /** Called when the user drags and releases (reposition). */
@@ -47,6 +49,7 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
   hasYellow = false,
   hasRed = false,
   yellowCount = 0,
+  dragLocked = false,
   onClick,
   onDragEnd,
   onDragMove,
@@ -60,9 +63,11 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
   const onDragMoveRef = useRef(onDragMove);
   const onDragEndRef = useRef(onDragEnd);
   const onClickRef = useRef(onClick);
+  const dragLockedRef = useRef(dragLocked);
   onDragMoveRef.current = onDragMove;
   onDragEndRef.current = onDragEnd;
   onClickRef.current = onClick;
+  dragLockedRef.current = dragLocked;
 
   // We need the field container for coordinate conversion.
   const getFieldRect = useCallback((el: HTMLElement | null): DOMRect | null => {
@@ -80,13 +85,14 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
   // Global move/up handlers attached to window during drag so that pointer
   // capture is not needed (which can be flaky in automated tests).
   const handleWindowPointerMove = useCallback((e: PointerEvent) => {
-    if (!isDragging.current || !fieldRect.current) {
-      return;
-    }
+    if (!isDragging.current || !fieldRect.current) return;
     const dx = e.clientX - startPointer.current.x;
     const dy = e.clientY - startPointer.current.y;
     if (!hasMoved.current && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    // Always mark as moved so pointerUp can distinguish tap from drag
     hasMoved.current = true;
+    // When locked, skip the visual preview — position must not change
+    if (dragLockedRef.current) return;
 
     const rect = fieldRect.current;
     const newX = startPercent.current.x + (dx / rect.width) * 100;
@@ -109,6 +115,9 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
         onClickRef.current?.();
         return;
       }
+
+      // User physically dragged — if locked, swallow (no click, no reposition)
+      if (dragLockedRef.current) return;
 
       if (fieldRect.current) {
         const dx = e.clientX - startPointer.current.x;
@@ -172,11 +181,13 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
       data-tactical-y={yPercent.toFixed(1)}
       title={`${fullName} (${position})`}
       role="button"
-      aria-disabled={isExpelled || undefined}
+      aria-disabled={isExpelled || dragLocked || undefined}
       className={`absolute z-10 flex flex-col items-center pointer-events-auto select-none touch-none ${
         isExpelled
           ? "opacity-40 cursor-not-allowed"
-          : "cursor-grab active:cursor-grabbing"
+          : dragLocked
+            ? "cursor-default"
+            : "cursor-grab active:cursor-grabbing"
       }`}
       style={{
         left: `${xPercent}%`,

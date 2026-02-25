@@ -66,30 +66,33 @@ const TeamSelector = ({
         {t("undoLast", "Undo last")}
       </button>
       {setViewMode && (
-        <button
-          type="button"
-          data-testid="toggle-analytics"
-          onClick={() =>
-            setViewMode(viewMode === "analytics" ? "logger" : "analytics")
-          }
-          className={`flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 rounded-lg text-base font-semibold transition-colors ${
-            viewMode === "analytics"
-              ? "text-purple-200 border border-purple-400/60 bg-purple-500/20 hover:bg-purple-500/30"
-              : "text-purple-300 border border-purple-500/40 bg-purple-900/30 hover:bg-purple-900/50"
-          }`}
-        >
-          {viewMode === "analytics" ? (
-            <>
-              <List size={20} />
-              {t("logger.view", "Logger")}
-            </>
-          ) : (
-            <>
-              <BarChart3 size={20} />
-              {t("logger.analytics", "Analytics")}
-            </>
-          )}
-        </button>
+        <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setViewMode("logger")}
+            className={`inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors ${
+              viewMode !== "analytics"
+                ? "bg-slate-700 text-slate-100"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            }`}
+          >
+            <List size={16} />
+            {t("logger.view", "Logger")}
+          </button>
+          <button
+            type="button"
+            data-testid="toggle-analytics"
+            onClick={() => setViewMode("analytics")}
+            className={`inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors ${
+              viewMode === "analytics"
+                ? "bg-purple-600 text-white"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            }`}
+          >
+            <BarChart3 size={16} />
+            {t("logger.analytics", "Analytics")}
+          </button>
+        </div>
       )}
       {onToggleDragLock && (
         <button

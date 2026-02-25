@@ -845,10 +845,14 @@ export function MatchAnalytics({
   const exportJpg = async () => {
     const el = statsTableRef.current;
     if (!el) return;
+    // Temporarily enforce a minimum width so values are never clipped
+    const prev = el.style.minWidth;
+    el.style.minWidth = "600px";
     const canvas = await html2canvas(el, {
       backgroundColor: "#0f172a",
       scale: 2,
     });
+    el.style.minWidth = prev;
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -1111,7 +1115,7 @@ export function MatchAnalytics({
           </div>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
+        <div className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
           <div className="truncate">{match.home_team.short_name}</div>
           <div className="text-center truncate">
             {t("analytics.metric", "Metric")}
@@ -1125,10 +1129,10 @@ export function MatchAnalytics({
           {analytics.comparativeRows.map((row) => (
             <div
               key={row.testId}
-              className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
+              className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
               data-testid={row.testId}
             >
-              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 truncate">
+              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50">
                 {row.home}
               </div>
               <div
@@ -1148,7 +1152,7 @@ export function MatchAnalytics({
                   </span>
                 )}
               </div>
-              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right truncate">
+              <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right">
                 {row.away}
               </div>
             </div>
@@ -1160,7 +1164,7 @@ export function MatchAnalytics({
           <div className="text-sm uppercase tracking-wide text-emerald-200 mb-2">
             {t("analytics.perTeamTime", "Per-Team Time Detail")}
           </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
+          <div className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
             <div className="truncate">{match.home_team.short_name}</div>
             <div className="text-center truncate">
               {t("analytics.metric", "Metric")}
@@ -1173,10 +1177,10 @@ export function MatchAnalytics({
             {analytics.perTeamTimeRows.map((row) => (
               <div
                 key={row.testId}
-                className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
+                className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
                 data-testid={row.testId}
               >
-                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 truncate">
+                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50">
                   {row.home}
                 </div>
                 <div
@@ -1196,7 +1200,7 @@ export function MatchAnalytics({
                     </span>
                   )}
                 </div>
-                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right truncate">
+                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right">
                   {row.away}
                 </div>
               </div>

@@ -62,6 +62,8 @@ interface TacticalFieldProps {
   onDragStop?: () => void;
   /** All canonical positions — used for collision‑avoidance proximity rings. */
   allPositions?: Map<string, TacticalPosition>;
+  /** When true, prevent player node dragging. */
+  dragLocked?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +128,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   onDragStart,
   onDragStop,
   allPositions,
+  dragLocked = false,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
 
@@ -196,6 +199,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
           hasYellow={(cardStatus?.yellowCount ?? 0) > 0}
           hasRed={Boolean(cardStatus?.red)}
           yellowCount={cardStatus?.yellowCount ?? 0}
+          dragLocked={dragLocked}
           onClick={() => {
             if (isExpelled) return;
             const anchor: FieldAnchor = {
@@ -219,6 +223,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
       onPlayerClick,
       makePlayerDragMove,
       makePlayerDragEnd,
+      dragLocked,
     ],
   );
 
@@ -345,10 +350,12 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
 
           {/* ─── Overlay (e.g. QuickActionMenu) ─── */}
           {overlay && (
-            <div className="absolute inset-0 z-30 pointer-events-none">
-              <div className="relative h-full w-full pointer-events-none">
-                {overlay}
-              </div>
+            <div
+              className="absolute inset-0 z-30 pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="relative h-full w-full">{overlay}</div>
             </div>
           )}
         </div>
