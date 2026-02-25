@@ -252,9 +252,7 @@ test.describe("Logger action matrix", () => {
     await page.goto(`/matches/${MATCH_ID}/logger`);
     await ensureAdminRole(page);
     await resetHarnessFlow(page);
-    await page
-      .getByRole("button", { name: /Cabina|Cabin|Logger/i })
-      .click({ timeout: 8000 });
+    // Logger view is the default — no need to click a tab
     await page.getByTestId("btn-start-clock").click({ timeout: 15000 });
     await selectTeamSide(page, "both");
     await expect(getHarnessMatchContext(page)).resolves.not.toBeNull();

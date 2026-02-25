@@ -198,6 +198,9 @@ test.describe("Logger analytics integrity", () => {
 
     // Reload and confirm analytics stay consistent
     await page.reload();
+    await page
+      .getByTestId("field-player-HOME-1")
+      .waitFor({ state: "visible", timeout: 15000 });
     await page.getByTestId("toggle-analytics").click();
     const analyticsPanelReloaded = page.getByTestId("analytics-panel");
     await expect(analyticsPanelReloaded).toBeVisible({ timeout: 15000 });

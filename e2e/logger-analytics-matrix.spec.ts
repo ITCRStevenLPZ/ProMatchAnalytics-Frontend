@@ -1018,7 +1018,7 @@ test.describe("Logger analytics matrix", () => {
     expect(away).toMatch(numericPattern);
   });
 
-  test("ANL-25: analytics export buttons produce CSV and PDF downloads", async ({
+  test("ANL-25: analytics export buttons produce JPG and PDF downloads", async ({
     page,
   }) => {
     await gotoLoggerPage(page, MATRIX_MATCH_ID);
@@ -1037,11 +1037,11 @@ test.describe("Logger analytics matrix", () => {
 
     await openAnalytics(page);
 
-    const [csvDownload] = await Promise.all([
+    const [jpgDownload] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByTestId("export-analytics-csv").click(),
+      page.getByTestId("export-analytics-jpg").click(),
     ]);
-    expect(csvDownload.suggestedFilename()).toMatch(/analytics-.*\.csv$/i);
+    expect(jpgDownload.suggestedFilename()).toMatch(/analytics-.*\.jpg$/i);
 
     const [pdfDownload] = await Promise.all([
       page.waitForEvent("download"),

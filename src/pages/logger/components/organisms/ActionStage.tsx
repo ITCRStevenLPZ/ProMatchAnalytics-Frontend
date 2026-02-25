@@ -68,6 +68,7 @@ interface ActionStageProps {
   homeFormation?: Formation | null;
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
+  dragLocked?: boolean;
   t: any;
 }
 
@@ -117,6 +118,7 @@ export default function ActionStage({
   homeFormation,
   awayFormation,
   applyFormation,
+  dragLocked = true,
   t,
 }: ActionStageProps) {
   return (
@@ -199,6 +201,7 @@ export default function ActionStage({
             !IS_E2E_TEST_MODE &&
             (!isGlobalClockRunning || clockMode !== "EFFECTIVE" || isVarActive)
           }
+          dragLocked={dragLocked}
           t={t}
         />
       )}

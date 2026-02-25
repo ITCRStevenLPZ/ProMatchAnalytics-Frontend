@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
 import {
   AreaChart,
   Area,
@@ -690,6 +691,40 @@ export function MatchAnalytics({
           testId: "stat-red",
         },
         {
+          label: t("analytics.totalEffectiveTime", "Total Effective Time"),
+          home: formatSecondsAsClock(totalEffectiveTime),
+          away: formatSecondsAsClock(totalEffectiveTime),
+          testId: "stat-total-effective-time",
+          tooltip: t(
+            "analytics.tooltipTotalEffectiveTime",
+            "Overall ball-in-play time for the match (shared by both teams).",
+          ),
+        },
+        {
+          label: t("analytics.totalIneffectiveTime", "Total Ineffective Time"),
+          home: formatSecondsAsClock(totalIneffectiveSeconds),
+          away: formatSecondsAsClock(totalIneffectiveSeconds),
+          testId: "stat-total-ineffective-time",
+          tooltip: t(
+            "analytics.tooltipTotalIneffectiveTime",
+            "Overall stoppage time for the match (all teams combined).",
+          ),
+        },
+        {
+          label: t("analytics.averageAge", "Average Age"),
+          home:
+            homeAverageAge !== null
+              ? homeAverageAge.toFixed(1)
+              : averageAgeNotAvailable,
+          away:
+            awayAverageAge !== null
+              ? awayAverageAge.toFixed(1)
+              : averageAgeNotAvailable,
+          testId: "stat-average-age",
+        },
+      ] as ComparativeRow[],
+      perTeamTimeRows: [
+        {
           label: t("analytics.ineffectiveTime", "Ineffective Time"),
           home: formatSecondsAsClock(ineffectiveTotals.home),
           away: formatSecondsAsClock(ineffectiveTotals.away),
@@ -729,38 +764,6 @@ export function MatchAnalytics({
             "Effective time as a percentage of (effective + that team's ineffective) time.",
           ),
         },
-        {
-          label: t("analytics.totalEffectiveTime", "Total Effective Time"),
-          home: formatSecondsAsClock(totalEffectiveTime),
-          away: formatSecondsAsClock(totalEffectiveTime),
-          testId: "stat-total-effective-time",
-          tooltip: t(
-            "analytics.tooltipTotalEffectiveTime",
-            "Overall ball-in-play time for the match (shared by both teams).",
-          ),
-        },
-        {
-          label: t("analytics.totalIneffectiveTime", "Total Ineffective Time"),
-          home: formatSecondsAsClock(totalIneffectiveSeconds),
-          away: formatSecondsAsClock(totalIneffectiveSeconds),
-          testId: "stat-total-ineffective-time",
-          tooltip: t(
-            "analytics.tooltipTotalIneffectiveTime",
-            "Overall stoppage time for the match (all teams combined).",
-          ),
-        },
-        {
-          label: t("analytics.averageAge", "Average Age"),
-          home:
-            homeAverageAge !== null
-              ? homeAverageAge.toFixed(1)
-              : averageAgeNotAvailable,
-          away:
-            awayAverageAge !== null
-              ? awayAverageAge.toFixed(1)
-              : averageAgeNotAvailable,
-          testId: "stat-average-age",
-        },
       ] as ComparativeRow[],
       totalMatchSeconds,
       totalEvents,
@@ -782,6 +785,8 @@ export function MatchAnalytics({
     varTimeSeconds,
     timeoutSeconds,
   ]);
+
+  const statsTableRef = useRef<HTMLDivElement>(null);
 
   if (!match || !analytics) {
     return (
@@ -837,51 +842,24 @@ export function MatchAnalytics({
     URL.revokeObjectURL(url);
   };
 
-  const exportCsv = () => {
-    const rows: string[] = [];
-    const addRow = (...columns: Array<string | number>) => {
-      rows.push(
-        columns
-          .map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`)
-          .join(","),
-      );
-    };
-
-    addRow("Match", `${match.home_team.name} vs ${match.away_team.name}`);
-    addRow("Status", String(match.status || ""));
-    addRow("Generated At", new Date().toISOString());
-    rows.push("");
-
-    addRow("Team Comparison");
-    addRow("Metric", match.home_team.short_name, match.away_team.short_name);
-    analytics.comparativeRows.forEach((row) => {
-      addRow(row.label, row.home, row.away);
+  const exportJpg = async () => {
+    const el = statsTableRef.current;
+    if (!el) return;
+    const canvas = await html2canvas(el, {
+      backgroundColor: "#0f172a",
+      scale: 2,
     });
-    rows.push("");
-
-    addRow("Ineffective Breakdown");
-    addRow(
-      "Metric",
-      match.home_team.short_name,
-      t("analytics.neutral", "Neutral"),
-      match.away_team.short_name,
-    );
-    analytics.ineffectiveActionRows.forEach((row: any) => {
-      addRow(
-        row.label,
-        formatSecondsAsClock(row.home),
-        formatSecondsAsClock(row.neutral),
-        formatSecondsAsClock(row.away),
-      );
-    });
-
-    const timestamp = new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[:T]/g, "-");
-    downloadBlob(
-      `analytics-${match.id || "match"}-${timestamp}.csv`,
-      new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" }),
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const timestamp = new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/[:T]/g, "-");
+        downloadBlob(`analytics-${match.id || "match"}-${timestamp}.jpg`, blob);
+      },
+      "image/jpeg",
+      0.92,
     );
   };
 
@@ -928,6 +906,30 @@ export function MatchAnalytics({
       headStyles: {
         fillColor: [16, 185, 129],
         textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: marginX, right: marginX },
+    });
+
+    y = ((doc as any).lastAutoTable?.finalY || y + 120) + 22;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(t("analytics.perTeamTime", "Per-Team Time Detail"), marginX, y);
+
+    autoTable(doc, {
+      startY: y + 8,
+      head: [["Metric", match.home_team.name, match.away_team.name]],
+      body: analytics.perTeamTimeRows.map((row) => [
+        row.label,
+        String(row.home),
+        String(row.away),
+      ]),
+      theme: "grid",
+      styles: { fontSize: 9, cellPadding: 5, lineColor: [226, 232, 240] },
+      headStyles: {
+        fillColor: [234, 179, 8],
+        textColor: [15, 23, 42],
         fontStyle: "bold",
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
@@ -1029,11 +1031,11 @@ export function MatchAnalytics({
           </div>
           <button
             type="button"
-            data-testid="export-analytics-csv"
-            onClick={exportCsv}
+            data-testid="export-analytics-jpg"
+            onClick={exportJpg}
             className="px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
           >
-            {t("analytics.exportCsv", "Export CSV")}
+            {t("analytics.exportJpg", "Export JPG")}
           </button>
           <button
             type="button"
@@ -1047,7 +1049,10 @@ export function MatchAnalytics({
       </div>
 
       {/* Comparative Table */}
-      <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-900 rounded-2xl p-4 sm:p-5 md:p-6 text-white shadow-xl">
+      <div
+        ref={statsTableRef}
+        className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-900 rounded-2xl p-4 sm:p-5 md:p-6 text-white shadow-xl"
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="text-base uppercase tracking-wider text-emerald-200">
             {t("analytics.totalTime", "Total Time")}:
@@ -1148,6 +1153,55 @@ export function MatchAnalytics({
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Per-team Time Detail */}
+        <div className="mt-6" data-testid="analytics-per-team-time">
+          <div className="text-sm uppercase tracking-wide text-emerald-200 mb-2">
+            {t("analytics.perTeamTime", "Per-Team Time Detail")}
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
+            <div className="truncate">{match.home_team.short_name}</div>
+            <div className="text-center truncate">
+              {t("analytics.metric", "Metric")}
+            </div>
+            <div className="text-right truncate">
+              {match.away_team.short_name}
+            </div>
+          </div>
+          <div className="space-y-2">
+            {analytics.perTeamTimeRows.map((row) => (
+              <div
+                key={row.testId}
+                className="grid grid-cols-[minmax(0,1fr)_minmax(130px,170px)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(150px,190px)_minmax(0,1fr)] items-center gap-2 md:gap-3 bg-white/5 rounded-lg px-2.5 md:px-3 py-2.5 md:py-3"
+                data-testid={row.testId}
+              >
+                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 truncate">
+                  {row.home}
+                </div>
+                <div
+                  className="text-sm sm:text-base md:text-lg text-emerald-200 text-center font-medium leading-tight px-1 flex items-center justify-center gap-1"
+                  title={row.label}
+                >
+                  <span className="truncate">{row.label}</span>
+                  {row.tooltip && (
+                    <span className="group relative flex-shrink-0">
+                      <Info
+                        size={14}
+                        className="text-emerald-400/60 cursor-help"
+                      />
+                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-md bg-slate-800 px-3 py-2 text-xs leading-relaxed text-slate-200 opacity-0 shadow-lg transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 z-50 normal-case tracking-normal text-left">
+                        {row.tooltip}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-base sm:text-lg md:text-xl font-semibold text-emerald-50 text-right truncate">
+                  {row.away}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-6" data-testid="analytics-ineffective-breakdown">

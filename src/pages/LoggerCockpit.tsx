@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
+import { List } from "lucide-react";
 import { useMatchLogStore } from "../store/useMatchLogStore";
 import { useMatchSocket } from "../hooks/useMatchSocket";
 import { IS_E2E_TEST_MODE } from "../lib/loggerApi";
@@ -167,6 +168,7 @@ export default function LoggerCockpit() {
     [movePlayerFromDisplay, manualFieldFlip],
   );
   const [viewMode, setViewMode] = useState<"logger" | "analytics">("logger");
+  const [dragLocked, setDragLocked] = useState(true);
   const [priorityPlayerId, setPriorityPlayerId] = useState<string | null>(null);
   const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
     null,
@@ -834,18 +836,31 @@ export default function LoggerCockpit() {
 
             {/* Analytics View */}
             {viewMode === "analytics" ? (
-              <AnalyticsView
-                match={match}
-                liveEvents={liveEvents}
-                queuedEvents={queuedEvents}
-                effectiveClock={effectiveClock}
-                globalClock={globalClock}
-                effectiveTime={effectiveTime}
-                varTimeSeconds={varTimeSeconds}
-                timeoutTimeSeconds={timeoutTimeSeconds}
-                ineffectiveBreakdown={ineffectiveBreakdown}
-                t={t}
-              />
+              <>
+                {/* Floating toggle to return to logger — accessible from analytics */}
+                <div className="flex justify-end mb-2">
+                  <button
+                    data-testid="toggle-analytics"
+                    onClick={() => setViewMode("logger")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-purple-200 border-purple-400/60 bg-purple-500/20 hover:bg-purple-500/30"
+                  >
+                    <List className="w-4 h-4" />
+                    {t("logger:backToLogger", "Logger")}
+                  </button>
+                </div>
+                <AnalyticsView
+                  match={match}
+                  liveEvents={liveEvents}
+                  queuedEvents={queuedEvents}
+                  effectiveClock={effectiveClock}
+                  globalClock={globalClock}
+                  effectiveTime={effectiveTime}
+                  varTimeSeconds={varTimeSeconds}
+                  timeoutTimeSeconds={timeoutTimeSeconds}
+                  ineffectiveBreakdown={ineffectiveBreakdown}
+                  t={t}
+                />
+              </>
             ) : (
               <LoggerView
                 match={match}
@@ -917,6 +932,10 @@ export default function LoggerCockpit() {
                 homeFormation={homeFormation}
                 awayFormation={awayFormation}
                 applyFormation={applyFormation}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+                dragLocked={dragLocked}
+                onToggleDragLock={() => setDragLocked((prev) => !prev)}
                 t={t}
               />
             )}
