@@ -127,7 +127,7 @@ import {
   Target,
   Shuffle,
   Users,
-} from "lucide-react";
+} from "../../../components/icons";
 
 interface GestureOverlayProps {
   activeGesture: GestureAction;

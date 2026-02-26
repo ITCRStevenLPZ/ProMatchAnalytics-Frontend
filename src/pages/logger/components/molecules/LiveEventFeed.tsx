@@ -12,7 +12,7 @@ import {
   ChevronsRight,
   Trash2,
   Trophy,
-} from "lucide-react";
+} from "../../../../components/icons";
 import {
   MatchEvent,
   DuplicateHighlight,

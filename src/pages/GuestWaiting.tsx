@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../store/authStore";
-import { Clock, Mail, LogOut } from "lucide-react";
+import { Clock, Mail, LogOut } from "../components/icons";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";

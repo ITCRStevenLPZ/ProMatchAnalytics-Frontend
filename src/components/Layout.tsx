@@ -15,7 +15,7 @@ import {
   Menu,
   X,
   Upload,
-} from "lucide-react";
+} from "./icons";
 import LanguageSwitcher from "./LanguageSwitcher";
 import ProMatchTitleLogo from "./ProMatchTitleLogo";
 import { useState, useRef, useEffect } from "react";

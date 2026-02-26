@@ -9,7 +9,7 @@ import {
   X,
   Users,
   Filter,
-} from "lucide-react";
+} from "../components/icons";
 import { apiClient } from "../lib/api";
 import { normalizePlayers, type PlayerApiResponse } from "../lib/players";
 import {

@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "../../../../components/icons";
 
 interface ResetConfirmModalProps {
   show: boolean;

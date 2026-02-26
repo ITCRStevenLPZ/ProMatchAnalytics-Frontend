@@ -1,4 +1,4 @@
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, X } from "./icons";
 import { useTranslation } from "react-i18next";
 
 interface SimilarRecord {

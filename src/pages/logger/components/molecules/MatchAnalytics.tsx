@@ -44,7 +44,7 @@ import {
   Award,
   Clock,
   Info,
-} from "lucide-react";
+} from "../../../../components/icons";
 
 interface MatchAnalyticsProps {
   match: Match | null;

@@ -1,4 +1,4 @@
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, X } from "./icons";
 import { useTranslation } from "react-i18next";
 
 interface ChangeDetail {

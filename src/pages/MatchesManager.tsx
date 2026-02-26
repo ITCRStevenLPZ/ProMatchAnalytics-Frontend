@@ -8,7 +8,7 @@ import {
   Search,
   X,
   ChevronRight,
-} from "lucide-react";
+} from "../components/icons";
 import { apiClient } from "../lib/api";
 import { getMatch as getLoggerMatch } from "../lib/loggerApi";
 import { formatPlayerName } from "../lib/nameFormat";

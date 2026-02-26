@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Upload, AlertCircle, CheckCircle, Download } from "lucide-react";
+import { X, Upload, AlertCircle, CheckCircle, Download } from "./icons";
 import { useTranslation } from "react-i18next";
 import {
   readFileAsText,

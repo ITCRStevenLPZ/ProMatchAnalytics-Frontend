@@ -6,7 +6,7 @@ import {
   List,
   Lock,
   Unlock,
-} from "lucide-react";
+} from "../../../../components/icons";
 
 interface TeamSelectorProps {
   isFlipped: boolean;

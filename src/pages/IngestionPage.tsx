@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Eye,
-} from "lucide-react";
+} from "../components/icons";
 import { apiClient } from "../lib/api";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { ConflictReviewDialog } from "../components/ingestion/ConflictReviewDialog";

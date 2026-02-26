@@ -22,7 +22,7 @@ import {
   Trash2,
   X,
   type LucideIcon,
-} from "lucide-react";
+} from "../components/icons";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";

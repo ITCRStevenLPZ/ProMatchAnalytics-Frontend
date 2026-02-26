@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, X } from "../../../../components/icons";
 import type { TFunction } from "i18next";
 import type { Formation } from "../../hooks/useTacticalPositions";
 import {

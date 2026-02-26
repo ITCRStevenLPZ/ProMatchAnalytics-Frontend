@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, X, AlertCircle } from "lucide-react";
+import { Search, X, AlertCircle } from "./icons";
 
 interface AutocompleteSearchProps<T> {
   /** Field name for the input */

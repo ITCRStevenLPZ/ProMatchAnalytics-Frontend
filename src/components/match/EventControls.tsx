@@ -1,5 +1,5 @@
 import React from "react";
-import { Flag, CreditCard, Activity, UserPlus } from "lucide-react";
+import { Flag, CreditCard, Activity, UserPlus } from "../icons";
 
 interface EventControlsProps {
   onEvent: (type: string, data?: any) => void;

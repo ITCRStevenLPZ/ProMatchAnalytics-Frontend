@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { List, BarChart3 } from "lucide-react";
+import { List, BarChart3 } from "../components/icons";
 import { useMatchLogStore } from "../store/useMatchLogStore";
 import { useMatchSocket } from "../hooks/useMatchSocket";
 import { IS_E2E_TEST_MODE } from "../lib/loggerApi";

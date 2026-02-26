@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Users, Search, Shield, UserCheck, UserX, Info } from "lucide-react";
+import {
+  Users,
+  Search,
+  Shield,
+  UserCheck,
+  UserX,
+  Info,
+} from "../components/icons";
 import { apiClient } from "../lib/api";
 import type { UserData, UserRole } from "../types";
 import { useAuthStore } from "../store/authStore";

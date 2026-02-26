@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play } from "../../../../components/icons";
 import { MatchEvent } from "../../../../store/useMatchLogStore";
 import { CardSelection } from "../molecules/QuickCardPanel";
 import MatchTimerDisplay from "../molecules/MatchTimerDisplay";

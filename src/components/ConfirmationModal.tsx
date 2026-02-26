@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X } from "./icons";
 import { useEffect, useId, type ReactNode } from "react";
 
 interface ConfirmationModalProps {

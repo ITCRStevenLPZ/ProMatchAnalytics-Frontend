@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   RefreshCw,
   FileText,
-} from "lucide-react";
+} from "../icons";
 import type { ConflictRecord } from "../../lib/ingestion";
 import { apiClient } from "../../lib/api";
 import LoadingSpinner from "../LoadingSpinner";

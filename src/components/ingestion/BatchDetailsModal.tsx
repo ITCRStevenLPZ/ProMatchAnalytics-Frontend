@@ -1,4 +1,4 @@
-import { X, Info, ExternalLink } from "lucide-react";
+import { X, Info, ExternalLink } from "../icons";
 import { useTranslation } from "react-i18next";
 import type { IngestionBatchSummary } from "../../lib/ingestion";
 

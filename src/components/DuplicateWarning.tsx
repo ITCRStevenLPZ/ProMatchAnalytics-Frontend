@@ -1,4 +1,4 @@
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X } from "./icons";
 import { useTranslation } from "react-i18next";
 
 interface DuplicateWarningProps {

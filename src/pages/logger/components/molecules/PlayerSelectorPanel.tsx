@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { TFunction } from "i18next";
-import { Users, LayoutGrid, Map, Crosshair } from "lucide-react";
+import {
+  Users,
+  LayoutGrid,
+  MapIcon as Map,
+  Crosshair,
+} from "../../../../components/icons";
 import SoccerField from "../../../../components/SoccerField";
 import TacticalField from "./TacticalField";
 import FormationPicker from "./FormationPicker";
