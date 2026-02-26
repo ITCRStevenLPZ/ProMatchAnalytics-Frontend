@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "../lib/firebase";
-import { Trophy } from "lucide-react";
+import ProMatchTitleLogo from "../components/ProMatchTitleLogo";
 
 export default function Login() {
   const { t } = useTranslation("login");
@@ -46,12 +46,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700 px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <Trophy className="text-primary-600" size={64} />
+          <div className="flex justify-center mb-6">
+            <ProMatchTitleLogo width={280} className="text-primary-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {t("title")}
-          </h1>
           <p className="text-gray-600">{t("subtitle")}</p>
         </div>
 
