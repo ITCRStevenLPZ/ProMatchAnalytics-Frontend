@@ -17,6 +17,7 @@ import {
   Upload,
 } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
+import ProMatchLogo from "./ProMatchLogo";
 import { useState, useRef, useEffect } from "react";
 
 // Profile Avatar Component with fallback
@@ -140,7 +141,7 @@ export default function Layout() {
               </button>
 
               <Link to="/dashboard" className="flex items-center gap-2">
-                <Trophy className="text-primary-600" size={32} />
+                <ProMatchLogo size={32} className="text-primary-600" />
                 <span className="text-xl font-bold text-gray-900">
                   ProMatchAnalytics
                 </span>
@@ -187,7 +188,7 @@ export default function Layout() {
             {/* Sidebar Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <Trophy className="text-primary-600" size={28} />
+                <ProMatchLogo size={28} className="text-primary-600" />
                 <span className="text-lg font-bold text-gray-900">Menu</span>
               </div>
               <button

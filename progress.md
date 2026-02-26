@@ -8,61 +8,46 @@
 
 ## Current Objective
 
-- [x] Fix 5 QA engineer issues (roster sort, per-team time stats, JPG export, toggle relocation, drag lock)
+- [x] Fix 6 QA issues — drag lock action leak, quick-action auto-fire, roster global sort, toggle UX, JPG clipping, clock-stopped drag
 
 ## Status
 
 - Phase: Handoff
 - Overall: On track
 
-## What Was Completed (Latest Session)
+## What Was Completed (Latest Session — commit `b7545ef`)
 
-### QA Issue #1: Sort Roster by Jersey Number
+### QA Fix: Drag Lock Action Leak (TacticalPlayerNode)
 
-- [x] **`TeamsManager.tsx`**: Added `.slice().sort((a, b) => (a.jersey_number ?? Infinity) - (b.jersey_number ?? Infinity))` to `filteredRoster` computation so roster modal displays players in ascending jersey number order.
+- [x] **`TacticalPlayerNode.tsx`**: Always track `hasMoved` regardless of `dragLocked` state; suppress only visual preview when locked; on pointerup if `hasMoved && dragLocked` → swallow gesture (no click, no reposition).
 
-### QA Issue #2: Move Per-Team Time Stats Below Totals
+### QA Fix: Quick-Action Menu Auto-Fire on Center Players
 
-- [x] **`MatchAnalytics.tsx`**: Removed 4 per-team time rows (Ineffective Time, Ineffective Time %, Effective Time, Effective Time %) from `comparativeRows` array. Created a separate `perTeamTimeRows` array returned by the analytics memo.
-- [x] **`MatchAnalytics.tsx`**: Added new "Per-Team Time Detail" render section with `data-testid="analytics-per-team-time"` containing the 4 rows, rendered below the main comparison table.
-- [x] **`MatchAnalytics.tsx`**: Updated PDF export to include per-team time table section with yellow header.
+- [x] **`QuickActionMenu.tsx`**: Mount with `pointer-events: none`; enable after 2 `requestAnimationFrame` calls, preventing stale click events from accidentally selecting an action button.
+- [x] **`TacticalField.tsx`**: Overlay wrapper uses `pointer-events-auto` with `stopPropagation` on click/pointerdown to block click-through to player nodes behind the menu.
 
-### QA Issue #3: Replace CSV Export with JPG Export
+### QA Fix: Roster Sort Global (Not Per-Page)
 
-- [x] Installed `html2canvas` dependency.
-- [x] **`MatchAnalytics.tsx`**: Replaced `exportCsv` function with `exportJpg` using `html2canvas`. Added `statsTableRef` on the comparative table container. Changed button from `export-analytics-csv` to `export-analytics-jpg`.
+- [x] **`TeamsManager.tsx`**: Refactored `fetchTeamRoster` to fetch ALL roster items in one server-side pagination loop (page_size=100); store full array in `teamRoster` state.
+- [x] **`TeamsManager.tsx`**: `filteredRoster` now sorts globally by jersey number; new `paginatedRoster` + `clientRosterTotalPages` handle client-side pagination.
+- [x] Removed unused `_rosterTotalPages` state variable.
 
-### QA Issue #4: Move Logger/Analytics Toggle Near Field
+### QA Fix: Toggle UX (Segmented Control)
 
-- [x] **`CockpitHeader.tsx`**: Removed toggle buttons from the header bar. Made `viewMode`/`setViewMode` props optional.
-- [x] **`TeamSelector.tsx`**: Added analytics toggle button with purple styling (`text-purple-200 border-purple-400/60 bg-purple-500/20`), using `data-testid="toggle-analytics"`. Shows near flip-field and undo buttons.
-- [x] **`LoggerCockpit.tsx`**: Added "Back to Logger" button (same `toggle-analytics` testId) visible when in analytics view, so users can always switch back from analytics.
-- [x] **Prop threading**: `viewMode`, `setViewMode` threaded through `LoggerCockpit → LoggerView → TeamSelector`.
+- [x] **`TeamSelector.tsx`**: Replaced verbose text toggle button with segmented control (Logger/Analytics buttons side by side); `data-testid="toggle-analytics"` preserved.
 
-### QA Issue #5: Lock/Unlock Node Dragging
+### QA Fix: JPG Export Number Clipping
 
-- [x] **`LoggerCockpit.tsx`**: Added `dragLocked` state (default: `true`).
-- [x] **`TeamSelector.tsx`**: Added lock/unlock button with `data-testid="toggle-drag-lock"`, emerald styling when unlocked.
-- [x] **`PlayerSelectorPanel.tsx`**: Split overlay logic — `fullOverlayBlocked` (selection & drag locked) shows full blocking overlay; when `selectionLocked && !dragLocked`, shows amber "Drag-only mode" banner without blocking pointer events.
-- [x] **Prop threading**: `dragLocked`, `onToggleDragLock` threaded through `LoggerCockpit → LoggerView → ActionStage → PlayerSelectorPanel` and `LoggerCockpit → LoggerView → TeamSelector`.
+- [x] **`MatchAnalytics.tsx`**: Changed grid value columns from `minmax(0,1fr)` to `minmax(80px,1fr)`; removed `truncate` from home/away value cells; set `el.style.minWidth = "600px"` temporarily during `html2canvas` capture.
 
-### i18n Keys Added
+### QA Fix: Allow Drag When Clock Stopped
 
-- [x] EN/ES: `analytics.exportJpg`, `analytics.perTeamTime`, `lockDrag`, `unlockDrag`, `dragOnlyMode`, `dragOnlyHint`
+- [x] **`PlayerSelectorPanel.tsx`**: `effectiveDragLocked = isReadOnly ? false : dragLocked` — allows repositioning when clock stopped while preserving selection lock.
+- [x] **`TacticalField.tsx`**: Added `dragLocked` prop passed to each `TacticalPlayerNode`.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: `qa-fixes-v2.spec.ts` — 4 new tests -> ALL PASS
-  - "QA-1: analytics toggle is in TeamSelector area near field" -> PASS
-  - "QA-2: per-team time rows render in separate section" -> PASS
-  - "QA-3: JPG export button exists (CSV removed)" -> PASS
-  - "QA-4: drag lock toggle button is visible" -> PASS
-- [x] E2E: `logger-analytics-matrix.spec.ts` ANL-25 updated (CSV → JPG testId/filename) -> PASS
-- [x] E2E: `logger-i18n-keys.spec.ts` updated (analytics.exportCsv → analytics.exportJpg) -> PASS
-- [x] E2E: `logger-action-matrix.spec.ts` updated (removed defunct header tab click) -> PASS
-- [x] E2E: `logger-permissions.spec.ts` updated (toggle semantics: toggle vs tab) -> PASS
-- [x] E2E: `logger-analytics-integrity.spec.ts` updated (wait for field load after reload) -> PASS
-- [x] E2E: Full suite (215 tests) -> ALL PASS (flaky ULT-03/Offside timing tests pass on retry — race condition, not code issue)
+- [x] Pre-commit hooks: Prettier, ESLint, TypeScript, Unit -> ALL PASS (commit `b7545ef`)
 - [x] TypeScript: `tsc --noEmit` -> 0 errors
 - [x] Unit tests: `vitest run` -> 9/10 pass (1 file has 3 pre-existing failures in payloadBuilders.test.ts)
 

@@ -3,6 +3,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import {
+  PROMATCH_LOGO_PATH,
+  PROMATCH_LOGO_VIEWBOX,
+} from "../../../../components/ProMatchLogo";
+import {
   AreaChart,
   Area,
   BarChart,
@@ -853,6 +857,29 @@ export function MatchAnalytics({
       scale: 2,
     });
     el.style.minWidth = prev;
+
+    // Draw ProMatch logo watermark in the bottom-right corner
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const logoSize = 64;
+      const padding = 16;
+      const x = canvas.width - logoSize - padding;
+      const y =
+        canvas.height -
+        logoSize *
+          (PROMATCH_LOGO_VIEWBOX.height / PROMATCH_LOGO_VIEWBOX.width) -
+        padding;
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.translate(x, y);
+      const scale = logoSize / PROMATCH_LOGO_VIEWBOX.width;
+      ctx.scale(scale, scale);
+      const path = new Path2D(PROMATCH_LOGO_PATH);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill(path, "evenodd");
+      ctx.restore();
+    }
+
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
