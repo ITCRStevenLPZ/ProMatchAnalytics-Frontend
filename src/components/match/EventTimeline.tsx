@@ -1,6 +1,6 @@
 import React from "react";
 import { useMatchLogStore, MatchEvent } from "../../store/useMatchLogStore";
-import { Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Clock, CheckCircle2, AlertCircle } from "../icons";
 
 export const EventTimeline: React.FC = () => {
   const { liveEvents, pendingAcks } = useMatchLogStore();

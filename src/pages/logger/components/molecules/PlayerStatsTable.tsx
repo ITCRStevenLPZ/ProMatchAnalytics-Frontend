@@ -1,5 +1,10 @@
 import { useState, useMemo } from "react";
-import { Users, ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Users,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+} from "../../../../components/icons";
 import type { PlayerStats } from "../../hooks/usePlayerStats";
 
 type SortField = keyof Pick<

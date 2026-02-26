@@ -1,5 +1,9 @@
 import React from "react";
-import { AlertTriangle, Clock, ChevronRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  ChevronRight,
+} from "../../../../components/icons";
 
 interface ExtraTimeAlertProps {
   phase: "FIRST_HALF_EXTRA_TIME" | "SECOND_HALF_EXTRA_TIME";

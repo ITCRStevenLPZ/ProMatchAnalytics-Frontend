@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useMatchLogStore } from "../../store/useMatchLogStore";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { Play, Pause, RotateCcw } from "../icons";
 
 interface MatchTimerProps {
   onTimeUpdate?: (time: string) => void;

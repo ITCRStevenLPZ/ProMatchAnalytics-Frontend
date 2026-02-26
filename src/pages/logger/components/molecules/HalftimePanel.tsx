@@ -1,5 +1,5 @@
 import React from "react";
-import { Coffee, Play } from "lucide-react";
+import { Coffee, Play } from "../../../../components/icons";
 
 interface HalftimePanelProps {
   onStartSecondHalf: () => void;

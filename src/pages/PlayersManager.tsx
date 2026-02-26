@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { User, Plus, Edit, Trash2, Search, X, Filter } from "lucide-react";
+import {
+  User,
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  X,
+  Filter,
+} from "../components/icons";
 import { apiClient } from "../lib/api";
 import {
   normalizePlayers,

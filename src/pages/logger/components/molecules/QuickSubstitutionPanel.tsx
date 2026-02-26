@@ -1,4 +1,4 @@
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft } from "../../../../components/icons";
 import { useTranslation } from "react-i18next";
 
 interface QuickSubstitutionPanelProps {

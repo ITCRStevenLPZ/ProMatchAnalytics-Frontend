@@ -1,5 +1,5 @@
 import React from "react";
-import { Play, Pause, Tv } from "lucide-react";
+import { Play, Pause, Tv } from "../../../../components/icons";
 import { Match } from "../../types";
 
 interface MatchTimerDisplayProps {

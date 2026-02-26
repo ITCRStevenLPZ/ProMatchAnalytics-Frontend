@@ -9,7 +9,7 @@ import {
   Shield,
   User as UserIcon,
   Activity,
-} from "lucide-react";
+} from "../components/icons";
 import { getDashboardStats } from "../lib/dashboard";
 import LoadingSpinner from "../components/LoadingSpinner";
 

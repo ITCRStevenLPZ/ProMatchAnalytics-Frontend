@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { List } from "lucide-react";
+import { List, BarChart3 } from "../components/icons";
 import { useMatchLogStore } from "../store/useMatchLogStore";
 import { useMatchSocket } from "../hooks/useMatchSocket";
 import { IS_E2E_TEST_MODE } from "../lib/loggerApi";
@@ -837,16 +837,27 @@ export default function LoggerCockpit() {
             {/* Analytics View */}
             {viewMode === "analytics" ? (
               <>
-                {/* Floating toggle to return to logger — accessible from analytics */}
+                {/* Segmented toggle to return to logger — mirrors TeamSelector control */}
                 <div className="flex justify-end mb-2">
-                  <button
-                    data-testid="toggle-analytics"
-                    onClick={() => setViewMode("logger")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-purple-200 border-purple-400/60 bg-purple-500/20 hover:bg-purple-500/30"
-                  >
-                    <List className="w-4 h-4" />
-                    {t("logger:backToLogger", "Logger")}
-                  </button>
+                  <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode("logger")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    >
+                      <List size={16} />
+                      {t("logger:logger.view", "Logger")}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="toggle-analytics"
+                      onClick={() => setViewMode("analytics")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors bg-purple-600 text-white"
+                    >
+                      <BarChart3 size={16} />
+                      {t("logger:logger.analytics", "Analytics")}
+                    </button>
+                  </div>
                 </div>
                 <AnalyticsView
                   match={match}

@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play } from "../../../../components/icons";
 import { IS_E2E_TEST_MODE } from "../../../../lib/loggerApi";
 import { KEY_ACTION_MAP, QUICK_ACTIONS } from "../../constants";
 import PlayerSelectorPanel from "../molecules/PlayerSelectorPanel";

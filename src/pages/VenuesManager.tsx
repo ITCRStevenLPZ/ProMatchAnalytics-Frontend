@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { MapPin, Plus, Edit, Trash2, Search, X } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, Search, X } from "../components/icons";
 import { apiClient } from "../lib/api";
 import type { Venue, PaginatedResponse } from "../types";
 import Pagination from "../components/Pagination";

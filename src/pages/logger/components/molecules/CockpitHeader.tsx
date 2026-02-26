@@ -1,4 +1,4 @@
-import { Clock, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import { Clock, RotateCcw, Wifi, WifiOff } from "../../../../components/icons";
 
 interface CockpitHeaderProps {
   t: any;

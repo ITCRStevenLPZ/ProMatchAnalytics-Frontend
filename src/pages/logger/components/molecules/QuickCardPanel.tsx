@@ -1,4 +1,4 @@
-import { AlertCircle, XCircle } from "lucide-react";
+import { AlertCircle, XCircle } from "../../../../components/icons";
 import { TFunction } from "i18next";
 
 type CardSelection = "Yellow" | "Red" | "Cancelled";

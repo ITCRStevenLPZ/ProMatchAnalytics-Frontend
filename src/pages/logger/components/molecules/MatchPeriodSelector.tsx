@@ -5,7 +5,7 @@ import {
   Coffee,
   Trophy,
   ChevronRight,
-} from "lucide-react";
+} from "../../../../components/icons";
 import { Match } from "../../types";
 import { PeriodPhase } from "../../hooks/usePeriodManager";
 

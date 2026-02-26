@@ -7,7 +7,7 @@ import {
   ArrowRight,
   Clock,
   ShieldAlert,
-} from "lucide-react";
+} from "../../../../components/icons";
 import { Player, Team } from "../../types";
 import {
   fetchLoggerWithAuth,

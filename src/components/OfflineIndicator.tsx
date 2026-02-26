@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useSyncStore } from "../store/syncStore";
-import { WifiOff, RefreshCw } from "lucide-react";
+import { WifiOff, RefreshCw } from "./icons";
 
 export default function OfflineIndicator() {
   const { t } = useTranslation("common");

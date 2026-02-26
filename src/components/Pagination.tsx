@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "./icons";
 import { useTranslation } from "react-i18next";
 
 interface PaginationProps {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Download, CheckCircle, AlertCircle } from "lucide-react";
+import { X, Download, CheckCircle, AlertCircle } from "./icons";
 import { useTranslation } from "react-i18next";
 import {
   exportCompetitions,

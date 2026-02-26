@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { UserCog } from "lucide-react";
+import { UserCog } from "../components/icons";
 
 export default function AdminDashboard() {
   const { t } = useTranslation("admin");

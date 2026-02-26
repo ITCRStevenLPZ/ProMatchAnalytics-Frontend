@@ -15,8 +15,9 @@ import {
   Menu,
   X,
   Upload,
-} from "lucide-react";
+} from "./icons";
 import LanguageSwitcher from "./LanguageSwitcher";
+import ProMatchTitleLogo from "./ProMatchTitleLogo";
 import { useState, useRef, useEffect } from "react";
 
 // Profile Avatar Component with fallback
@@ -41,6 +42,8 @@ function ProfileAvatar({ user }: { user: any }) {
     />
   );
 }
+
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "1.0.0";
 
 export default function Layout() {
   const { t, ready } = useTranslation("common");
@@ -137,11 +140,8 @@ export default function Layout() {
                 {showMobileMenu ? <X size={24} /> : <Menu size={24} />}
               </button>
 
-              <Link to="/dashboard" className="flex items-center gap-2">
-                <Trophy className="text-primary-600" size={32} />
-                <span className="text-xl font-bold text-gray-900">
-                  ProMatchAnalytics
-                </span>
+              <Link to="/dashboard" className="flex items-center">
+                <ProMatchTitleLogo className="h-10 w-auto text-primary-600" />
               </Link>
             </div>
 
@@ -185,8 +185,7 @@ export default function Layout() {
             {/* Sidebar Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <Trophy className="text-primary-600" size={28} />
-                <span className="text-lg font-bold text-gray-900">Menu</span>
+                <ProMatchTitleLogo className="h-8 w-auto text-primary-600" />
               </div>
               <button
                 onClick={() => setShowMobileMenu(false)}
@@ -312,6 +311,14 @@ export default function Layout() {
       >
         <Outlet />
       </main>
+
+      {/* App version */}
+      <span
+        data-testid="app-version"
+        className="fixed bottom-2 right-3 text-[10px] font-mono text-gray-400/60 pointer-events-none select-none z-50"
+      >
+        v{APP_VERSION}
+      </span>
     </div>
   );
 }

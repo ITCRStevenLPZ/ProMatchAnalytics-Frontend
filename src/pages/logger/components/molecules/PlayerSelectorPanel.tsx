@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { TFunction } from "i18next";
-import { Users, LayoutGrid, Map, Crosshair } from "lucide-react";
+import {
+  Users,
+  LayoutGrid,
+  MapIcon as Map,
+  Crosshair,
+} from "../../../../components/icons";
 import SoccerField from "../../../../components/SoccerField";
 import TacticalField from "./TacticalField";
 import FormationPicker from "./FormationPicker";
@@ -386,7 +391,9 @@ const PlayerSelectorPanel = ({
   );
 
   const selectionLocked = isReadOnly && !cardSelectionActive;
-  const fullOverlayBlocked = selectionLocked && dragLocked;
+  // When clock is stopped (isReadOnly), always allow node repositioning
+  const effectiveDragLocked = isReadOnly ? false : dragLocked;
+  const fullOverlayBlocked = selectionLocked && effectiveDragLocked;
   const resolvedFieldOverlay = fieldOverlay;
 
   return (
@@ -419,7 +426,7 @@ const PlayerSelectorPanel = ({
           )}
         </div>
       )}
-      {selectionLocked && !dragLocked && (
+      {selectionLocked && !effectiveDragLocked && (
         <div className="mb-3 px-3 py-2 rounded-lg bg-amber-900/40 border border-amber-500/30 flex items-center gap-2 text-amber-200 text-sm">
           <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
           <span className="font-medium">
@@ -578,6 +585,7 @@ const PlayerSelectorPanel = ({
             onDragStart={onTacticalDragStart}
             onDragStop={onTacticalDragStop}
             allPositions={allTacticalPositions}
+            dragLocked={effectiveDragLocked}
           />
         </div>
       ) : resolvedViewMode === "field" ? (

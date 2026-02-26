@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Languages } from "lucide-react";
+import { Languages } from "./icons";
 import { useState, useRef, useEffect } from "react";
 
 export default function LanguageSwitcher() {
