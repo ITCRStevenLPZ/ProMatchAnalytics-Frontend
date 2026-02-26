@@ -141,7 +141,7 @@ export default function Layout() {
               </button>
 
               <Link to="/dashboard" className="flex items-center">
-                <ProMatchTitleLogo width={200} className="text-primary-600" />
+                <ProMatchTitleLogo className="h-10 w-auto text-primary-600" />
               </Link>
             </div>
 
@@ -185,7 +185,7 @@ export default function Layout() {
             {/* Sidebar Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <ProMatchTitleLogo width={160} className="text-primary-600" />
+                <ProMatchTitleLogo className="h-8 w-auto text-primary-600" />
               </div>
               <button
                 onClick={() => setShowMobileMenu(false)}

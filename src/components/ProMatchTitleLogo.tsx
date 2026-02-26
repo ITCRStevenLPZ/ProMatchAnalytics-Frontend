@@ -1,28 +1,24 @@
 import React from "react";
 
 export interface ProMatchTitleLogoProps {
-  /** Width in px — height auto-scales from the 2036×1381 viewBox */
-  width?: number;
   /** Fill color; defaults to `currentColor` so Tailwind `text-*` works */
   color?: string;
+  /** Tailwind / CSS classes — use h-* or w-* to control size */
   className?: string;
 }
 
 /**
  * ProMatch logo **with the app title** rendered as a filled SVG.
- * Use this for places that need the full branded mark (header, login).
+ * Size it entirely via `className` (e.g. `h-10`, `w-40`).
  * For the icon-only version use `<ProMatchLogo />`.
  */
 const ProMatchTitleLogo: React.FC<ProMatchTitleLogoProps> = ({
-  width = 200,
   color = "currentColor",
   className,
 }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 2036 1381"
-    width={width}
-    height={width * (1381 / 2036)}
     fill={color}
     className={className}
     aria-hidden="true"

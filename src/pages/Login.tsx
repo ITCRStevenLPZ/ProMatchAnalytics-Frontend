@@ -47,7 +47,7 @@ export default function Login() {
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <ProMatchTitleLogo width={280} className="text-primary-600" />
+            <ProMatchTitleLogo className="h-32 sm:h-40 w-auto text-primary-600" />
           </div>
           <p className="text-gray-600">{t("subtitle")}</p>
         </div>
