@@ -8,67 +8,78 @@
 
 ## Current Objective
 
-- [x] Fix 6 QA issues — drag lock action leak, quick-action auto-fire, roster global sort, toggle UX, JPG clipping, clock-stopped drag
+- [x] Add mandatory zone selection step between player selection and action selection in the logging flow
 
 ## Status
 
 - Phase: Handoff
 - Overall: On track
 
-## What Was Completed (Latest Session — commit `b7545ef`)
+## What Was Completed (Latest Session)
 
-### QA Fix: Drag Lock Action Leak (TacticalPlayerNode)
+### Zone Selection Step in Logger Action Flow
 
-- [x] **`TacticalPlayerNode.tsx`**: Always track `hasMoved` regardless of `dragLocked` state; suppress only visual preview when locked; on pointerup if `hasMoved && dragLocked` → swallow gesture (no click, no reposition).
+Players move during a match; the click position on a tactical node does not represent real location. A new `selectZone` step now appears between player selection and action selection, letting the logger pick one of 24 zones (6×4 grid, matching heat-map zones). The zone center becomes the event's `location` field.
 
-### QA Fix: Quick-Action Menu Auto-Fire on Center Players
+#### Source Changes
 
-- [x] **`QuickActionMenu.tsx`**: Mount with `pointer-events: none`; enable after 2 `requestAnimationFrame` calls, preventing stale click events from accidentally selecting an action button.
-- [x] **`TacticalField.tsx`**: Overlay wrapper uses `pointer-events-auto` with `stopPropagation` on click/pointerdown to block click-through to player nodes behind the menu.
+- [x] **`types.ts`**: Added `"selectZone"` to `ActionStep` union type
+- [x] **`useActionFlow.ts`**: `handlePlayerClick` transitions to `selectZone` instead of `selectQuickAction`/`selectAction`; new `handleZoneSelect(zoneId)` callback computes zone center `[x0+ZONE_W/2, y0+ZONE_H/2]` and advances to action step
+- [x] **`FieldZoneSelector.tsx`** (NEW): Interactive SVG soccer field with 24 tappable zones, hover highlight, cancel button, i18n support
+- [x] **`InstructionBanner.tsx`**: Added `selectZone` case
+- [x] **`ActionStage.tsx`**: Renders `FieldZoneSelector` when `currentStep === "selectZone"`
+- [x] **`LoggerView.tsx`**: Passes `handleZoneSelect` prop through
+- [x] **`LoggerCockpit.tsx`**: Destructures `handleZoneSelect` from hook, passes to `LoggerView`
+- [x] **i18n (en/es)**: Added `instructionSelectZone`, `zoneSelectTitle`, `zoneSelectTitleGeneric`, `zoneSelectHint`
 
-### QA Fix: Roster Sort Global (Not Per-Page)
+#### Unit Test Updates
 
-- [x] **`TeamsManager.tsx`**: Refactored `fetchTeamRoster` to fetch ALL roster items in one server-side pagination loop (page_size=100); store full array in `teamRoster` state.
-- [x] **`TeamsManager.tsx`**: `filteredRoster` now sorts globally by jersey number; new `paginatedRoster` + `clientRosterTotalPages` handle client-side pagination.
-- [x] Removed unused `_rosterTotalPages` state variable.
+- [x] **`useActionFlow.test.ts`**: All 12 tests updated with `handleZoneSelect(7)` step — 12/12 PASS
 
-### QA Fix: Toggle UX (Segmented Control)
+#### E2E Test Updates (15 files total)
 
-- [x] **`TeamSelector.tsx`**: Replaced verbose text toggle button with segmented control (Logger/Analytics buttons side by side); `data-testid="toggle-analytics"` preserved.
-
-### QA Fix: JPG Export Number Clipping
-
-- [x] **`MatchAnalytics.tsx`**: Changed grid value columns from `minmax(0,1fr)` to `minmax(80px,1fr)`; removed `truncate` from home/away value cells; set `el.style.minWidth = "600px"` temporarily during `html2canvas` capture.
-
-### QA Fix: Allow Drag When Clock Stopped
-
-- [x] **`PlayerSelectorPanel.tsx`**: `effectiveDragLocked = isReadOnly ? false : dragLocked` — allows repositioning when clock stopped while preserving selection lock.
-- [x] **`TacticalField.tsx`**: Added `dragLocked` prop passed to each `TacticalPlayerNode`.
+- [x] **`e2e/utils/logger.ts`**: Added shared `selectZoneIfVisible(page, zoneId=7)` helper
+- [x] **`logger-field-flow.spec.ts`**: 3 tests updated
+- [x] **`logger-mega-sim.spec.ts`**: 5 flow functions updated
+- [x] **`logger-disciplinary.spec.ts`**: 2 locations updated
+- [x] **`logger-advanced.spec.ts`**: 1 location updated
+- [x] **`logger-event-taxonomy.spec.ts`**: 7 locations updated (logShotGoal, DirectShot, Shot, Pass, Pass Out, Offside, Foul)
+- [x] **`logger-substitution-windows.spec.ts`**: openSubstitutionFlow helper updated
+- [x] **`logger-ultimate-disciplinary-stress.spec.ts`**: openSubstitutionModal helper updated
+- [x] **`logger-error-handling.spec.ts`**: 1 location updated
+- [x] **`logger-substitution-rules.spec.ts`**: 5 locations updated (helper + 4 inline)
+- [x] **`logger-substitution-queue.spec.ts`**: performSubstitution helper updated
+- [x] **`logger-var-card-ui.spec.ts`**: Added `field-zone-selector` count 0 assertion during VAR
+- [x] **`logger-keyboard.spec.ts`**: Added zone selection before Escape cancel test
+- [x] **`logger-comprehensive.spec.ts`**: 5 locations updated (helper + 4 inline)
+- [x] **`logger-ultimate-cockpit.spec.ts`**: openActionEntry helper updated
+- [x] **`logger-action-matrix.spec.ts`**: clickFieldPlayer helper updated
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] Pre-commit hooks: Prettier, ESLint, TypeScript, Unit -> ALL PASS (commit `b7545ef`)
 - [x] TypeScript: `tsc --noEmit` -> 0 errors
-- [x] Unit tests: `vitest run` -> 9/10 pass (1 file has 3 pre-existing failures in payloadBuilders.test.ts)
+- [x] Unit: `vitest run` -> 10/11 pass (1 file has 3 pre-existing failures in payloadBuilders.test.ts)
+- [x] E2E: 15 spec files updated with zone selection step
 
 ## Implementation Notes
 
-- `html2canvas` added as new dependency for JPG export (replaces CSV via `papaparse`-style approach).
-- Toggle button uses same `toggle-analytics` testId in both views (only one instance exists at a time due to conditional rendering).
-- Drag lock state defaults to locked. When unlocked and clock is stopped, players can be repositioned but events cannot be logged (amber banner shown).
-- Per-team time rows include: Ineffective Time, Ineffective Time %, Effective Time, Effective Time % — all with individual home/away breakdowns.
+- Reuses existing 24-zone grid from `heatMapZones.ts` (6 cols × 4 rows, each 20×20 StatsBomb units)
+- Zone center = `[zone.x0 + 10, zone.y0 + 10]` — provides consistent location per zone
+- `selectZoneIfVisible` helper is safe to use anywhere: returns immediately if zone selector is not visible
+- VAR mode correctly blocks zone selector (same guard that blocks quick-action menu)
 
 ## Next Steps
 
-- Consider removing unused `papaparse` dependency if no longer needed
-- Consider adding roster pagination performance optimization
-- Consider backend-side formation persistence (API endpoint) for cross-device sync
+- Run full E2E suite against backend to validate all updated specs
+- Consider adding zone highlight/label on the tactical field after selection (UX polish)
+- Consider persisting per-player "last used zone" for faster re-logging
 
 ---
 
 ## Previous Objectives (Completed)
 
-- [x] Add formation system for tactical field player positioning (13 presets, FormationPicker UI, IDB persistence, bigger nodes, full name display, card cancel bug fix)
+- [x] Add heat map analytics (24-zone grid, per-team/player heatReactangle rendering in MatchAnalytics)
+- [x] Fix 6 QA issues — drag lock action leak, quick-action auto-fire, roster global sort, toggle UX, JPG clipping, clock-stopped drag
 - [x] Add tactical field persistence (IndexedDB), visual drag bounds, collision detection, and fix missing i18n key
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.

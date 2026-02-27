@@ -45,6 +45,7 @@
   "starters": "Titulares",
   "substitutes": "Suplentes",
   "instructionSelectPlayer": "Haz clic en un jugador para comenzar a registrar un evento",
+  "instructionSelectZone": "Selecciona la zona donde ocurrió la acción de {{player}}",
   "instructionSelectAction": "Selecciona una acción para {{player}}",
   "instructionSelectOutcome": "Selecciona el resultado para {{action}}",
   "instructionSelectRecipient": "Selecciona el receptor del pase",
@@ -456,5 +457,8 @@
     "customPlaceholder": "ej. 4-3-3",
     "apply": "Aplicar",
     "clear": "Quitar Formación"
-  }
+  },
+  "zoneSelectTitle": "Selecciona dónde ocurrió la acción de {{playerName}}",
+  "zoneSelectTitleGeneric": "Selecciona la zona de la acción",
+  "zoneSelectHint": "Toca el área del campo donde ocurrió la acción"
 }

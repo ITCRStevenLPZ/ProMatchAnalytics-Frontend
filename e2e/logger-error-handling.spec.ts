@@ -14,6 +14,7 @@ import {
   getQueuedBadge,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   submitStandardPass,
   waitForPendingAckToClear,
 } from "./utils/logger";
@@ -174,6 +175,7 @@ test.describe("Logger error handling", () => {
 
     // Substitution validation first fails (500), then succeeds after retry
     await page.getByTestId("field-player-HOME-1").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 

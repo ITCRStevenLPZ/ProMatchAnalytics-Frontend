@@ -364,6 +364,7 @@ export default function LoggerCockpit() {
     availableActions,
     availableOutcomes,
     handlePlayerClick,
+    handleZoneSelect,
     handleQuickActionSelect,
     handleOpenMoreActions,
     handleDestinationClick,
@@ -909,6 +910,7 @@ export default function LoggerCockpit() {
                 handlePlayerSelection={handlePlayerSelection}
                 handleFieldPlayerSelection={handleFieldPlayerSelection}
                 handleFieldDestination={handleFieldDestination}
+                handleZoneSelect={handleZoneSelect}
                 handleQuickActionSelect={handleQuickActionSelect}
                 handleOpenMoreActions={handleOpenMoreActions}
                 resetFlow={resetFlow}

@@ -12,6 +12,7 @@ import {
 } from "./utils/admin";
 import {
   sendRawEventThroughHarness,
+  selectZoneIfVisible,
   waitForPendingAckToClear,
 } from "./utils/logger";
 
@@ -51,6 +52,7 @@ test.describe("Comprehensive Match Logger", () => {
     if (visibleAfterOpen) return true;
 
     await page.getByTestId(`field-player-${playerId}`).click({ force: true });
+    await selectZoneIfVisible(page);
     await openMore();
     return actionButton.isVisible({ timeout: 3000 }).catch(() => false);
   };
@@ -120,6 +122,7 @@ test.describe("Comprehensive Match Logger", () => {
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });
+    await selectZoneIfVisible(page);
     const canLogCornerEarly = await ensureAdvancedActionVisible(
       page,
       "action-btn-Corner",
@@ -168,6 +171,7 @@ test.describe("Comprehensive Match Logger", () => {
     // 2. Test New Event Types
     // Select a player
     await page.getByTestId(`field-player-${firstPlayerId}`).click();
+    await selectZoneIfVisible(page);
     const canLogInterception = await ensureAdvancedActionVisible(
       page,
       "action-btn-Interception",
@@ -198,6 +202,7 @@ test.describe("Comprehensive Match Logger", () => {
 
     // Log a Clearance at 00:02.000
     await page.getByTestId(`field-player-${firstPlayerId}`).click();
+    await selectZoneIfVisible(page);
     const canLogClearance = await ensureAdvancedActionVisible(
       page,
       "action-btn-Clearance",
@@ -230,6 +235,7 @@ test.describe("Comprehensive Match Logger", () => {
     await page.getByTestId(`field-player-${firstPlayerId}`).click({
       force: true,
     });
+    await selectZoneIfVisible(page);
     const canLogCornerLate = await ensureAdvancedActionVisible(
       page,
       "action-btn-Corner",

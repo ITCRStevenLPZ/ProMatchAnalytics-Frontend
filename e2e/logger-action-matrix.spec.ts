@@ -18,6 +18,7 @@ import {
 } from "./utils/admin";
 import {
   resetHarnessFlow,
+  selectZoneIfVisible,
   sendRawEventThroughHarness,
   waitForPendingAckToClear,
   getHarnessMatchContext,
@@ -277,6 +278,7 @@ test.describe("Logger action matrix", () => {
       await expect(marker).toBeVisible({ timeout: 15000 });
       for (let attempt = 0; attempt < 3; attempt += 1) {
         await marker.click({ timeout: 15000, force: true });
+        await selectZoneIfVisible(page);
         if (await page.getByTestId("quick-action-menu").isVisible()) {
           return true;
         }

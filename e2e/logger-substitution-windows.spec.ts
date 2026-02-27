@@ -10,6 +10,7 @@ import {
   BACKEND_BASE_URL,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
 } from "./utils/logger";
 import { uniqueId } from "./utils/admin";
 
@@ -61,6 +62,7 @@ const openSubstitutionFlow = async (page: Page, id: string) => {
   await resetHarnessFlow(page);
 
   await page.getByTestId("field-player-HOME-1").click();
+  await selectZoneIfVisible(page);
   await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Substitution").click();
 

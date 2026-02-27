@@ -325,3 +325,21 @@ export const forceSocketReconnect = async (page: Page): Promise<void> => {
     harness?.reconnect?.();
   });
 };
+
+/**
+ * After clicking a field player, select zone 7 (center of field) if the zone
+ * selector is visible. This handles the mandatory zone selection step that
+ * appears between player selection and action selection.
+ */
+export const selectZoneIfVisible = async (
+  page: Page,
+  zoneId = 7,
+): Promise<void> => {
+  const zoneSelector = page.getByTestId("field-zone-selector");
+  const visible = await zoneSelector
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
+  if (visible) {
+    await page.getByTestId(`zone-select-${zoneId}`).click();
+  }
+};

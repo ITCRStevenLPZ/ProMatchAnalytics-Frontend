@@ -112,6 +112,7 @@ export type EventType =
 
 export type ActionStep =
   | "selectPlayer"
+  | "selectZone"
   | "selectQuickAction"
   | "selectDestination"
   | "selectAction"

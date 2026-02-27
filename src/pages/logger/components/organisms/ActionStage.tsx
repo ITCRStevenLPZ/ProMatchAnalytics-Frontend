@@ -8,6 +8,7 @@ import QuickCardPanel, { CardSelection } from "../molecules/QuickCardPanel";
 import ActionSelectionPanel from "../molecules/ActionSelectionPanel";
 import OutcomeSelectionPanel from "../molecules/OutcomeSelectionPanel";
 import RecipientSelectionPanel from "../molecules/RecipientSelectionPanel";
+import FieldZoneSelector from "../molecules/FieldZoneSelector";
 import type {
   TacticalPosition,
   Formation,
@@ -26,6 +27,7 @@ interface ActionStageProps {
   handlePlayerSelection: (...args: any[]) => void;
   handleFieldPlayerSelection: (...args: any[]) => void;
   handleFieldDestination: (location: any) => void;
+  handleZoneSelect: (zoneId: number) => void;
   currentStep: any;
   cockpitLocked: boolean;
   fieldAnchor: any;
@@ -85,6 +87,7 @@ export default function ActionStage({
   handlePlayerSelection,
   handleFieldPlayerSelection,
   handleFieldDestination,
+  handleZoneSelect,
   currentStep,
   cockpitLocked,
   fieldAnchor,
@@ -202,6 +205,15 @@ export default function ActionStage({
             (!isGlobalClockRunning || clockMode !== "EFFECTIVE" || isVarActive)
           }
           dragLocked={dragLocked}
+          t={t}
+        />
+      )}
+
+      {match && currentStep === "selectZone" && (
+        <FieldZoneSelector
+          onZoneSelect={handleZoneSelect}
+          onCancel={resetFlow}
+          playerName={selectedPlayer?.full_name}
           t={t}
         />
       )}

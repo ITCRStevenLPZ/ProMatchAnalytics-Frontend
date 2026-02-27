@@ -45,6 +45,7 @@
   "starters": "Starters",
   "substitutes": "Substitutes",
   "instructionSelectPlayer": "Click on a player to start logging an event",
+  "instructionSelectZone": "Select the zone where {{player}}'s action occurred",
   "instructionSelectAction": "Select an action for {{player}}",
   "instructionSelectOutcome": "Select the outcome for {{action}}",
   "instructionSelectRecipient": "Select the pass recipient",
@@ -456,5 +457,8 @@
     "customPlaceholder": "e.g. 4-3-3",
     "apply": "Apply",
     "clear": "Clear Formation"
-  }
+  },
+  "zoneSelectTitle": "Select where {{playerName}}'s action occurred",
+  "zoneSelectTitleGeneric": "Select the action zone",
+  "zoneSelectHint": "Tap the area of the field where the action took place"
 }

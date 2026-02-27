@@ -16,6 +16,7 @@ import {
   BACKEND_BASE_URL,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   waitForPendingAckToClear,
   getQueuedBadge,
   getQueueSnapshot,
@@ -63,6 +64,7 @@ const performSubstitution = async (
   const teamTag = team.toUpperCase();
   // Click a field player to give context, then open quick-sub
   await page.getByTestId(`field-player-${teamTag}-${offIndex}`).click();
+  await selectZoneIfVisible(page);
   await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Substitution").click();
 

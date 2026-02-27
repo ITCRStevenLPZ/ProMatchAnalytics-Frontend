@@ -47,6 +47,7 @@ interface LoggerViewProps {
   handlePlayerSelection: (...args: any[]) => void;
   handleFieldPlayerSelection: (...args: any[]) => void;
   handleFieldDestination: (location: any) => void;
+  handleZoneSelect: (zoneId: number) => void;
   handleQuickActionSelect: (action: string) => void;
   handleOpenMoreActions: () => void;
   resetFlow: () => void;
@@ -133,6 +134,7 @@ export default function LoggerView({
   handlePlayerSelection,
   handleFieldPlayerSelection,
   handleFieldDestination,
+  handleZoneSelect,
   handleQuickActionSelect,
   handleOpenMoreActions,
   resetFlow,
@@ -263,6 +265,7 @@ export default function LoggerView({
         handlePlayerSelection={handlePlayerSelection}
         handleFieldPlayerSelection={handleFieldPlayerSelection}
         handleFieldDestination={handleFieldDestination}
+        handleZoneSelect={handleZoneSelect}
         currentStep={currentStep}
         cockpitLocked={cockpitLocked}
         fieldAnchor={fieldAnchor}

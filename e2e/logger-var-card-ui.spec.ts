@@ -143,6 +143,7 @@ test.describe("Logger VAR and card UI guards", () => {
 
     await page.getByTestId("field-player-HOME-1").click({ force: true });
     await expect(page.getByTestId("quick-action-menu")).toHaveCount(0);
+    await expect(page.getByTestId("field-zone-selector")).toHaveCount(0);
     const toast = page.getByTestId("logger-toast");
     if ((await toast.count()) > 0) {
       await expect(toast).toContainText(/VAR/i);

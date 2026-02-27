@@ -11,6 +11,7 @@ import {
   Player,
   Team,
 } from "../types";
+import { ZONES, ZONE_W, ZONE_H } from "../utils/heatMapZones";
 
 interface UseActionFlowParams {
   match: Match | null;
@@ -371,16 +372,29 @@ export const useActionFlow = ({
   );
 
   const handlePlayerClick = useCallback(
-    (player: Player, anchor?: FieldAnchor, location?: [number, number]) => {
+    (player: Player, anchor?: FieldAnchor, _location?: [number, number]) => {
       if (expelledPlayerIds.has(player.id)) {
         return;
       }
       setSelectedPlayer(player);
-      setSelectedPlayerLocation(location ?? null);
+      // Don't set location from click — it will come from zone selection
+      setSelectedPlayerLocation(null);
       setFieldAnchor(anchor ?? null);
-      setCurrentStep(anchor ? "selectQuickAction" : "selectAction");
+      setCurrentStep("selectZone");
     },
     [expelledPlayerIds],
+  );
+
+  const handleZoneSelect = useCallback(
+    (zoneId: number) => {
+      const zone = ZONES[zoneId];
+      if (!zone) return;
+      const centerX = zone.x0 + ZONE_W / 2;
+      const centerY = zone.y0 + ZONE_H / 2;
+      setSelectedPlayerLocation([centerX, centerY]);
+      setCurrentStep(fieldAnchor ? "selectQuickAction" : "selectAction");
+    },
+    [fieldAnchor],
   );
 
   const handleQuickActionSelect = useCallback(
@@ -714,6 +728,7 @@ export const useActionFlow = ({
     availableActions,
     availableOutcomes,
     handlePlayerClick,
+    handleZoneSelect,
     handleQuickActionSelect,
     handleOpenMoreActions,
     handleDestinationClick,

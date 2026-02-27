@@ -11,6 +11,7 @@ import {
   ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   waitForPendingAckToClear,
 } from "./utils/logger";
 
@@ -86,6 +87,7 @@ const openActionEntry = async (
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await selectPlayerRow(page, playerIndex).click({ force: true });
     await page.waitForTimeout(250);
+    await selectZoneIfVisible(page);
 
     const quickPassVisible = await page
       .getByTestId("quick-action-Pass")

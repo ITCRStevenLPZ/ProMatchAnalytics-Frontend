@@ -172,7 +172,14 @@ test.describe("Tactical Field", () => {
     await expect(player).toBeVisible({ timeout: 15000 });
     await player.click();
 
-    // After clicking a player, the quick-action menu should appear
+    // After clicking a player, the zone selector should appear first
+    const zoneSelector = page.getByTestId("field-zone-selector");
+    await expect(zoneSelector).toBeVisible({ timeout: 8000 });
+
+    // Select a zone to proceed to quick action menu
+    await page.getByTestId("zone-select-7").click();
+
+    // Now the quick-action menu should appear
     const quickAction = page.getByTestId("quick-action-Pass");
     await expect(quickAction).toBeVisible({ timeout: 8000 });
   });
@@ -189,10 +196,16 @@ test.describe("Tactical Field", () => {
     const beforeCoords = await getTacticalCoords(page, "HOME-2");
 
     // Use the same substitution flow as proven working tests:
-    // 1) Click a player → 2) More actions → 3) Substitution
+    // 1) Click a player → 2) Select zone → 3) More actions → 4) Substitution
     const player = page.getByTestId("field-player-HOME-2");
     await expect(player).toBeVisible({ timeout: 10000 });
     await player.click();
+
+    // Select zone to advance past zone selection step
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
 
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
@@ -315,6 +328,14 @@ test.describe("Tactical Field", () => {
 
     // Verify clicking works and triggers the action flow
     await player.click();
+
+    // Zone selector should appear first
+    const zoneSelector = page.getByTestId("field-zone-selector");
+    await expect(zoneSelector).toBeVisible({ timeout: 8000 });
+
+    // Select a zone to proceed
+    await page.getByTestId("zone-select-7").click();
+
     const quickAction = page.getByTestId("quick-action-Pass");
     await expect(quickAction).toBeVisible({ timeout: 8000 });
 
