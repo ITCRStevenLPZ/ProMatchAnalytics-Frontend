@@ -522,4 +522,227 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Zone-Biased Position Enhancement Tests
+  // ---------------------------------------------------------------------------
+
+  test.describe("Zone-Biased Position Enhancement", () => {
+    test.beforeEach(async ({ page }) => {
+      await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+      await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+    });
+
+    /**
+     * Helper: fetch the latest events from the backend and return them as JSON.
+     * Uses page_size=200 to ensure we capture all events in the E2E match.
+     */
+    const fetchBackendEvents = async (): Promise<any[]> => {
+      const res = await backendRequest.get(
+        `/api/v1/logger/matches/${MATCH_ID}/events?page_size=200`,
+      );
+      expect(res.ok()).toBeTruthy();
+      const body = await res.json();
+      return body.items ?? body;
+    };
+
+    test("completed Pass event contains zone_id in data payload", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Flow: player → zone 8 → Pass → destination (field click)
+      await page.getByTestId("field-player-HOME-3").click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+      await page.getByTestId("zone-select-8").click();
+      await page.getByTestId("quick-action-Pass").click();
+
+      // Click on the right side of the field as destination
+      const field = page.getByTestId("soccer-field");
+      const box = await field.boundingBox();
+      expect(box).not.toBeNull();
+      if (!box) throw new Error("Missing field bounding box");
+      await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.5);
+
+      // Handle possible recipient step
+      await page.waitForTimeout(500);
+      const stepAfter = await getHarnessCurrentStep(page);
+      if (stepAfter === "selectRecipient") {
+        const recipient = page
+          .locator('[data-testid^="recipient-card-HOME-"]')
+          .first();
+        await expect(recipient).toBeVisible({ timeout: 5000 });
+        await recipient.click();
+      }
+
+      await waitForPendingAckToClear(page);
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Verify backend event has zone_id
+      const events = await fetchBackendEvents();
+      const passEvents = events.filter((e: any) => e.type === "Pass");
+      expect(passEvents.length).toBeGreaterThanOrEqual(1);
+      const latestPass = passEvents[passEvents.length - 1];
+      expect(latestPass.data.zone_id).toBe(8);
+    });
+
+    test("completed DirectShot event contains zone_id in data payload", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Flow: player → zone 16 → DirectShot (auto-completes)
+      await page.getByTestId("field-player-HOME-3").click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+      await page.getByTestId("zone-select-16").click();
+      await page.getByTestId("quick-action-DirectShot").click();
+
+      await waitForPendingAckToClear(page);
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Verify backend event has zone_id
+      const events = await fetchBackendEvents();
+      const shotEvents = events.filter((e: any) => e.type === "Shot");
+      expect(shotEvents.length).toBeGreaterThanOrEqual(1);
+      const latestShot = shotEvents[shotEvents.length - 1];
+      expect(latestShot.data.zone_id).toBe(16);
+    });
+
+    test("event location is the zone centre when player position is outside selected zone", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Click player (its position is somewhere on the left half of the field)
+      // then deliberately select a zone on the FAR RIGHT (zone 5 = top-right corner)
+      // which is unlikely to contain the player's position → zone centre should be used
+      await page.getByTestId("field-player-HOME-3").click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+
+      // Zone 5: col=5, row=0 → x0=100, x1=120, y0=0, y1=20 → centre = [110, 10]
+      await page.getByTestId("zone-select-5").click();
+      await page.getByTestId("quick-action-Goal").click();
+
+      await waitForPendingAckToClear(page);
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Fetch the event and verify location is the zone centre [110, 10]
+      const events = await fetchBackendEvents();
+      const shotEvents = events.filter((e: any) => e.type === "Shot");
+      expect(shotEvents.length).toBeGreaterThanOrEqual(1);
+      const latestShot = shotEvents[shotEvents.length - 1];
+      expect(latestShot.location).toBeDefined();
+      expect(latestShot.location[0]).toBe(110);
+      expect(latestShot.location[1]).toBe(10);
+      expect(latestShot.data.zone_id).toBe(5);
+    });
+
+    test("event location uses exact player position when it falls inside the selected zone", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Read the player's actual position on the field before clicking
+      const playerNode = page.getByTestId("field-player-HOME-3");
+      await expect(playerNode).toBeVisible({ timeout: 10000 });
+
+      // Get the soccer field bounding box for coordinate calculations
+      const fieldEl = page.getByTestId("soccer-field");
+      const fieldBox = await fieldEl.boundingBox();
+      expect(fieldBox).not.toBeNull();
+      if (!fieldBox) throw new Error("Missing field bounding box");
+
+      const playerBox = await playerNode.boundingBox();
+      expect(playerBox).not.toBeNull();
+      if (!playerBox) throw new Error("Missing player bounding box");
+
+      // Calculate the player's % position on the field
+      const playerCenterX = playerBox.x + playerBox.width / 2;
+      const playerCenterY = playerBox.y + playerBox.height / 2;
+      const xPct = ((playerCenterX - fieldBox.x) / fieldBox.width) * 100;
+      const yPct = ((playerCenterY - fieldBox.y) / fieldBox.height) * 100;
+
+      // Convert to StatsBomb coordinates
+      const sbX = (xPct / 100) * 120;
+      const sbY = (yPct / 100) * 80;
+
+      // Determine which zone this falls into
+      const col = Math.min(5, Math.max(0, Math.floor(sbX / 20)));
+      const row = Math.min(3, Math.max(0, Math.floor(sbY / 20)));
+      const expectedZoneId = row * 6 + col;
+
+      // Click the player → select the MATCHING zone (the one the player is in)
+      await playerNode.click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+      await page.getByTestId(`zone-select-${expectedZoneId}`).click();
+
+      // Use Goal quick action (auto-completes, no destination needed)
+      await page.getByTestId("quick-action-Goal").click();
+
+      await waitForPendingAckToClear(page);
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Fetch the event from the backend
+      const events = await fetchBackendEvents();
+      const shotEvents = events.filter((e: any) => e.type === "Shot");
+      expect(shotEvents.length).toBeGreaterThanOrEqual(1);
+      const latestShot = shotEvents[shotEvents.length - 1];
+      expect(latestShot.location).toBeDefined();
+      expect(latestShot.data.zone_id).toBe(expectedZoneId);
+
+      // The location should NOT be the zone centre — it should be the
+      // player's exact position (with some tolerance for rounding)
+      const zoneCentreX = col * 20 + 10;
+      const zoneCentreY = row * 20 + 10;
+
+      // If the player position differs from zone centre by > 0.5 in either
+      // axis, the exact position should have been used (not quantised)
+      if (
+        Math.abs(sbX - zoneCentreX) > 0.5 ||
+        Math.abs(sbY - zoneCentreY) > 0.5
+      ) {
+        // Location should be close to the player's actual position, not zone centre
+        expect(latestShot.location[0]).not.toBe(zoneCentreX);
+        expect(latestShot.location[1]).not.toBe(zoneCentreY);
+      }
+
+      // In all cases, the location should be within the zone bounds
+      expect(latestShot.location[0]).toBeGreaterThanOrEqual(col * 20);
+      expect(latestShot.location[0]).toBeLessThanOrEqual((col + 1) * 20);
+      expect(latestShot.location[1]).toBeGreaterThanOrEqual(row * 20);
+      expect(latestShot.location[1]).toBeLessThanOrEqual((row + 1) * 20);
+    });
+  });
 }); // close outer "Logger Zone & Border Zone Tests"

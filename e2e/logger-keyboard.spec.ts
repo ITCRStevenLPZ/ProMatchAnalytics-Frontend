@@ -48,6 +48,9 @@ test.describe("Logger Keyboard Shortcuts", () => {
     // Commit
     await page.keyboard.press("Enter");
 
+    // Handle mandatory zone selection step (zone-biased positioning)
+    await selectZoneIfVisible(page);
+
     // Verify player selected (Player 10 is usually a Forward or Midfielder in our seed)
     // Check that action selection is active by looking for action buttons
     await expect(page.getByTestId("action-btn-Pass")).toBeVisible();

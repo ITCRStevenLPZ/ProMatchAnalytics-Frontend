@@ -79,6 +79,7 @@ const buildEventPayload = (
   location?: [number, number],
   endLocation?: [number, number],
   extraData?: Record<string, any>,
+  zoneId?: number | null,
 ): Omit<MatchEvent, "match_id" | "timestamp"> => {
   const eventType = resolveEventType(action);
   // Always use the live global clock for event timestamps to avoid stale operator-clock values.
@@ -188,6 +189,10 @@ const buildEventPayload = (
     eventData.data = { ...eventData.data, ...extraData };
   }
 
+  if (zoneId != null) {
+    eventData.data.zone_id = zoneId;
+  }
+
   return eventData;
 };
 
@@ -211,6 +216,12 @@ export const useActionFlow = ({
   const [selectedPlayerLocation, setSelectedPlayerLocation] = useState<
     [number, number] | null
   >(null);
+  /** Exact StatsBomb coords from the player-node click (before zone quantisation). */
+  const [playerClickLocation, setPlayerClickLocation] = useState<
+    [number, number] | null
+  >(null);
+  /** Zone the operator confirmed – attached as data.zone_id on every event. */
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
   const currentStepRef = useRef<ActionStep>("selectPlayer");
 
   const currentTeam = useMemo<Team | undefined>(() => {
@@ -269,6 +280,8 @@ export const useActionFlow = ({
     setPendingOutcome(null);
     setFieldAnchor(null);
     setSelectedPlayerLocation(null);
+    setPlayerClickLocation(null);
+    setSelectedZoneId(null);
   }, []);
 
   const dispatchEvent = useCallback(
@@ -303,6 +316,7 @@ export const useActionFlow = ({
           opts?.location,
           opts?.endLocation,
           extraData ?? opts?.extraData,
+          selectedZoneId,
         );
         sendEvent(payload);
       };
@@ -336,6 +350,7 @@ export const useActionFlow = ({
         opts?.location,
         opts?.endLocation,
         opts?.extraData,
+        selectedZoneId,
       );
       sendEvent(payload);
 
@@ -359,6 +374,7 @@ export const useActionFlow = ({
       match,
       currentTeam,
       selectedPlayer,
+      selectedZoneId,
       isSubmitting,
       cardYellowCounts,
       expelledPlayerIds,
@@ -372,12 +388,15 @@ export const useActionFlow = ({
   );
 
   const handlePlayerClick = useCallback(
-    (player: Player, anchor?: FieldAnchor, _location?: [number, number]) => {
+    (player: Player, anchor?: FieldAnchor, location?: [number, number]) => {
       if (expelledPlayerIds.has(player.id)) {
         return;
       }
       setSelectedPlayer(player);
-      // Don't set location from click — it will come from zone selection
+      // Store the exact position from the player node; zone selection will
+      // decide whether to keep it (if it falls inside the chosen zone) or
+      // fall back to the zone centre.
+      setPlayerClickLocation(location ?? null);
       setSelectedPlayerLocation(null);
       setFieldAnchor(anchor ?? null);
       setCurrentStep("selectZone");
@@ -389,12 +408,29 @@ export const useActionFlow = ({
     (zoneId: number) => {
       const zone = ZONES[zoneId];
       if (!zone) return;
-      const centerX = zone.x0 + ZONE_W / 2;
-      const centerY = zone.y0 + ZONE_H / 2;
-      setSelectedPlayerLocation([centerX, centerY]);
+
+      // Zone-biased positioning: use the player's exact click location when
+      // it falls inside the zone the operator confirmed.  Otherwise, fall
+      // back to the zone centre (the operator deliberately corrected the
+      // position).
+      let location: [number, number];
+      if (
+        playerClickLocation &&
+        playerClickLocation[0] >= zone.x0 &&
+        playerClickLocation[0] <= zone.x1 &&
+        playerClickLocation[1] >= zone.y0 &&
+        playerClickLocation[1] <= zone.y1
+      ) {
+        location = playerClickLocation;
+      } else {
+        location = [zone.x0 + ZONE_W / 2, zone.y0 + ZONE_H / 2];
+      }
+
+      setSelectedZoneId(zoneId);
+      setSelectedPlayerLocation(location);
       setCurrentStep(fieldAnchor ? "selectQuickAction" : "selectAction");
     },
-    [fieldAnchor],
+    [fieldAnchor, playerClickLocation],
   );
 
   const handleQuickActionSelect = useCallback(
@@ -724,6 +760,7 @@ export const useActionFlow = ({
     currentTeam,
     selectedPlayer,
     selectedAction,
+    selectedZoneId,
     fieldAnchor,
     availableActions,
     availableOutcomes,

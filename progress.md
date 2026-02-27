@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Replace floating OUT buttons with 20 edge-aligned border zone strips
+- [x] Implement Zone-Biased Player Position Enhancement (Option A)
 
 ## Status
 
@@ -17,17 +17,60 @@
 
 ## What Was Completed (Latest Session)
 
-### Feature: Border Zone Destination Strips (commit `8d1af54`)
+### Feature: Zone-Biased Player Position Enhancement
 
-**Requirement:** Replace the 12 old floating pill OUT buttons with edge-aligned border zone strips that match the 6×4 field zone grid. Corner areas get 2 buttons each (touchline + goal line). Preserve ineffective trigger timer logic and corner kick logic on goalkeeper lines.
+**Requirement:** Use the player's exact tactical field position (from click) instead of the zone centre when the click position falls within the operator-selected zone. If the position falls outside the selected zone (operator intentionally corrected), fall back to zone centre. Attach `zone_id` to every event's data payload. Zero UX change — maximum accuracy gain with no backend changes needed.
 
 #### Source Changes
 
-- [x] **`TacticalField.tsx`**: Added `BORDER_ZONES` constant (20 zones: 6 top + 6 bottom + 4 left + 4 right) with `BorderZone` interface. Replaced old OUT pill button rendering with new border zone strips positioned at field edges. Goal line borders styled red (`bg-red-900/50`), touchline borders amber (`bg-amber-900/50`). Removed unused `maybeFlipX` callback.
-- [x] **`SoccerField.tsx`**: Removed `edgeBars` object and `resolveEdgeBar` callback. Replaced old OUT button rendering with inline border zone approach inside the field wrapper.
-- [x] **`logger-ultimate-cockpit.spec.ts`**: Updated 4 selectors from `button[title="Destination"]` to `button[title^="Out"]` to match new border zone title format.
+- [x] **`useActionFlow.ts`**: Added `playerClickLocation` state (exact StatsBomb coords from player click). Added `selectedZoneId` state (operator-confirmed zone ID). Modified `handlePlayerClick` to save exact position instead of discarding it. Modified `handleZoneSelect` with zone-biased logic: if `playerClickLocation ∈ [zone.x0..x1, zone.y0..y1]` → use exact coords; else → zone centre. Modified `buildEventPayload` to accept `zoneId` param and inject `data.zone_id`. Modified `dispatchEvent` to pass `selectedZoneId`. Modified `resetFlow` to clear both new states.
+- [x] **`e2e/utils/logger.ts`**: Updated `submitStandardPass` and `submitStandardShot` helpers to call `selectZoneIfVisible(page)` after player click, handling the mandatory zone selection step.
+- [x] **`e2e/logger-keyboard.spec.ts`**: Added `selectZoneIfVisible(page)` after keyboard player selection (Enter commit) to handle zone selection step.
 
-#### E2E Tests Added (5 new border zone tests)
+#### E2E Tests Added (4 new zone-biased position tests)
+
+- [x] **`e2e/logger-zone-selector.spec.ts`** (now 17 tests total, all PASS):
+  - completed Pass event contains zone_id in data payload (zone 8 → Pass → verifies `data.zone_id === 8` from backend)
+  - completed DirectShot event contains zone_id in data payload (zone 16 → DirectShot → verifies `data.zone_id === 16`)
+  - event location is the zone centre when player position is outside selected zone (far-away zone 5 → verifies `location === [110, 10]`)
+  - event location uses exact player position when it falls inside the selected zone (matching zone → verifies location is NOT zone centre but within zone bounds)
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-zone-selector.spec.ts` (17 tests) -> ALL PASS
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-advanced.spec.ts` (3 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-queue.spec.ts` (4 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-rules.spec.ts` (5 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-windows.spec.ts` (3 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-comprehensive.spec.ts` (5 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-keyboard.spec.ts` (1 test) -> ALL PASS (regression check)
+- [x] E2E: `logger-error-handling.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-disciplinary.spec.ts` (6 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-multi-event.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
+- [x] Full logger regression: **47 tests passed, 0 failed**
+
+## Implementation Notes
+
+- Zone-biased logic: `handleZoneSelect` checks if `playerClickLocation[0] ∈ [zone.x0, zone.x1]` AND `playerClickLocation[1] ∈ [zone.y0, zone.y1]`. Inclusive bounds ensure edge positions are captured.
+- `buildEventPayload` injects `data.zone_id = zoneId` after the switch/case data block to avoid being overwritten.
+- Backend already supports fine-grained `location: Optional[List[float]]` and flexible `data: Dict[str, Any]` — no backend changes needed.
+- `submitStandardPass` already had a harness fallback that masked the missing zone step; `submitStandardShot` had no fallback and was breaking. Both now properly handle zone selection.
+- Pre-existing failures unrelated to this change: `duplicate-events.spec.ts` (duplicate banner timing), `logger-heatmap.spec.ts` (analytics panel toggle), `logger-field-flow.spec.ts` (drag coordinate clamping), `logger-permissions.spec.ts` (analytics panel visibility), `logger-event-taxonomy.spec.ts` "flipped field" (corner detection). All confirmed failing on clean `dev` branch without our changes.
+
+## Next Steps
+
+- Consider adding SoccerField `visiblePlayerIds` support for non-tactical field mode
+- Consider persisting per-player "last used zone" for faster re-logging
+- Investigate flaky drag test in `logger-field-flow.spec.ts`
+- Investigate pre-existing analytics panel toggle failures (heatmap, permissions tests)
+- Investigate pre-existing flipped field corner detection failure
+
+---
+
+## Previous Objectives (Completed)
 
 - [x] **`e2e/logger-zone-selector.spec.ts`** (now 13 tests total, all PASS):
   - Border zones appear during selectDestination step
