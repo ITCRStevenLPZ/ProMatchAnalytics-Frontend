@@ -363,6 +363,8 @@ export default function LoggerCockpit() {
     fieldAnchor,
     availableActions,
     availableOutcomes,
+    positionMode,
+    setPositionMode,
     handlePlayerClick,
     handleZoneSelect,
     handleQuickActionSelect,
@@ -949,6 +951,8 @@ export default function LoggerCockpit() {
                 setViewMode={setViewMode}
                 dragLocked={dragLocked}
                 onToggleDragLock={() => setDragLocked((prev) => !prev)}
+                positionMode={positionMode}
+                onPositionModeChange={setPositionMode}
                 t={t}
               />
             )}

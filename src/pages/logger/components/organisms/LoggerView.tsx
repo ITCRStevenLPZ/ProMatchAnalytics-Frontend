@@ -6,6 +6,7 @@ import TeamSelector from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
 import LiveEventFeed from "../molecules/LiveEventFeed";
 import ActionStage from "./ActionStage";
+import type { PositionMode } from "../../hooks/useActionFlow";
 import type {
   TacticalPosition,
   Formation,
@@ -95,6 +96,8 @@ interface LoggerViewProps {
   setViewMode?: (mode: "logger" | "analytics") => void;
   dragLocked?: boolean;
   onToggleDragLock?: () => void;
+  positionMode: PositionMode;
+  onPositionModeChange: (mode: PositionMode) => void;
   t: any;
 }
 
@@ -173,6 +176,8 @@ export default function LoggerView({
   setViewMode,
   dragLocked,
   onToggleDragLock,
+  positionMode,
+  onPositionModeChange,
   t,
 }: LoggerViewProps) {
   return (
@@ -300,6 +305,8 @@ export default function LoggerView({
         awayFormation={awayFormation}
         applyFormation={applyFormation}
         dragLocked={dragLocked}
+        positionMode={positionMode}
+        onPositionModeChange={onPositionModeChange}
         t={t}
       />
 

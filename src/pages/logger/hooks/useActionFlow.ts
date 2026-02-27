@@ -11,7 +11,9 @@ import {
   Player,
   Team,
 } from "../types";
-import { ZONES, ZONE_W, ZONE_H } from "../utils/heatMapZones";
+import { ZONES, ZONE_W, ZONE_H, locationToZoneId } from "../utils/heatMapZones";
+
+export type PositionMode = "manual" | "auto";
 
 interface UseActionFlowParams {
   match: Match | null;
@@ -222,6 +224,8 @@ export const useActionFlow = ({
   >(null);
   /** Zone the operator confirmed – attached as data.zone_id on every event. */
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
+  /** Position assignment mode: manual (zone selector) or auto (use node coords). */
+  const [positionMode, setPositionMode] = useState<PositionMode>("manual");
   const currentStepRef = useRef<ActionStep>("selectPlayer");
 
   const currentTeam = useMemo<Team | undefined>(() => {
@@ -399,9 +403,18 @@ export const useActionFlow = ({
       setPlayerClickLocation(location ?? null);
       setSelectedPlayerLocation(null);
       setFieldAnchor(anchor ?? null);
-      setCurrentStep("selectZone");
+
+      if (positionMode === "auto" && location) {
+        // Auto mode: derive zone from player node coords, skip zone selector.
+        const autoZoneId = locationToZoneId(location[0], location[1]);
+        setSelectedZoneId(autoZoneId);
+        setSelectedPlayerLocation(location);
+        setCurrentStep(anchor ? "selectQuickAction" : "selectAction");
+      } else {
+        setCurrentStep("selectZone");
+      }
     },
-    [expelledPlayerIds],
+    [expelledPlayerIds, positionMode],
   );
 
   const handleZoneSelect = useCallback(
@@ -761,6 +774,8 @@ export const useActionFlow = ({
     selectedPlayer,
     selectedAction,
     selectedZoneId,
+    positionMode,
+    setPositionMode,
     fieldAnchor,
     availableActions,
     availableOutcomes,

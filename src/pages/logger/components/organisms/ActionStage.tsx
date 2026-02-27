@@ -1,6 +1,7 @@
-import { Play } from "../../../../components/icons";
+import { Play, MapPin, Zap } from "../../../../components/icons";
 import { IS_E2E_TEST_MODE } from "../../../../lib/loggerApi";
 import { KEY_ACTION_MAP, QUICK_ACTIONS } from "../../constants";
+import type { PositionMode } from "../../hooks/useActionFlow";
 import PlayerSelectorPanel from "../molecules/PlayerSelectorPanel";
 import QuickActionMenu from "../molecules/QuickActionMenu";
 import QuickSubstitutionPanel from "../molecules/QuickSubstitutionPanel";
@@ -71,6 +72,8 @@ interface ActionStageProps {
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   dragLocked?: boolean;
+  positionMode: PositionMode;
+  onPositionModeChange: (mode: PositionMode) => void;
   t: any;
 }
 
@@ -122,10 +125,45 @@ export default function ActionStage({
   awayFormation,
   applyFormation,
   dragLocked = true,
+  positionMode,
+  onPositionModeChange,
   t,
 }: ActionStageProps) {
   return (
     <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
+      {/* Position-mode toggle — sits above the soccer field */}
+      <div
+        className="flex items-center justify-center gap-2 mb-3"
+        data-testid="position-mode-toggle"
+      >
+        <button
+          type="button"
+          data-testid="position-mode-manual"
+          onClick={() => onPositionModeChange("manual")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-semibold uppercase tracking-wide border transition-colors ${
+            positionMode === "manual"
+              ? "bg-blue-600 text-white border-blue-500"
+              : "bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700 hover:text-slate-200"
+          }`}
+        >
+          <MapPin size={14} />
+          {t("positionManual", "Manual")}
+        </button>
+        <button
+          type="button"
+          data-testid="position-mode-auto"
+          onClick={() => onPositionModeChange("auto")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-r-lg text-xs font-semibold uppercase tracking-wide border transition-colors ${
+            positionMode === "auto"
+              ? "bg-amber-600 text-white border-amber-500"
+              : "bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700 hover:text-slate-200"
+          }`}
+        >
+          <Zap size={14} />
+          {t("positionAuto", "Auto")}
+        </button>
+      </div>
+
       {match && (
         <PlayerSelectorPanel
           match={match}

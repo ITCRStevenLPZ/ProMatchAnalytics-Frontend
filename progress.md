@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Implement Zone-Biased Player Position Enhancement (Option A)
+- [x] Add heat maps to JPG export + ProMatch logo watermark
 
 ## Status
 
@@ -17,27 +17,78 @@
 
 ## What Was Completed (Latest Session)
 
-### Feature: Zone-Biased Player Position Enhancement
+### Feature: Heat Maps in JPG Export + ProMatch Logo Watermark
 
-**Requirement:** Use the player's exact tactical field position (from click) instead of the zone centre when the click position falls within the operator-selected zone. If the position falls outside the selected zone (operator intentionally corrected), fall back to zone centre. Attach `zone_id` to every event's data payload. Zero UX change — maximum accuracy gain with no backend changes needed.
+**Requirement:** Include the three heat maps (home, away, combined) in the JPG export image and ensure the ProMatch logo watermark is present.
 
 #### Source Changes
 
-- [x] **`useActionFlow.ts`**: Added `playerClickLocation` state (exact StatsBomb coords from player click). Added `selectedZoneId` state (operator-confirmed zone ID). Modified `handlePlayerClick` to save exact position instead of discarding it. Modified `handleZoneSelect` with zone-biased logic: if `playerClickLocation ∈ [zone.x0..x1, zone.y0..y1]` → use exact coords; else → zone centre. Modified `buildEventPayload` to accept `zoneId` param and inject `data.zone_id`. Modified `dispatchEvent` to pass `selectedZoneId`. Modified `resetFlow` to clear both new states.
-- [x] **`e2e/utils/logger.ts`**: Updated `submitStandardPass` and `submitStandardShot` helpers to call `selectZoneIfVisible(page)` after player click, handling the mandatory zone selection step.
-- [x] **`e2e/logger-keyboard.spec.ts`**: Added `selectZoneIfVisible(page)` after keyboard player selection (Enter commit) to handle zone selection step.
+- [x] **`MatchAnalytics.tsx` — `exportJpg` function rewritten**: The export now captures two DOM sections using `html2canvas`: the comparative stats table (`statsTableRef`) and the heat map section (via `document.querySelector('[data-testid="heatmap-section"]')`). Both canvases are composited vertically onto a single final canvas with a dark background (`#0f172a`), a 24px scaled gap between sections, and centered alignment. The ProMatch logo watermark (35% opacity, bottom-right corner) is drawn on the combined canvas. No component hierarchy changes were needed.
 
-#### E2E Tests Added (4 new zone-biased position tests)
+#### Key Implementation Details
 
-- [x] **`e2e/logger-zone-selector.spec.ts`** (now 17 tests total, all PASS):
-  - completed Pass event contains zone_id in data payload (zone 8 → Pass → verifies `data.zone_id === 8` from backend)
-  - completed DirectShot event contains zone_id in data payload (zone 16 → DirectShot → verifies `data.zone_id === 16`)
-  - event location is the zone centre when player position is outside selected zone (far-away zone 5 → verifies `location === [110, 10]`)
-  - event location uses exact player position when it falls inside the selected zone (matching zone → verifies location is NOT zone centre but within zone bounds)
+- Uses `html2canvas` to capture the heat map section (rendered as a sibling in `AnalyticsView.tsx`) by querying `[data-testid="heatmap-section"]` from the DOM
+- Both captures use the same `{ backgroundColor: "#0f172a", scale: 2 }` options
+- A new combined canvas is created with `Math.max(statsWidth, heatmapWidth)` width and vertically stacked heights
+- The ProMatch logo watermark was already present in the existing code; it now draws on the final composited canvas
+- Graceful fallback: if the heat map section is not found in the DOM, only the stats table is exported (no crash)
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: `logger-zone-selector.spec.ts` (17 tests) -> ALL PASS
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-zone-selector.spec.ts` (21 tests) -> ALL PASS
+- [x] E2E: `logger-advanced.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-keyboard.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-comprehensive.spec.ts` (1 test) -> ALL PASS
+- [x] E2E: `logger-substitution-queue.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-substitution-rules.spec.ts` (5 tests) -> ALL PASS
+- [x] E2E: `logger-substitution-windows.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-error-handling.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-disciplinary.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-multi-event.spec.ts` (1 test) -> ALL PASS
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
+- [x] Full logger regression: **51 tests passed, 0 failed**
+
+## Implementation Notes
+
+- The `exportJpg` function in `MatchAnalytics.tsx` was the only file changed
+- The heat maps render as SVG via `SoccerFieldHeatMap` component; `html2canvas` captures SVG elements correctly
+- No new dependencies added; existing `html2canvas` library handles both captures
+- No backend changes needed
+
+## Next Steps
+
+- Consider adding heat maps to the PDF export as well
+- Consider persisting per-player "last used zone" for faster re-logging
+- Investigate pre-existing analytics panel toggle failures (heatmap, permissions tests)
+- Overall: On track
+
+## What Was Completed (Latest Session)
+
+### Feature: Manual/Auto Position Mode Toggle
+
+**Requirement:** Add a toggle switch above the soccer field to choose position assignment mode. **Manual** (default): the operator selects a zone on the field before assigning the action (existing flow). **Auto**: skip the zone selector entirely and derive position + zone_id from the player node's current coordinates on the tactical field.
+
+#### Source Changes
+
+- [x] **`useActionFlow.ts`**: Added `PositionMode` type export (`"manual" | "auto"`). Added `positionMode` state (defaults to `"manual"`). Added `setPositionMode` setter. Modified `handlePlayerClick` — when `positionMode === "auto"` and location is provided, calls `locationToZoneId()` to derive zone from player coords, sets `selectedZoneId` and `selectedPlayerLocation` directly, then skips to `selectQuickAction`/`selectAction` (bypassing zone selector). Imported `locationToZoneId` from `heatMapZones`.
+- [x] **`ActionStage.tsx`**: Imported `PositionMode` type, `MapPin` and `Zap` icons. Added `positionMode` and `onPositionModeChange` props to interface and destructured params. Rendered a segmented toggle (Manual/Auto) with `data-testid="position-mode-toggle"`, `position-mode-manual`, `position-mode-auto` above the player/field area.
+- [x] **`LoggerView.tsx`**: Imported `PositionMode`. Added `positionMode` and `onPositionModeChange` to props interface, destructuring, and passed them to `ActionStage`.
+- [x] **`LoggerCockpit.tsx`**: Destructured `positionMode` and `setPositionMode` from `useActionFlow` return. Threaded them as `positionMode={positionMode}` and `onPositionModeChange={setPositionMode}` to `LoggerView`.
+- [x] **i18n EN/ES**: Added `positionManual` ("Manual") and `positionAuto` ("Auto") keys to both `public/locales/en/logger.json` and `public/locales/es/logger.json`.
+
+#### E2E Tests Added (4 new auto position mode tests)
+
+- [x] **`e2e/logger-zone-selector.spec.ts`** (now 21 tests total, all PASS):
+  - position mode toggle is visible and defaults to Manual
+  - switching to Auto skips zone selector after player click
+  - Auto mode event has zone_id derived from player node position (verified against backend)
+  - switching back to Manual restores zone selector flow
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-zone-selector.spec.ts` (21 tests) -> ALL PASS
 - [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS (regression check)
 - [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS (regression check)
 - [x] E2E: `logger-advanced.spec.ts` (3 tests) -> ALL PASS (regression check)
@@ -50,14 +101,14 @@
 - [x] E2E: `logger-disciplinary.spec.ts` (6 tests) -> ALL PASS (regression check)
 - [x] E2E: `logger-multi-event.spec.ts` (2 tests) -> ALL PASS (regression check)
 - [x] TypeScript: `tsc --noEmit` -> 0 errors
-- [x] Full logger regression: **47 tests passed, 0 failed**
+- [x] Full logger regression: **51 tests passed, 0 failed**
 
 ## Implementation Notes
 
-- Zone-biased logic: `handleZoneSelect` checks if `playerClickLocation[0] ∈ [zone.x0, zone.x1]` AND `playerClickLocation[1] ∈ [zone.y0, zone.y1]`. Inclusive bounds ensure edge positions are captured.
-- `buildEventPayload` injects `data.zone_id = zoneId` after the switch/case data block to avoid being overwritten.
-- Backend already supports fine-grained `location: Optional[List[float]]` and flexible `data: Dict[str, Any]` — no backend changes needed.
-- `submitStandardPass` already had a harness fallback that masked the missing zone step; `submitStandardShot` had no fallback and was breaking. Both now properly handle zone selection.
+- Auto mode uses `locationToZoneId(x, y)` from `heatMapZones.ts` — the same function used for heat map rendering — to derive zone from StatsBomb coords.
+- In auto mode, `handlePlayerClick` sets `selectedZoneId`, `selectedPlayerLocation`, and transitions directly to action selection, completely skipping the `selectZone` step.
+- `selectZoneIfVisible()` E2E helper already handles auto mode gracefully (checks visibility before clicking, returns silently if zone selector not shown).
+- No backend changes needed — events still carry `location` and `data.zone_id`.
 - Pre-existing failures unrelated to this change: `duplicate-events.spec.ts` (duplicate banner timing), `logger-heatmap.spec.ts` (analytics panel toggle), `logger-field-flow.spec.ts` (drag coordinate clamping), `logger-permissions.spec.ts` (analytics panel visibility), `logger-event-taxonomy.spec.ts` "flipped field" (corner detection). All confirmed failing on clean `dev` branch without our changes.
 
 ## Next Steps

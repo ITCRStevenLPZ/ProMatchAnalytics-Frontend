@@ -745,4 +745,158 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       expect(latestShot.location[1]).toBeLessThanOrEqual((row + 1) * 20);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Auto Position Mode — skip zone selector, use player node coords
+  // -------------------------------------------------------------------------
+  test.describe("Auto Position Mode", () => {
+    test.beforeEach(async ({ page }) => {
+      await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+      await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
+    });
+
+    /** Read the latest events from the backend. */
+    const fetchBackendEvents = async (): Promise<any[]> => {
+      const res = await backendRequest.get(
+        `/api/v1/logger/matches/${MATCH_ID}/events?page_size=200`,
+      );
+      expect(res.ok()).toBeTruthy();
+      const body = await res.json();
+      return body.items ?? body;
+    };
+
+    test("position mode toggle is visible and defaults to Manual", async ({
+      page,
+    }) => {
+      test.setTimeout(60000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+
+      const toggle = page.getByTestId("position-mode-toggle");
+      await expect(toggle).toBeVisible({ timeout: 10000 });
+
+      // Manual button should be active (blue bg class)
+      const manualBtn = page.getByTestId("position-mode-manual");
+      await expect(manualBtn).toBeVisible();
+      await expect(manualBtn).toHaveClass(/bg-blue-600/);
+
+      // Auto button should be inactive
+      const autoBtn = page.getByTestId("position-mode-auto");
+      await expect(autoBtn).toBeVisible();
+      await expect(autoBtn).not.toHaveClass(/bg-amber-600/);
+    });
+
+    test("switching to Auto skips zone selector after player click", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Switch to Auto mode
+      await page.getByTestId("position-mode-auto").click();
+      await expect(page.getByTestId("position-mode-auto")).toHaveClass(
+        /bg-amber-600/,
+      );
+
+      // Click a player — zone selector should NOT appear
+      await page.getByTestId("field-player-HOME-3").click();
+
+      // Wait a short moment to ensure the zone selector did NOT appear
+      await page.waitForTimeout(500);
+      await expect(page.getByTestId("field-zone-selector")).not.toBeVisible();
+
+      // Should jump directly to quick actions or action selection
+      const step = await getHarnessCurrentStep(page);
+      expect(
+        step === "selectQuickAction" || step === "selectAction",
+      ).toBeTruthy();
+    });
+
+    test("Auto mode event has zone_id derived from player node position", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Get the player node's actual position for expectation
+      const playerNode = page.getByTestId("field-player-HOME-3");
+      await expect(playerNode).toBeVisible({ timeout: 10000 });
+      const fieldEl = page.getByTestId("soccer-field");
+      const fieldBox = await fieldEl.boundingBox();
+      const playerBox = await playerNode.boundingBox();
+      expect(fieldBox).not.toBeNull();
+      expect(playerBox).not.toBeNull();
+      if (!fieldBox || !playerBox) throw new Error("Missing bounding box");
+
+      const xPct =
+        ((playerBox.x + playerBox.width / 2 - fieldBox.x) / fieldBox.width) *
+        100;
+      const yPct =
+        ((playerBox.y + playerBox.height / 2 - fieldBox.y) / fieldBox.height) *
+        100;
+      const sbX = (xPct / 100) * 120;
+      const sbY = (yPct / 100) * 80;
+      const col = Math.min(5, Math.max(0, Math.floor(sbX / 20)));
+      const row = Math.min(3, Math.max(0, Math.floor(sbY / 20)));
+      const expectedZoneId = row * 6 + col;
+
+      // Switch to Auto mode
+      await page.getByTestId("position-mode-auto").click();
+
+      // Click player → Goal (auto-completes)
+      await playerNode.click();
+      await page.getByTestId("quick-action-Goal").click();
+
+      await waitForPendingAckToClear(page);
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      // Verify the backend event
+      const events = await fetchBackendEvents();
+      const shotEvents = events.filter((e: any) => e.type === "Shot");
+      expect(shotEvents.length).toBeGreaterThanOrEqual(1);
+      const latestShot = shotEvents[shotEvents.length - 1];
+      expect(latestShot.data.zone_id).toBe(expectedZoneId);
+      expect(latestShot.location).toBeDefined();
+
+      // Location should be the player's node coords (within zone bounds)
+      expect(latestShot.location[0]).toBeGreaterThanOrEqual(col * 20);
+      expect(latestShot.location[0]).toBeLessThanOrEqual((col + 1) * 20);
+      expect(latestShot.location[1]).toBeGreaterThanOrEqual(row * 20);
+      expect(latestShot.location[1]).toBeLessThanOrEqual((row + 1) * 20);
+    });
+
+    test("switching back to Manual restores zone selector flow", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
+      // Switch to Auto, then back to Manual
+      await page.getByTestId("position-mode-auto").click();
+      await expect(page.getByTestId("position-mode-auto")).toHaveClass(
+        /bg-amber-600/,
+      );
+      await page.getByTestId("position-mode-manual").click();
+      await expect(page.getByTestId("position-mode-manual")).toHaveClass(
+        /bg-blue-600/,
+      );
+
+      // Click a player — zone selector SHOULD appear (back to manual)
+      await page.getByTestId("field-player-HOME-3").click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+    });
+  });
 }); // close outer "Logger Zone & Border Zone Tests"

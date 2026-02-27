@@ -435,7 +435,11 @@
     "totalEffectiveTime": "Tiempo Efectivo Total",
     "tooltipTotalEffectiveTime": "Tiempo total con balón en juego del partido (compartido por ambos equipos).",
     "totalIneffectiveTime": "Tiempo Inefectivo Total",
-    "tooltipTotalIneffectiveTime": "Tiempo total de detenciones del partido (todos los equipos combinados)."
+    "tooltipTotalIneffectiveTime": "Tiempo total de detenciones del partido (todos los equipos combinados).",
+    "heatMaps": "Mapas de calor del campo",
+    "combined": "Combinado",
+    "low": "Bajo",
+    "high": "Alto"
   },
   "resetAfterFulltimeTooltip": "El partido ha terminado; reiniciar borrará los datos y comenzará de nuevo.",
   "resetAfterFulltimeWarning": "El partido está en tiempo completo. El reinicio borrará los registros y reiniciará los relojes desde cero.",
@@ -460,5 +464,7 @@
   },
   "zoneSelectTitle": "Selecciona dónde ocurrió la acción de {{playerName}}",
   "zoneSelectTitleGeneric": "Selecciona la zona de la acción",
-  "zoneSelectHint": "Toca el área del campo donde ocurrió la acción"
+  "zoneSelectHint": "Toca el área del campo donde ocurrió la acción",
+  "positionManual": "Manual",
+  "positionAuto": "Auto"
 }
