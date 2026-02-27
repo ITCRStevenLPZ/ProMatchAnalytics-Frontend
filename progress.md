@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Rework zone selector from modal to on-field overlay (uses real tactical field instead of separate modal)
+- [x] Replace floating OUT buttons with 20 edge-aligned border zone strips
 
 ## Status
 
@@ -17,45 +17,46 @@
 
 ## What Was Completed (Latest Session)
 
-### Zone Selector — Modal → On-Field Overlay
+### Feature: Border Zone Destination Strips (commit `8d1af54`)
 
-User rejected the full-screen modal approach ("fails on center player nodes, is a modal for the whole screen"). Zone selection now happens directly on the real tactical field: after selecting a player, all other nodes hide, the 24-zone grid appears overlaid on the actual field, and the user taps a zone. Flow then continues to quick actions / action selection as before.
+**Requirement:** Replace the 12 old floating pill OUT buttons with edge-aligned border zone strips that match the 6×4 field zone grid. Corner areas get 2 buttons each (touchline + goal line). Preserve ineffective trigger timer logic and corner kick logic on goalkeeper lines.
 
 #### Source Changes
 
-- [x] **`FieldZoneSelector.tsx`**: Complete rewrite — stripped modal/SVG pitch, now a lightweight overlay of 24 absolutely-positioned zone `<button>`s using CSS % coordinates that map to TacticalField's coordinate system. Supports `flipSides`. Same testids preserved (`field-zone-selector`, `zone-select-${id}`).
-- [x] **`TacticalField.tsx`**: Added `visiblePlayerIds?: Set<string>` prop — when set, only renders nodes for players in the set. Used during `selectZone` to hide all nodes except the selected player.
-- [x] **`PlayerSelectorPanel.tsx`**: Added `visiblePlayerIds` prop, passes through to TacticalField.
-- [x] **`ActionStage.tsx`**: Zone selector now rendered via `fieldOverlay` prop (same pattern as QuickActionMenu) instead of as a separate block. Passes `visiblePlayerIds={new Set([selectedPlayer.id])}` during `selectZone`. Removed standalone FieldZoneSelector block.
+- [x] **`TacticalField.tsx`**: Added `BORDER_ZONES` constant (20 zones: 6 top + 6 bottom + 4 left + 4 right) with `BorderZone` interface. Replaced old OUT pill button rendering with new border zone strips positioned at field edges. Goal line borders styled red (`bg-red-900/50`), touchline borders amber (`bg-amber-900/50`). Removed unused `maybeFlipX` callback.
+- [x] **`SoccerField.tsx`**: Removed `edgeBars` object and `resolveEdgeBar` callback. Replaced old OUT button rendering with inline border zone approach inside the field wrapper.
+- [x] **`logger-ultimate-cockpit.spec.ts`**: Updated 4 selectors from `button[title="Destination"]` to `button[title^="Out"]` to match new border zone title format.
 
-#### No Changes Needed
+#### E2E Tests Added (5 new border zone tests)
 
-- **`useActionFlow.ts`**: State machine unchanged — `selectZone` step works identically
-- **`types.ts`**: `ActionStep` unchanged
-- **`InstructionBanner.tsx`**: `selectZone` case unchanged
-- **`e2e/utils/logger.ts`**: `selectZoneIfVisible` helper works as-is (same testids)
-- **All 15 E2E spec files**: No changes needed (same testids)
+- [x] **`e2e/logger-zone-selector.spec.ts`** (now 13 tests total, all PASS):
+  - Border zones appear during selectDestination step
+  - All 20 border zones are rendered (6 top + 6 bottom + 4 left + 4 right)
+  - Corner areas have exactly 2 border zone buttons each
+  - Clicking a touchline border zone (top) logs out-of-bounds event
+  - Clicking a goal-line border zone (left) logs out-of-bounds event with corner logic preserved
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `logger-zone-selector.spec.ts` (13 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS (regression check)
 - [x] TypeScript: `tsc --noEmit` -> 0 errors
-- [x] ESLint: 0 errors on all 4 changed files
-- [x] Unit: `vitest run` -> 12/12 action flow tests PASS (3 pre-existing failures in payloadBuilders.test.ts)
-- [x] E2E: Auth token infrastructure issue prevents running (pre-existing, unrelated)
 
 ## Implementation Notes
 
-- Zone overlay uses the `fieldOverlay` → `overlay` prop chain (same as QuickActionMenu)
-- Zones use CSS `%` positions: `left = (sbX / 120) * 100`, `top = (sbY / 80) * 100`
-- Flip-aware: when `flipSides=true`, zone x positions are mirrored
-- `visiblePlayerIds` prop filters player node rendering in TacticalField
-- Same testids preserved — E2E `selectZoneIfVisible` helper works without changes
+- `buildCoordinate` already handles `isOutOfBounds` detection (coords at edges → outOfBoundsEdge)
+- `handleDestinationClick` corner logic unchanged: `outOfBoundsEdge === ownGoalEdge` → corner awarded
+- `handleFieldDestination` ineffective trigger unchanged: `beginIneffective` on `triggerContext`
+- Border zones use same `onDestinationClick(buildCoordinate(...))` pattern as old OUT buttons
+- SoccerField uses `maybeFlipX` pre-computation for double-flip handling
+- `logger-action-matrix.spec.ts` has pre-existing timeout/interrupt issue (unrelated to this change)
 
 ## Next Steps
 
-- Run full E2E suite once backend auth is resolved
 - Consider adding SoccerField `visiblePlayerIds` support for non-tactical field mode
 - Consider persisting per-player "last used zone" for faster re-logging
+- Investigate flaky drag test in `logger-field-flow.spec.ts`
 
 ---
 
