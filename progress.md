@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Fix 6 QA issues — drag lock action leak, quick-action auto-fire, roster global sort, toggle UX, JPG clipping, clock-stopped drag
+- [x] Validate frontend impact for backend CORS allow-list update adding `https://www.promatchanalytics.com`.
 
 ## Status
 
@@ -17,46 +17,16 @@
 
 ## What Was Completed (Latest Session — commit `b7545ef`)
 
-### QA Fix: Drag Lock Action Leak (TacticalPlayerNode)
-
-- [x] **`TacticalPlayerNode.tsx`**: Always track `hasMoved` regardless of `dragLocked` state; suppress only visual preview when locked; on pointerup if `hasMoved && dragLocked` → swallow gesture (no click, no reposition).
-
-### QA Fix: Quick-Action Menu Auto-Fire on Center Players
-
-- [x] **`QuickActionMenu.tsx`**: Mount with `pointer-events: none`; enable after 2 `requestAnimationFrame` calls, preventing stale click events from accidentally selecting an action button.
-- [x] **`TacticalField.tsx`**: Overlay wrapper uses `pointer-events-auto` with `stopPropagation` on click/pointerdown to block click-through to player nodes behind the menu.
-
-### QA Fix: Roster Sort Global (Not Per-Page)
-
-- [x] **`TeamsManager.tsx`**: Refactored `fetchTeamRoster` to fetch ALL roster items in one server-side pagination loop (page_size=100); store full array in `teamRoster` state.
-- [x] **`TeamsManager.tsx`**: `filteredRoster` now sorts globally by jersey number; new `paginatedRoster` + `clientRosterTotalPages` handle client-side pagination.
-- [x] Removed unused `_rosterTotalPages` state variable.
-
-### QA Fix: Toggle UX (Segmented Control)
-
-- [x] **`TeamSelector.tsx`**: Replaced verbose text toggle button with segmented control (Logger/Analytics buttons side by side); `data-testid="toggle-analytics"` preserved.
-
-### QA Fix: JPG Export Number Clipping
-
-- [x] **`MatchAnalytics.tsx`**: Changed grid value columns from `minmax(0,1fr)` to `minmax(80px,1fr)`; removed `truncate` from home/away value cells; set `el.style.minWidth = "600px"` temporarily during `html2canvas` capture.
-
-### QA Fix: Allow Drag When Clock Stopped
-
-- [x] **`PlayerSelectorPanel.tsx`**: `effectiveDragLocked = isReadOnly ? false : dragLocked` — allows repositioning when clock stopped while preserving selection lock.
-- [x] **`TacticalField.tsx`**: Added `dragLocked` prop passed to each `TacticalPlayerNode`.
+- [x] Re-checked frontend architecture/progress/TODO context for backend CORS custom-domain update (root + `www`).
+- [x] Confirmed no frontend code, routing, or contract changes are required for this backend-only allow-list deployment change.
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] Pre-commit hooks: Prettier, ESLint, TypeScript, Unit -> ALL PASS (commit `b7545ef`)
-- [x] TypeScript: `tsc --noEmit` -> 0 errors
-- [x] Unit tests: `vitest run` -> 9/10 pass (1 file has 3 pre-existing failures in payloadBuilders.test.ts)
+- [x] Validation: backend CORS regression test run in backend repo (`pytest tests/test_cors_settings.py`) -> PASS (4 passed)
 
 ## Implementation Notes
 
-- `html2canvas` added as new dependency for JPG export (replaces CSV via `papaparse`-style approach).
-- Toggle button uses same `toggle-analytics` testId in both views (only one instance exists at a time due to conditional rendering).
-- Drag lock state defaults to locked. When unlocked and clock is stopped, players can be repositioned but events cannot be logged (amber banner shown).
-- Per-team time rows include: Ineffective Time, Ineffective Time %, Effective Time, Effective Time % — all with individual home/away breakdowns.
+- Backend CORS allow-list now explicitly includes both `https://promatchanalytics.com` and `https://www.promatchanalytics.com`; frontend deployment/domain usage remains unchanged.
 
 ## Next Steps
 
