@@ -109,6 +109,76 @@ const buildCoordinate = (
 };
 
 // ---------------------------------------------------------------------------
+// Border-zone definitions (out-of-bounds destination strips)
+// ---------------------------------------------------------------------------
+
+const BORDER_COLS = 6;
+const BORDER_ROWS = 4;
+const BORDER_COL_PCT = 100 / BORDER_COLS; // 16.667%
+const BORDER_ROW_PCT = 100 / BORDER_ROWS; // 25%
+/** Thickness of horizontal border strips (top/bottom) as % of field height */
+const BORDER_H_THICK = 8;
+/** Thickness of vertical border strips (left/right) as % of field width */
+const BORDER_V_THICK = 6;
+
+interface BorderZone {
+  id: string;
+  edge: "top" | "bottom" | "left" | "right";
+  /** Segment index within the edge (col for H, row for V) */
+  idx: number;
+  /** % coordinate to pass to buildCoordinate */
+  coordX: number;
+  coordY: number;
+}
+
+const BORDER_ZONES: BorderZone[] = [
+  // Top touchline — 6 segments aligned with zone columns
+  ...Array.from(
+    { length: BORDER_COLS },
+    (_, i): BorderZone => ({
+      id: `border-zone-top-${i}`,
+      edge: "top",
+      idx: i,
+      coordX: (i + 0.5) * BORDER_COL_PCT,
+      coordY: 0,
+    }),
+  ),
+  // Bottom touchline
+  ...Array.from(
+    { length: BORDER_COLS },
+    (_, i): BorderZone => ({
+      id: `border-zone-bottom-${i}`,
+      edge: "bottom",
+      idx: i,
+      coordX: (i + 0.5) * BORDER_COL_PCT,
+      coordY: 100,
+    }),
+  ),
+  // Left goal line — 4 segments aligned with zone rows
+  ...Array.from(
+    { length: BORDER_ROWS },
+    (_, i): BorderZone => ({
+      id: `border-zone-left-${i}`,
+      edge: "left",
+      idx: i,
+      coordX: 0,
+      coordY: (i + 0.5) * BORDER_ROW_PCT,
+    }),
+  ),
+  // Right goal line
+  ...Array.from(
+    { length: BORDER_ROWS },
+    (_, i): BorderZone => ({
+      id: `border-zone-right-${i}`,
+      edge: "right",
+      idx: i,
+      coordX: 100,
+      coordY: (i + 0.5) * BORDER_ROW_PCT,
+    }),
+  ),
+];
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -134,11 +204,6 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   dragLocked = false,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
-
-  const maybeFlipX = useCallback(
-    (x: number) => (flipSides ? 100 - x : x),
-    [flipSides],
-  );
 
   // Transient drag preview — while a player is mid‑drag we store their
   // temporary position here so the node re‑renders at the new spot without
@@ -368,117 +433,103 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
         </div>
       </div>
 
-      {/* ─── Edge-bar destination buttons (mirrors SoccerField behaviour) ─── */}
+      {/* ─── Border-zone out-of-bounds destination strips ─── */}
       {onDestinationClick && showDestinationControls && (
-        <div className="absolute inset-0 pointer-events-none overflow-visible">
-          {/* Top row */}
-          {[
-            { id: "bar-top-left", label: "OUT L", x: 20, y: 0 },
-            { id: "bar-top-center", label: "OUT C", x: 50, y: 0 },
-            { id: "bar-top-right", label: "OUT R", x: 80, y: 0 },
-          ].map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${maybeFlipX(d.x)}%`,
-                top: `${d.y}%`,
-                transform: "translate(-50%, 0)",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDestinationClick(buildCoordinate(d.x, d.y, flipSides));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {d.label}
-              </span>
-            </button>
-          ))}
-          {/* Bottom row */}
-          {[
-            { id: "bar-bottom-left", label: "OUT L", x: 20, y: 100 },
-            { id: "bar-bottom-center", label: "OUT C", x: 50, y: 100 },
-            { id: "bar-bottom-right", label: "OUT R", x: 80, y: 100 },
-          ].map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${maybeFlipX(d.x)}%`,
-                top: `${d.y}%`,
-                transform: "translate(-50%, -100%)",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDestinationClick(buildCoordinate(d.x, d.y, flipSides));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {d.label}
-              </span>
-            </button>
-          ))}
-          {/* Left column */}
-          {[
-            { id: "bar-left-top", label: "OUT T", x: 0, y: 20 },
-            { id: "bar-left-center", label: "OUT C", x: 0, y: 50 },
-            { id: "bar-left-bottom", label: "OUT B", x: 0, y: 80 },
-          ].map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${maybeFlipX(d.x)}%`,
-                top: `${d.y}%`,
-                transform: "translate(0, -50%)",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDestinationClick(buildCoordinate(d.x, d.y, flipSides));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2 -rotate-90">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {d.label}
-              </span>
-            </button>
-          ))}
-          {/* Right column */}
-          {[
-            { id: "bar-right-top", label: "OUT T", x: 100, y: 20 },
-            { id: "bar-right-center", label: "OUT C", x: 100, y: 50 },
-            { id: "bar-right-bottom", label: "OUT B", x: 100, y: 80 },
-          ].map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-              style={{
-                left: `${maybeFlipX(d.x)}%`,
-                top: `${d.y}%`,
-                transform: "translate(-100%, -50%)",
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDestinationClick(buildCoordinate(d.x, d.y, flipSides));
-              }}
-              title="Destination"
-            >
-              <span className="inline-flex items-center gap-2 -rotate-90">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                {d.label}
-              </span>
-            </button>
-          ))}
+        <div className="absolute inset-0 pointer-events-none overflow-visible z-20">
+          {BORDER_ZONES.map((zone) => {
+            let style: React.CSSProperties;
+            const isGoalLine = zone.edge === "left" || zone.edge === "right";
+
+            switch (zone.edge) {
+              case "top": {
+                const leftPct = flipSides
+                  ? 100 - (zone.idx + 1) * BORDER_COL_PCT
+                  : zone.idx * BORDER_COL_PCT;
+                style = {
+                  left: `${leftPct}%`,
+                  top: 0,
+                  width: `${BORDER_COL_PCT}%`,
+                  height: `${BORDER_H_THICK}%`,
+                };
+                break;
+              }
+              case "bottom": {
+                const leftPct = flipSides
+                  ? 100 - (zone.idx + 1) * BORDER_COL_PCT
+                  : zone.idx * BORDER_COL_PCT;
+                style = {
+                  left: `${leftPct}%`,
+                  bottom: 0,
+                  width: `${BORDER_COL_PCT}%`,
+                  height: `${BORDER_H_THICK}%`,
+                };
+                break;
+              }
+              case "left": {
+                style = flipSides
+                  ? {
+                      right: 0,
+                      top: `${zone.idx * BORDER_ROW_PCT}%`,
+                      width: `${BORDER_V_THICK}%`,
+                      height: `${BORDER_ROW_PCT}%`,
+                    }
+                  : {
+                      left: 0,
+                      top: `${zone.idx * BORDER_ROW_PCT}%`,
+                      width: `${BORDER_V_THICK}%`,
+                      height: `${BORDER_ROW_PCT}%`,
+                    };
+                break;
+              }
+              case "right": {
+                style = flipSides
+                  ? {
+                      left: 0,
+                      top: `${zone.idx * BORDER_ROW_PCT}%`,
+                      width: `${BORDER_V_THICK}%`,
+                      height: `${BORDER_ROW_PCT}%`,
+                    }
+                  : {
+                      right: 0,
+                      top: `${zone.idx * BORDER_ROW_PCT}%`,
+                      width: `${BORDER_V_THICK}%`,
+                      height: `${BORDER_ROW_PCT}%`,
+                    };
+                break;
+              }
+            }
+
+            return (
+              <button
+                key={zone.id}
+                type="button"
+                data-testid={zone.id}
+                className={`pointer-events-auto absolute z-30 flex items-center justify-center
+                  text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer
+                  ${
+                    isGoalLine
+                      ? "bg-red-900/50 hover:bg-red-700/60 text-red-200 border border-red-500/40 hover:border-red-300/60"
+                      : "bg-amber-900/50 hover:bg-amber-700/60 text-amber-200 border border-amber-500/40 hover:border-amber-300/60"
+                  }`}
+                style={style}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDestinationClick(
+                    buildCoordinate(zone.coordX, zone.coordY, flipSides),
+                  );
+                }}
+                title={`Out — ${zone.edge}`}
+              >
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    isGoalLine ? "-rotate-90" : ""
+                  }`}
+                >
+                  OUT
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

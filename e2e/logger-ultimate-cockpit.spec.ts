@@ -257,9 +257,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
     if (passMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (passMode === "action") {
@@ -272,9 +270,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
     if (shotMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (shotMode === "action") {
@@ -287,9 +283,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const foulMode = await openActionEntry(page, 0);
     await clickAction(page, foulMode, "Foul");
     if (foulMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (foulMode === "action") {
@@ -392,7 +386,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const outMode = await openActionEntry(page, 0);
     await clickAction(page, outMode, "Pass");
     if (outMode === "quick") {
-      await page.locator('button[title="Destination"]').first().click();
+      await page.locator('button[title^="Out"]').first().click();
     } else if (outMode === "action") {
       await page.getByTestId("outcome-btn-Out").click();
     } else {

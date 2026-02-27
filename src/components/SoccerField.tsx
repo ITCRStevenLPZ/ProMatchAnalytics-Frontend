@@ -358,37 +358,6 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     );
   };
 
-  const edgeBars = {
-    top: [
-      { id: "bar-top-left", label: "OUT L", x: 20, y: 0 },
-      { id: "bar-top-center", label: "OUT C", x: 50, y: 0 },
-      { id: "bar-top-right", label: "OUT R", x: 80, y: 0 },
-    ],
-    bottom: [
-      { id: "bar-bottom-left", label: "OUT L", x: 20, y: 100 },
-      { id: "bar-bottom-center", label: "OUT C", x: 50, y: 100 },
-      { id: "bar-bottom-right", label: "OUT R", x: 80, y: 100 },
-    ],
-    left: [
-      { id: "bar-left-top", label: "OUT T", x: 0, y: 20 },
-      { id: "bar-left-center", label: "OUT C", x: 0, y: 50 },
-      { id: "bar-left-bottom", label: "OUT B", x: 0, y: 80 },
-    ],
-    right: [
-      { id: "bar-right-top", label: "OUT T", x: 100, y: 20 },
-      { id: "bar-right-center", label: "OUT C", x: 100, y: 50 },
-      { id: "bar-right-bottom", label: "OUT B", x: 100, y: 80 },
-    ],
-  };
-
-  const resolveEdgeBar = useCallback(
-    (dest: { id: string; label: string; x: number; y: number }) => ({
-      ...dest,
-      x: maybeFlipX(dest.x),
-    }),
-    [maybeFlipX],
-  );
-
   return (
     <div className="relative w-full px-6 py-6">
       <div className="relative overflow-visible">
@@ -444,112 +413,156 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
             </div>
           ) : null}
         </div>
-      </div>
 
-      {onDestinationClick && showDestinationControls && (
-        <div className="absolute inset-0 pointer-events-none overflow-visible">
-          {edgeBars.top.map((dest) => {
-            const resolved = resolveEdgeBar(dest);
+        {/* ─── Border-zone out-of-bounds destination strips ─── */}
+        {onDestinationClick &&
+          showDestinationControls &&
+          (() => {
+            const COLS = 6;
+            const ROWS = 4;
+            const COL_PCT = 100 / COLS;
+            const ROW_PCT = 100 / ROWS;
+            const H_THICK = 8;
+            const V_THICK = 6;
+
+            const zones: Array<{
+              id: string;
+              edge: "top" | "bottom" | "left" | "right";
+              idx: number;
+              coordX: number;
+              coordY: number;
+            }> = [
+              ...Array.from({ length: COLS }, (_, i) => ({
+                id: `border-zone-top-${i}`,
+                edge: "top" as const,
+                idx: i,
+                coordX: maybeFlipX((i + 0.5) * COL_PCT),
+                coordY: 0,
+              })),
+              ...Array.from({ length: COLS }, (_, i) => ({
+                id: `border-zone-bottom-${i}`,
+                edge: "bottom" as const,
+                idx: i,
+                coordX: maybeFlipX((i + 0.5) * COL_PCT),
+                coordY: 100,
+              })),
+              ...Array.from({ length: ROWS }, (_, i) => ({
+                id: `border-zone-left-${i}`,
+                edge: "left" as const,
+                idx: i,
+                coordX: maybeFlipX(0),
+                coordY: (i + 0.5) * ROW_PCT,
+              })),
+              ...Array.from({ length: ROWS }, (_, i) => ({
+                id: `border-zone-right-${i}`,
+                edge: "right" as const,
+                idx: i,
+                coordX: maybeFlipX(100),
+                coordY: (i + 0.5) * ROW_PCT,
+              })),
+            ];
+
             return (
-              <button
-                key={dest.id}
-                type="button"
-                className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-                style={{
-                  left: `${resolved.x}%`,
-                  top: `${resolved.y}%`,
-                  transform: "translate(-50%, 0)",
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
-                }}
-                title="Destination"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                  {resolved.label}
-                </span>
-              </button>
+              <div className="absolute inset-0 pointer-events-none overflow-visible z-20">
+                {zones.map((zone) => {
+                  let style: React.CSSProperties;
+                  const isGoalLine =
+                    zone.edge === "left" || zone.edge === "right";
+
+                  switch (zone.edge) {
+                    case "top": {
+                      const leftPct = flipSides
+                        ? 100 - (zone.idx + 1) * COL_PCT
+                        : zone.idx * COL_PCT;
+                      style = {
+                        left: `${leftPct}%`,
+                        top: 0,
+                        width: `${COL_PCT}%`,
+                        height: `${H_THICK}%`,
+                      };
+                      break;
+                    }
+                    case "bottom": {
+                      const leftPct = flipSides
+                        ? 100 - (zone.idx + 1) * COL_PCT
+                        : zone.idx * COL_PCT;
+                      style = {
+                        left: `${leftPct}%`,
+                        bottom: 0,
+                        width: `${COL_PCT}%`,
+                        height: `${H_THICK}%`,
+                      };
+                      break;
+                    }
+                    case "left": {
+                      style = flipSides
+                        ? {
+                            right: 0,
+                            top: `${zone.idx * ROW_PCT}%`,
+                            width: `${V_THICK}%`,
+                            height: `${ROW_PCT}%`,
+                          }
+                        : {
+                            left: 0,
+                            top: `${zone.idx * ROW_PCT}%`,
+                            width: `${V_THICK}%`,
+                            height: `${ROW_PCT}%`,
+                          };
+                      break;
+                    }
+                    case "right": {
+                      style = flipSides
+                        ? {
+                            left: 0,
+                            top: `${zone.idx * ROW_PCT}%`,
+                            width: `${V_THICK}%`,
+                            height: `${ROW_PCT}%`,
+                          }
+                        : {
+                            right: 0,
+                            top: `${zone.idx * ROW_PCT}%`,
+                            width: `${V_THICK}%`,
+                            height: `${ROW_PCT}%`,
+                          };
+                      break;
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={zone.id}
+                      type="button"
+                      data-testid={zone.id}
+                      className={`pointer-events-auto absolute z-30 flex items-center justify-center
+                      text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer
+                      ${
+                        isGoalLine
+                          ? "bg-red-900/50 hover:bg-red-700/60 text-red-200 border border-red-500/40 hover:border-red-300/60"
+                          : "bg-amber-900/50 hover:bg-amber-700/60 text-amber-200 border border-amber-500/40 hover:border-amber-300/60"
+                      }`}
+                      style={style}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDestinationClick(
+                          buildCoordinate(zone.coordX, zone.coordY),
+                        );
+                      }}
+                      title={`Out — ${zone.edge}`}
+                    >
+                      <span
+                        className={`inline-flex items-center gap-1 ${
+                          isGoalLine ? "-rotate-90" : ""
+                        }`}
+                      >
+                        OUT
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             );
-          })}
-          {edgeBars.bottom.map((dest) => {
-            const resolved = resolveEdgeBar(dest);
-            return (
-              <button
-                key={dest.id}
-                type="button"
-                className="pointer-events-auto absolute z-30 h-8 w-32 rounded-full bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-                style={{
-                  left: `${resolved.x}%`,
-                  top: `${resolved.y}%`,
-                  transform: "translate(-50%, -100%)",
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
-                }}
-                title="Destination"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                  {resolved.label}
-                </span>
-              </button>
-            );
-          })}
-          {edgeBars.left.map((dest) => {
-            const resolved = resolveEdgeBar(dest);
-            return (
-              <button
-                key={dest.id}
-                type="button"
-                className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-                style={{
-                  left: `${resolved.x}%`,
-                  top: `${resolved.y}%`,
-                  transform: "translate(0, -50%)",
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
-                }}
-                title="Destination"
-              >
-                <span className="inline-flex items-center gap-2 -rotate-90">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                  {resolved.label}
-                </span>
-              </button>
-            );
-          })}
-          {edgeBars.right.map((dest) => {
-            const resolved = resolveEdgeBar(dest);
-            return (
-              <button
-                key={dest.id}
-                type="button"
-                className="pointer-events-auto absolute z-30 h-24 w-10 rounded-full bg-gradient-to-b from-slate-900/95 via-slate-800/95 to-slate-900/95 text-slate-100 text-[10px] font-semibold border border-slate-400/60 shadow-[0_0_0_1px_rgba(15,23,42,0.6),0_8px_20px_rgba(0,0,0,0.35)] hover:from-indigo-900/90 hover:via-indigo-800/90 hover:to-indigo-900/90 hover:border-indigo-300/60 tracking-[0.2em] uppercase transition-colors"
-                style={{
-                  left: `${resolved.x}%`,
-                  top: `${resolved.y}%`,
-                  transform: "translate(-100%, -50%)",
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDestinationClick(buildCoordinate(resolved.x, resolved.y));
-                }}
-                title="Destination"
-              >
-                <span className="inline-flex items-center gap-2 -rotate-90">
-                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-300/80" />
-                  {resolved.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+          })()}
+      </div>
     </div>
   );
 };
