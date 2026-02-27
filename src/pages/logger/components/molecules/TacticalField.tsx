@@ -64,6 +64,8 @@ interface TacticalFieldProps {
   allPositions?: Map<string, TacticalPosition>;
   /** When true, prevent player node dragging. */
   dragLocked?: boolean;
+  /** When set, only render player nodes whose id is in this set. */
+  visiblePlayerIds?: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +126,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   showDestinationControls = false,
   overlay,
   flipSides = false,
+  visiblePlayerIds,
   draggingPlayerId = null,
   onDragStart,
   onDragStop,
@@ -344,8 +347,12 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
 
           {/* ─── Player Nodes ─── */}
           <div className="absolute inset-0 pointer-events-none">
-            {homePlayers.map((p) => renderPlayerNode(p, "home"))}
-            {awayPlayers.map((p) => renderPlayerNode(p, "away"))}
+            {homePlayers
+              .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
+              .map((p) => renderPlayerNode(p, "home"))}
+            {awayPlayers
+              .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
+              .map((p) => renderPlayerNode(p, "away"))}
           </div>
 
           {/* ─── Overlay (e.g. QuickActionMenu) ─── */}

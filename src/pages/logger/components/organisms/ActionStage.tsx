@@ -148,9 +148,16 @@ export default function ActionStage({
           cardSelectionActive={Boolean(pendingCardType)}
           pendingCardType={pendingCardType}
           fieldOverlay={
-            currentStep === "selectQuickAction" &&
-            selectedPlayer &&
-            fieldAnchor ? (
+            currentStep === "selectZone" && selectedPlayer ? (
+              <FieldZoneSelector
+                onZoneSelect={handleZoneSelect}
+                onCancel={resetFlow}
+                flipSides={manualFieldFlip}
+                t={t}
+              />
+            ) : currentStep === "selectQuickAction" &&
+              selectedPlayer &&
+              fieldAnchor ? (
               <>
                 <QuickActionMenu
                   anchor={{ xPercent: 50, yPercent: 50 }}
@@ -205,15 +212,11 @@ export default function ActionStage({
             (!isGlobalClockRunning || clockMode !== "EFFECTIVE" || isVarActive)
           }
           dragLocked={dragLocked}
-          t={t}
-        />
-      )}
-
-      {match && currentStep === "selectZone" && (
-        <FieldZoneSelector
-          onZoneSelect={handleZoneSelect}
-          onCancel={resetFlow}
-          playerName={selectedPlayer?.full_name}
+          visiblePlayerIds={
+            currentStep === "selectZone" && selectedPlayer
+              ? new Set([selectedPlayer.id])
+              : undefined
+          }
           t={t}
         />
       )}

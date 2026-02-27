@@ -182,6 +182,8 @@ interface PlayerSelectorPanelProps {
   homeFormation?: Formation | null;
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
+  /** When set, only these player nodes are visible on the field */
+  visiblePlayerIds?: Set<string>;
   t: TFunction<"logger">;
 }
 
@@ -216,6 +218,7 @@ const PlayerSelectorPanel = ({
   homeFormation,
   awayFormation,
   applyFormation,
+  visiblePlayerIds,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
@@ -586,6 +589,7 @@ const PlayerSelectorPanel = ({
             onDragStop={onTacticalDragStop}
             allPositions={allTacticalPositions}
             dragLocked={effectiveDragLocked}
+            visiblePlayerIds={visiblePlayerIds}
           />
         </div>
       ) : resolvedViewMode === "field" ? (

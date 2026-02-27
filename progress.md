@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Add mandatory zone selection step between player selection and action selection in the logging flow
+- [x] Rework zone selector from modal to on-field overlay (uses real tactical field instead of separate modal)
 
 ## Status
 
@@ -17,61 +17,44 @@
 
 ## What Was Completed (Latest Session)
 
-### Zone Selection Step in Logger Action Flow
+### Zone Selector — Modal → On-Field Overlay
 
-Players move during a match; the click position on a tactical node does not represent real location. A new `selectZone` step now appears between player selection and action selection, letting the logger pick one of 24 zones (6×4 grid, matching heat-map zones). The zone center becomes the event's `location` field.
+User rejected the full-screen modal approach ("fails on center player nodes, is a modal for the whole screen"). Zone selection now happens directly on the real tactical field: after selecting a player, all other nodes hide, the 24-zone grid appears overlaid on the actual field, and the user taps a zone. Flow then continues to quick actions / action selection as before.
 
 #### Source Changes
 
-- [x] **`types.ts`**: Added `"selectZone"` to `ActionStep` union type
-- [x] **`useActionFlow.ts`**: `handlePlayerClick` transitions to `selectZone` instead of `selectQuickAction`/`selectAction`; new `handleZoneSelect(zoneId)` callback computes zone center `[x0+ZONE_W/2, y0+ZONE_H/2]` and advances to action step
-- [x] **`FieldZoneSelector.tsx`** (NEW): Interactive SVG soccer field with 24 tappable zones, hover highlight, cancel button, i18n support
-- [x] **`InstructionBanner.tsx`**: Added `selectZone` case
-- [x] **`ActionStage.tsx`**: Renders `FieldZoneSelector` when `currentStep === "selectZone"`
-- [x] **`LoggerView.tsx`**: Passes `handleZoneSelect` prop through
-- [x] **`LoggerCockpit.tsx`**: Destructures `handleZoneSelect` from hook, passes to `LoggerView`
-- [x] **i18n (en/es)**: Added `instructionSelectZone`, `zoneSelectTitle`, `zoneSelectTitleGeneric`, `zoneSelectHint`
+- [x] **`FieldZoneSelector.tsx`**: Complete rewrite — stripped modal/SVG pitch, now a lightweight overlay of 24 absolutely-positioned zone `<button>`s using CSS % coordinates that map to TacticalField's coordinate system. Supports `flipSides`. Same testids preserved (`field-zone-selector`, `zone-select-${id}`).
+- [x] **`TacticalField.tsx`**: Added `visiblePlayerIds?: Set<string>` prop — when set, only renders nodes for players in the set. Used during `selectZone` to hide all nodes except the selected player.
+- [x] **`PlayerSelectorPanel.tsx`**: Added `visiblePlayerIds` prop, passes through to TacticalField.
+- [x] **`ActionStage.tsx`**: Zone selector now rendered via `fieldOverlay` prop (same pattern as QuickActionMenu) instead of as a separate block. Passes `visiblePlayerIds={new Set([selectedPlayer.id])}` during `selectZone`. Removed standalone FieldZoneSelector block.
 
-#### Unit Test Updates
+#### No Changes Needed
 
-- [x] **`useActionFlow.test.ts`**: All 12 tests updated with `handleZoneSelect(7)` step — 12/12 PASS
-
-#### E2E Test Updates (15 files total)
-
-- [x] **`e2e/utils/logger.ts`**: Added shared `selectZoneIfVisible(page, zoneId=7)` helper
-- [x] **`logger-field-flow.spec.ts`**: 3 tests updated
-- [x] **`logger-mega-sim.spec.ts`**: 5 flow functions updated
-- [x] **`logger-disciplinary.spec.ts`**: 2 locations updated
-- [x] **`logger-advanced.spec.ts`**: 1 location updated
-- [x] **`logger-event-taxonomy.spec.ts`**: 7 locations updated (logShotGoal, DirectShot, Shot, Pass, Pass Out, Offside, Foul)
-- [x] **`logger-substitution-windows.spec.ts`**: openSubstitutionFlow helper updated
-- [x] **`logger-ultimate-disciplinary-stress.spec.ts`**: openSubstitutionModal helper updated
-- [x] **`logger-error-handling.spec.ts`**: 1 location updated
-- [x] **`logger-substitution-rules.spec.ts`**: 5 locations updated (helper + 4 inline)
-- [x] **`logger-substitution-queue.spec.ts`**: performSubstitution helper updated
-- [x] **`logger-var-card-ui.spec.ts`**: Added `field-zone-selector` count 0 assertion during VAR
-- [x] **`logger-keyboard.spec.ts`**: Added zone selection before Escape cancel test
-- [x] **`logger-comprehensive.spec.ts`**: 5 locations updated (helper + 4 inline)
-- [x] **`logger-ultimate-cockpit.spec.ts`**: openActionEntry helper updated
-- [x] **`logger-action-matrix.spec.ts`**: clickFieldPlayer helper updated
+- **`useActionFlow.ts`**: State machine unchanged — `selectZone` step works identically
+- **`types.ts`**: `ActionStep` unchanged
+- **`InstructionBanner.tsx`**: `selectZone` case unchanged
+- **`e2e/utils/logger.ts`**: `selectZoneIfVisible` helper works as-is (same testids)
+- **All 15 E2E spec files**: No changes needed (same testids)
 
 ## Tests Implemented/Updated (Mandatory)
 
 - [x] TypeScript: `tsc --noEmit` -> 0 errors
-- [x] Unit: `vitest run` -> 10/11 pass (1 file has 3 pre-existing failures in payloadBuilders.test.ts)
-- [x] E2E: 15 spec files updated with zone selection step
+- [x] ESLint: 0 errors on all 4 changed files
+- [x] Unit: `vitest run` -> 12/12 action flow tests PASS (3 pre-existing failures in payloadBuilders.test.ts)
+- [x] E2E: Auth token infrastructure issue prevents running (pre-existing, unrelated)
 
 ## Implementation Notes
 
-- Reuses existing 24-zone grid from `heatMapZones.ts` (6 cols × 4 rows, each 20×20 StatsBomb units)
-- Zone center = `[zone.x0 + 10, zone.y0 + 10]` — provides consistent location per zone
-- `selectZoneIfVisible` helper is safe to use anywhere: returns immediately if zone selector is not visible
-- VAR mode correctly blocks zone selector (same guard that blocks quick-action menu)
+- Zone overlay uses the `fieldOverlay` → `overlay` prop chain (same as QuickActionMenu)
+- Zones use CSS `%` positions: `left = (sbX / 120) * 100`, `top = (sbY / 80) * 100`
+- Flip-aware: when `flipSides=true`, zone x positions are mirrored
+- `visiblePlayerIds` prop filters player node rendering in TacticalField
+- Same testids preserved — E2E `selectZoneIfVisible` helper works without changes
 
 ## Next Steps
 
-- Run full E2E suite against backend to validate all updated specs
-- Consider adding zone highlight/label on the tactical field after selection (UX polish)
+- Run full E2E suite once backend auth is resolved
+- Consider adding SoccerField `visiblePlayerIds` support for non-tactical field mode
 - Consider persisting per-player "last used zone" for faster re-logging
 
 ---
