@@ -3,9 +3,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import {
-  PROMATCH_LOGO_PATH,
-  PROMATCH_LOGO_VIEWBOX,
-} from "../../../../components/ProMatchLogo";
+  PROMATCH_TITLE_LOGO_PATH,
+  PROMATCH_TITLE_LOGO_VIEWBOX,
+} from "../../../../components/ProMatchTitleLogo";
 import {
   AreaChart,
   Area,
@@ -794,7 +794,10 @@ export function MatchAnalytics({
 
   if (!match || !analytics) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div
+        className="flex items-center justify-center h-64 text-gray-400"
+        data-testid="analytics-panel"
+      >
         <Activity size={48} className="mr-3" />
         <div className="text-lg">
           {t(
@@ -849,38 +852,136 @@ export function MatchAnalytics({
   const exportJpg = async () => {
     const el = statsTableRef.current;
     if (!el) return;
-    // Temporarily enforce a minimum width so values are never clipped
-    const prev = el.style.minWidth;
-    el.style.minWidth = "600px";
-    const canvas = await html2canvas(el, {
-      backgroundColor: "#0f172a",
-      scale: 2,
-    });
-    el.style.minWidth = prev;
 
-    // Draw ProMatch logo watermark in the bottom-right corner
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      const logoSize = 64;
-      const padding = 16;
-      const x = canvas.width - logoSize - padding;
-      const y =
-        canvas.height -
-        logoSize *
-          (PROMATCH_LOGO_VIEWBOX.height / PROMATCH_LOGO_VIEWBOX.width) -
-        padding;
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.translate(x, y);
-      const scale = logoSize / PROMATCH_LOGO_VIEWBOX.width;
-      ctx.scale(scale, scale);
-      const path = new Path2D(PROMATCH_LOGO_PATH);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill(path, "evenodd");
-      ctx.restore();
+    // Wide capture width so grid columns render without clipping
+    const CAPTURE_WIDTH = 1100;
+    const RENDER_SCALE = 2;
+
+    const html2canvasOpts: Parameters<typeof html2canvas>[1] = {
+      backgroundColor: "#0f172a",
+      scale: RENDER_SCALE,
+      windowWidth: CAPTURE_WIDTH,
+      useCORS: true,
+    };
+
+    // Helper: force element to export-friendly layout (no truncation / overflow)
+    const prepareForCapture = (root: HTMLElement) => {
+      const prev = {
+        minWidth: root.style.minWidth,
+        maxWidth: root.style.maxWidth,
+        overflow: root.style.overflow,
+      };
+      root.style.minWidth = `${CAPTURE_WIDTH}px`;
+      root.style.maxWidth = `${CAPTURE_WIDTH}px`;
+      root.style.overflow = "visible";
+
+      // Temporarily remove truncate / overflow-hidden on descendants
+      const restored: {
+        el: HTMLElement;
+        ov: string;
+        ws: string;
+        to: string;
+      }[] = [];
+      root
+        .querySelectorAll<HTMLElement>(".truncate, [class*='overflow-hidden']")
+        .forEach((child) => {
+          restored.push({
+            el: child,
+            ov: child.style.overflow,
+            ws: child.style.whiteSpace,
+            to: child.style.textOverflow,
+          });
+          child.style.overflow = "visible";
+          child.style.whiteSpace = "normal";
+          child.style.textOverflow = "clip";
+        });
+
+      return () => {
+        root.style.minWidth = prev.minWidth;
+        root.style.maxWidth = prev.maxWidth;
+        root.style.overflow = prev.overflow;
+        restored.forEach(({ el: c, ov, ws, to }) => {
+          c.style.overflow = ov;
+          c.style.whiteSpace = ws;
+          c.style.textOverflow = to;
+        });
+      };
+    };
+
+    // 1. Capture the comparative stats table
+    const restoreStats = prepareForCapture(el);
+    const statsCanvas = await html2canvas(el, html2canvasOpts);
+    restoreStats();
+
+    // 2. Capture the heat-map section (sibling rendered in AnalyticsView)
+    const heatmapEl = document.querySelector<HTMLElement>(
+      '[data-testid="heatmap-section"]',
+    );
+    let heatmapCanvas: HTMLCanvasElement | null = null;
+    if (heatmapEl) {
+      const restoreHm = prepareForCapture(heatmapEl);
+      heatmapCanvas = await html2canvas(heatmapEl, html2canvasOpts);
+      restoreHm();
     }
 
-    canvas.toBlob(
+    // 3. Composite both captures into a single canvas
+    const gap = heatmapCanvas ? 24 * RENDER_SCALE : 0;
+    const totalWidth = Math.max(statsCanvas.width, heatmapCanvas?.width ?? 0);
+    const totalHeight = statsCanvas.height + gap + (heatmapCanvas?.height ?? 0);
+
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = totalWidth;
+    finalCanvas.height = totalHeight;
+    const fCtx = finalCanvas.getContext("2d");
+    if (!fCtx) return;
+
+    // Background fill
+    fCtx.fillStyle = "#0f172a";
+    fCtx.fillRect(0, 0, totalWidth, totalHeight);
+
+    // Draw stats table centred horizontally
+    fCtx.drawImage(
+      statsCanvas,
+      Math.round((totalWidth - statsCanvas.width) / 2),
+      0,
+    );
+
+    // Draw heat maps below stats table
+    if (heatmapCanvas) {
+      fCtx.drawImage(
+        heatmapCanvas,
+        Math.round((totalWidth - heatmapCanvas.width) / 2),
+        statsCanvas.height + gap,
+      );
+    }
+
+    // 4. Tile the ProMatch logo as a repeating watermark across the image
+    const logoTileW = Math.round(totalWidth * 0.06);
+    const logoTileH = Math.round(
+      logoTileW *
+        (PROMATCH_TITLE_LOGO_VIEWBOX.height /
+          PROMATCH_TITLE_LOGO_VIEWBOX.width),
+    );
+    const spacingX = logoTileW * 3;
+    const spacingY = logoTileH * 3;
+    const scale = logoTileW / PROMATCH_TITLE_LOGO_VIEWBOX.width;
+    const logoPath = new Path2D(PROMATCH_TITLE_LOGO_PATH);
+
+    fCtx.save();
+    fCtx.globalAlpha = 0.12;
+    fCtx.fillStyle = "#ffffff";
+    for (let y = spacingY / 2; y < totalHeight; y += spacingY) {
+      for (let x = spacingX / 2; x < totalWidth; x += spacingX) {
+        fCtx.save();
+        fCtx.translate(x - logoTileW / 2, y - logoTileH / 2);
+        fCtx.scale(scale, scale);
+        fCtx.fill(logoPath, "evenodd");
+        fCtx.restore();
+      }
+    }
+    fCtx.restore();
+
+    finalCanvas.toBlob(
       (blob) => {
         if (!blob) return;
         const timestamp = new Date()
@@ -894,7 +995,57 @@ export function MatchAnalytics({
     );
   };
 
-  const exportPdf = () => {
+  /** Draw repeating ProMatch logo watermark across every page of a jsPDF doc */
+  const drawPdfWatermark = (doc: jsPDF) => {
+    const pageCount = doc.getNumberOfPages();
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+
+    // Render the SVG logo path onto a small canvas, then export as PNG data-URL
+    const logoW = 60;
+    const logoH = Math.round(
+      logoW *
+        (PROMATCH_TITLE_LOGO_VIEWBOX.height /
+          PROMATCH_TITLE_LOGO_VIEWBOX.width),
+    );
+    const offscreen = document.createElement("canvas");
+    offscreen.width = logoW * 2;
+    offscreen.height = logoH * 2;
+    const oCtx = offscreen.getContext("2d");
+    if (!oCtx) return;
+    const s = (logoW * 2) / PROMATCH_TITLE_LOGO_VIEWBOX.width;
+    oCtx.scale(s, s);
+    oCtx.fillStyle = "#94a3b8"; // slate-400
+    oCtx.fill(new Path2D(PROMATCH_TITLE_LOGO_PATH), "evenodd");
+    const logoDataUrl = offscreen.toDataURL("image/png");
+
+    const gapX = logoW * 3;
+    const gapY = logoH * 3;
+
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      for (let ly = gapY / 2; ly < ph; ly += gapY) {
+        for (let lx = gapX / 2; lx < pw; lx += gapX) {
+          doc.saveGraphicsState();
+          const gState = (doc as any).GState
+            ? new (doc as any).GState({ opacity: 0.07 })
+            : null;
+          if (gState) doc.setGState(gState);
+          doc.addImage(
+            logoDataUrl,
+            "PNG",
+            lx - logoW / 2,
+            ly - logoH / 2,
+            logoW,
+            logoH,
+          );
+          doc.restoreGraphicsState();
+        }
+      }
+    }
+  };
+
+  const exportPdf = async () => {
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "pt",
@@ -1026,6 +1177,74 @@ export function MatchAnalytics({
       margin: { left: marginX, right: marginX },
     });
 
+    // ── Heat maps ──
+    const heatmapEl = document.querySelector<HTMLElement>(
+      '[data-testid="heatmap-section"]',
+    );
+    if (heatmapEl) {
+      const CAPTURE_WIDTH = 1100;
+      const prevW = heatmapEl.style.minWidth;
+      const prevMaxW = heatmapEl.style.maxWidth;
+      const prevOv = heatmapEl.style.overflow;
+      heatmapEl.style.minWidth = `${CAPTURE_WIDTH}px`;
+      heatmapEl.style.maxWidth = `${CAPTURE_WIDTH}px`;
+      heatmapEl.style.overflow = "visible";
+      const restored: {
+        el: HTMLElement;
+        ov: string;
+        ws: string;
+        to: string;
+      }[] = [];
+      heatmapEl
+        .querySelectorAll<HTMLElement>(".truncate, [class*='overflow-hidden']")
+        .forEach((child) => {
+          restored.push({
+            el: child,
+            ov: child.style.overflow,
+            ws: child.style.whiteSpace,
+            to: child.style.textOverflow,
+          });
+          child.style.overflow = "visible";
+          child.style.whiteSpace = "normal";
+          child.style.textOverflow = "clip";
+        });
+
+      const hmCanvas = await html2canvas(heatmapEl, {
+        backgroundColor: "#0f172a",
+        scale: 2,
+        windowWidth: CAPTURE_WIDTH,
+        useCORS: true,
+      });
+
+      heatmapEl.style.minWidth = prevW;
+      heatmapEl.style.maxWidth = prevMaxW;
+      heatmapEl.style.overflow = prevOv;
+      restored.forEach(({ el: c, ov, ws, to }) => {
+        c.style.overflow = ov;
+        c.style.whiteSpace = ws;
+        c.style.textOverflow = to;
+      });
+
+      const hmDataUrl = hmCanvas.toDataURL("image/png");
+      const imgW = pageWidth - marginX * 2;
+      const imgH = (hmCanvas.height / hmCanvas.width) * imgW;
+
+      // Check if heat map fits on current page; if not, add a new page
+      y = ((doc as any).lastAutoTable?.finalY || y + 120) + 22;
+      const pageH = doc.internal.pageSize.getHeight();
+      if (y + imgH + 30 > pageH) {
+        doc.addPage();
+        y = 36;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(15, 23, 42);
+      doc.text(t("analytics.heatMaps", "Field Heat Maps"), marginX, y);
+      doc.addImage(hmDataUrl, "PNG", marginX, y + 10, imgW, imgH);
+    }
+
+    // ── Footer on last page ──
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
@@ -1037,6 +1256,9 @@ export function MatchAnalytics({
       marginX,
       doc.internal.pageSize.getHeight() - 18,
     );
+
+    // ── Repeating watermark on every page ──
+    drawPdfWatermark(doc);
 
     const timestamp = new Date()
       .toISOString()

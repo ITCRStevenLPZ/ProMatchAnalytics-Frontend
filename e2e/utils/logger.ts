@@ -118,6 +118,8 @@ export const submitStandardPass = async (
     }
   }
   await playerMarker.click({ force: true });
+  // Handle mandatory zone selection step (zone-biased positioning)
+  await selectZoneIfVisible(page);
   const quickActionMore = page.getByTestId("quick-action-more");
   const passActionButton = page.getByTestId("action-btn-Pass");
   const quickActionVisible = await quickActionMore
@@ -180,6 +182,8 @@ export const submitStandardShot = async (
   outcome: "Goal" | "OnTarget" | "OffTarget" | "Blocked" = "OnTarget",
 ): Promise<void> => {
   await page.getByTestId(`field-player-${playerIdForTeam(team)}`).click();
+  // Handle mandatory zone selection step (zone-biased positioning)
+  await selectZoneIfVisible(page);
   const quickActionMore = page.getByTestId("quick-action-more");
   const quickActionVisible = await quickActionMore
     .isVisible({ timeout: 1200 })
@@ -324,4 +328,22 @@ export const forceSocketReconnect = async (page: Page): Promise<void> => {
     ).__PROMATCH_SOCKET_TEST__;
     harness?.reconnect?.();
   });
+};
+
+/**
+ * After clicking a field player, select zone 7 (center of field) if the zone
+ * selector is visible. This handles the mandatory zone selection step that
+ * appears between player selection and action selection.
+ */
+export const selectZoneIfVisible = async (
+  page: Page,
+  zoneId = 7,
+): Promise<void> => {
+  const zoneSelector = page.getByTestId("field-zone-selector");
+  const visible = await zoneSelector
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
+  if (visible) {
+    await page.getByTestId(`zone-select-${zoneId}`).click();
+  }
 };

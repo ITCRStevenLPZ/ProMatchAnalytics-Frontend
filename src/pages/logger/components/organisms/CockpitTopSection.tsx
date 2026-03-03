@@ -29,8 +29,8 @@ interface CockpitTopSectionProps {
   resetBlocked: boolean;
   resetTooltip: string | undefined;
   undoError: string | null;
-  viewMode: "logger" | "analytics";
-  setViewMode: (mode: "logger" | "analytics") => void;
+  viewMode: "logger" | "analytics" | "review";
+  setViewMode: (mode: "logger" | "analytics" | "review") => void;
   statusOverride: Match["status"] | undefined;
   showResetModal: boolean;
   setShowResetModal: (show: boolean) => void;

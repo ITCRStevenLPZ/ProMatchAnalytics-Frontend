@@ -45,6 +45,7 @@
   "starters": "Starters",
   "substitutes": "Substitutes",
   "instructionSelectPlayer": "Click on a player to start logging an event",
+  "instructionSelectZone": "Select the zone where {{player}}'s action occurred",
   "instructionSelectAction": "Select an action for {{player}}",
   "instructionSelectOutcome": "Select the outcome for {{action}}",
   "instructionSelectRecipient": "Select the pass recipient",
@@ -325,6 +326,7 @@
   },
   "logger": {
     "view": "Logger",
+    "review": "Review",
     "analytics": "Analytics",
     "progress": {
       "1h": "1H",
@@ -434,7 +436,11 @@
     "totalEffectiveTime": "Total Effective Time",
     "tooltipTotalEffectiveTime": "Overall ball-in-play time for the match (shared by both teams).",
     "totalIneffectiveTime": "Total Ineffective Time",
-    "tooltipTotalIneffectiveTime": "Overall stoppage time for the match (all teams combined)."
+    "tooltipTotalIneffectiveTime": "Overall stoppage time for the match (all teams combined).",
+    "heatMaps": "Field Heat Maps",
+    "combined": "Combined",
+    "low": "Low",
+    "high": "High"
   },
   "resetAfterFulltimeTooltip": "Match is completed; reset will wipe data and restart.",
   "resetAfterFulltimeWarning": "Match is fulltime. Resetting will clear logs and restart clocks from zero.",
@@ -456,5 +462,10 @@
     "customPlaceholder": "e.g. 4-3-3",
     "apply": "Apply",
     "clear": "Clear Formation"
-  }
+  },
+  "zoneSelectTitle": "Select where {{playerName}}'s action occurred",
+  "zoneSelectTitleGeneric": "Select the action zone",
+  "zoneSelectHint": "Tap the area of the field where the action took place",
+  "positionManual": "Manual",
+  "positionAuto": "Auto"
 }

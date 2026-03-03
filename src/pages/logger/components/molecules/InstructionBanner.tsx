@@ -29,6 +29,11 @@ const InstructionBanner = ({
           currentStep === "selectPlayer" &&
           t("instructionSelectPlayer")}
         {!cardSelection &&
+          currentStep === "selectZone" &&
+          t("instructionSelectZone", {
+            player: selectedPlayer?.full_name,
+          })}
+        {!cardSelection &&
           currentStep === "selectQuickAction" &&
           t("instructionSelectQuickAction", {
             player: selectedPlayer?.full_name,

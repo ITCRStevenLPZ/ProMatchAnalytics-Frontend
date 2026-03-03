@@ -1,3 +1,49 @@
+import type { IneffectiveAction } from "../../types";
+
+const INEFFECTIVE_ACTION_OPTIONS: {
+  value: IneffectiveAction;
+  labelKey: string;
+  fallback: string;
+  isNeutral?: boolean;
+}[] = [
+  { value: "Goal", labelKey: "ineffectiveReasonGoal", fallback: "Goal" },
+  {
+    value: "OutOfBounds",
+    labelKey: "ineffectiveReasonOutOfBounds",
+    fallback: "Out of Bounds",
+  },
+  { value: "Card", labelKey: "ineffectiveReasonCard", fallback: "Card" },
+  { value: "Foul", labelKey: "ineffectiveReasonFoul", fallback: "Foul" },
+  {
+    value: "Offside",
+    labelKey: "ineffectiveReasonOffside",
+    fallback: "Offside",
+  },
+  {
+    value: "Substitution",
+    labelKey: "ineffectiveReasonSubstitution",
+    fallback: "Substitution",
+  },
+  {
+    value: "Injury",
+    labelKey: "ineffectiveReasonInjury",
+    fallback: "Injury",
+  },
+  {
+    value: "VAR",
+    labelKey: "ineffectiveReasonVAR",
+    fallback: "VAR",
+    isNeutral: true,
+  },
+  {
+    value: "Referee",
+    labelKey: "ineffectiveReasonReferee",
+    fallback: "Referee (Neutral)",
+    isNeutral: true,
+  },
+  { value: "Other", labelKey: "ineffectiveReasonOther", fallback: "Other" },
+];
+
 interface IneffectiveNoteModalProps {
   open: boolean;
   ineffectiveActionType: string;
@@ -69,37 +115,43 @@ export default function IneffectiveNoteModal({
               setIneffectiveTeamDropdownOpen(false);
             }}
           >
-            {ineffectiveActionType === "Substitution"
-              ? t("ineffectiveReasonSubstitution", "Substitution")
-              : t("ineffectiveReasonOther", "Other")}
+            {(() => {
+              const opt = INEFFECTIVE_ACTION_OPTIONS.find(
+                (o) => o.value === ineffectiveActionType,
+              );
+              return opt
+                ? t(opt.labelKey, opt.fallback)
+                : ineffectiveActionType;
+            })()}
           </button>
           {ineffectiveActionDropdownOpen && (
             <div
-              className="absolute z-10 mt-1 w-full bg-white border border-slate-300 rounded-md shadow-lg"
+              className="absolute z-10 mt-1 w-full bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
               data-testid="ineffective-note-action-menu"
             >
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
-                data-testid="ineffective-note-action-option-Substitution"
-                onClick={() => {
-                  setIneffectiveActionType("Substitution");
-                  setIneffectiveActionDropdownOpen(false);
-                }}
-              >
-                {t("ineffectiveReasonSubstitution", "Substitution")}
-              </button>
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-left text-black hover:bg-slate-100"
-                data-testid="ineffective-note-action-option-Other"
-                onClick={() => {
-                  setIneffectiveActionType("Other");
-                  setIneffectiveActionDropdownOpen(false);
-                }}
-              >
-                {t("ineffectiveReasonOther", "Other")}
-              </button>
+              {INEFFECTIVE_ACTION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`w-full px-3 py-2 text-left text-black hover:bg-slate-100 ${
+                    ineffectiveActionType === opt.value
+                      ? "bg-amber-50 font-semibold"
+                      : ""
+                  }`}
+                  data-testid={`ineffective-note-action-option-${opt.value}`}
+                  onClick={() => {
+                    setIneffectiveActionType(opt.value);
+                    setIneffectiveActionDropdownOpen(false);
+                  }}
+                >
+                  {t(opt.labelKey, opt.fallback)}
+                  {opt.isNeutral && (
+                    <span className="ml-2 text-xs text-slate-400">
+                      {t("neutral", "neutral")}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           )}
         </div>

@@ -321,16 +321,29 @@ export default function MatchesManager() {
 
   const fetchTeams = async () => {
     try {
-      const data = await apiClient.get<PaginatedResponse<Team> | Team[]>(
-        "/teams/",
-      );
-      if ("items" in data && Array.isArray(data.items)) {
-        setTeams(data.items);
-      } else if (Array.isArray(data)) {
-        setTeams(data);
-      } else {
-        setTeams([]);
+      let page = 1;
+      const pageSize = 100; // backend max is 100
+      const allTeams: Team[] = [];
+      let hasMore = true;
+      while (hasMore) {
+        const data = await apiClient.get<PaginatedResponse<Team> | Team[]>(
+          "/teams/",
+          { params: { page, page_size: pageSize } },
+        );
+        if ("items" in data && Array.isArray(data.items)) {
+          allTeams.push(...data.items);
+          const total =
+            (data as PaginatedResponse<Team>).total ?? data.items.length;
+          hasMore = allTeams.length < total;
+        } else if (Array.isArray(data)) {
+          allTeams.push(...data);
+          hasMore = false;
+        } else {
+          hasMore = false;
+        }
+        page += 1;
       }
+      setTeams(allTeams);
     } catch (err) {
       console.error("Error fetching teams:", err);
     }

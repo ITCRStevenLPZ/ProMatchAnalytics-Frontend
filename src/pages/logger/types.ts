@@ -46,6 +46,7 @@ export type IneffectiveAction =
   | "Substitution"
   | "Injury"
   | "VAR"
+  | "Referee"
   | "Other";
 
 export interface IneffectiveAggregateTotals {
@@ -96,6 +97,7 @@ export interface Match {
 export type EventType =
   | "Pass"
   | "Shot"
+  | "Header"
   | "Duel"
   | "FoulCommitted"
   | "Card"
@@ -108,10 +110,12 @@ export type EventType =
   | "Recovery"
   | "Offside"
   | "SetPiece"
-  | "GoalkeeperAction";
+  | "GoalkeeperAction"
+  | "Carry";
 
 export type ActionStep =
   | "selectPlayer"
+  | "selectZone"
   | "selectQuickAction"
   | "selectDestination"
   | "selectAction"

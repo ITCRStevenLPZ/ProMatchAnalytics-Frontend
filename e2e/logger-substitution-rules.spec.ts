@@ -13,6 +13,7 @@ import {
   resetHarnessFlow,
   sendRawEventThroughHarness,
   waitForPendingAckToClear,
+  selectZoneIfVisible,
 } from "./utils/logger";
 import { uniqueId } from "./utils/admin";
 
@@ -103,6 +104,7 @@ const openSubstitutionFlow = async (page: Page, id: string) => {
   await resetHarnessFlow(page);
 
   await page.getByTestId("field-player-HOME-1").click();
+  await selectZoneIfVisible(page);
   await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Substitution").click();
 
@@ -271,6 +273,7 @@ test.describe("Logger substitution rules", () => {
     const initialIneffective = await ineffectiveClock.innerText();
 
     await page.getByTestId("field-player-HOME-1").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 
@@ -340,6 +343,7 @@ test.describe("Logger substitution rules", () => {
     const initialIneffective = await ineffectiveClock.innerText();
 
     await page.getByTestId("field-player-HOME-1").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 
@@ -407,6 +411,7 @@ test.describe("Logger substitution rules", () => {
 
     try {
       await page.getByTestId("field-player-HOME-1").click();
+      await selectZoneIfVisible(page);
       await page.getByTestId("quick-action-more").click({ timeout: 8000 });
       await page.getByTestId("action-btn-Substitution").click();
 
@@ -498,6 +503,7 @@ test.describe("Logger substitution rules", () => {
     await resetHarnessFlow(page);
 
     await page.getByTestId("field-player-HOME-1").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 

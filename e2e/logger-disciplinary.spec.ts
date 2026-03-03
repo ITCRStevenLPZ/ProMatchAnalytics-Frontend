@@ -102,6 +102,14 @@ const openSubstitutionModal = async (
   await page
     .getByTestId(`field-player-${triggerPlayerId}`)
     .click({ force: true });
+  // Handle zone selection step if visible
+  const zoneSelector = page.getByTestId("field-zone-selector");
+  const hasZoneSelector = await zoneSelector
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
+  if (hasZoneSelector) {
+    await page.getByTestId("zone-select-7").click();
+  }
   const actionSelection = page.getByTestId("action-selection");
   const hasActionSelection = await actionSelection
     .isVisible({ timeout: 1000 })
@@ -319,6 +327,14 @@ test.describe("logger disciplinary rules", () => {
     await expect(
       page.getByText(/Player is expelled and cannot log actions\./i),
     ).toHaveCount(0);
+    // Handle zone selection step if visible
+    const zoneSel = page.getByTestId("field-zone-selector");
+    const hasZoneSel = await zoneSel
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+    if (hasZoneSel) {
+      await page.getByTestId("zone-select-7").click();
+    }
     const quickActionMenu = page.getByTestId("quick-action-menu");
     const actionSelection = page.getByTestId("action-selection");
     const hasQuickActionMenu = await quickActionMenu
@@ -329,6 +345,14 @@ test.describe("logger disciplinary rules", () => {
       .catch(() => false);
     if (!hasQuickActionMenu && !hasActionSelection) {
       await page.getByTestId(`field-player-${playerId}`).click({ force: true });
+      // Handle zone selection step again if visible
+      const zoneSel2 = page.getByTestId("field-zone-selector");
+      const hasZoneSel2 = await zoneSel2
+        .isVisible({ timeout: 2000 })
+        .catch(() => false);
+      if (hasZoneSel2) {
+        await page.getByTestId("zone-select-7").click();
+      }
     }
     const quickActionVisible = await quickActionMenu
       .isVisible({ timeout: 3000 })

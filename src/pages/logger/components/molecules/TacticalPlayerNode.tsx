@@ -181,7 +181,7 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
       data-tactical-y={yPercent.toFixed(1)}
       title={`${fullName} (${position})`}
       role="button"
-      aria-disabled={isExpelled || dragLocked || undefined}
+      aria-disabled={isExpelled || undefined}
       className={`absolute z-10 flex flex-col items-center pointer-events-auto select-none touch-none ${
         isExpelled
           ? "opacity-40 cursor-not-allowed"

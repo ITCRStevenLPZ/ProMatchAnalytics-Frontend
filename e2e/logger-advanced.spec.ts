@@ -12,6 +12,7 @@ import {
   expectLiveEventCount,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   submitStandardPass,
   submitStandardShot,
   waitForPendingAckToClear,
@@ -103,6 +104,7 @@ test.describe("Logger substitutions", () => {
     await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-1").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
 

@@ -23,6 +23,9 @@ interface MatchTimerDisplayProps {
   isVarActive: boolean;
   isTimeoutActive: boolean;
   hideResumeButton?: boolean;
+  hasActiveIneffective?: boolean;
+  ineffectiveTeamLabel?: string;
+  onSwitchIneffectiveTeam?: () => void;
   /** Seconds elapsed since the current period started (resets to 0 each period) */
   periodElapsedSeconds: number;
   /** Minimum regulation seconds for the current period (2700 for regular, 900 for extra time) */
@@ -51,6 +54,9 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
   isVarActive,
   isTimeoutActive,
   hideResumeButton = false,
+  hasActiveIneffective = false,
+  ineffectiveTeamLabel,
+  onSwitchIneffectiveTeam,
   periodElapsedSeconds,
   periodMinimumSeconds,
   t,
@@ -326,6 +332,21 @@ const MatchTimerDisplay: React.FC<MatchTimerDisplayProps> = ({
                 : t("timeOffStart", "Start Time Off")}
             </button>
           </div>
+        )}
+        {hasActiveIneffective && onSwitchIneffectiveTeam && (
+          <button
+            data-testid="btn-switch-ineffective-team"
+            onClick={onSwitchIneffectiveTeam}
+            className="w-full flex items-center justify-center gap-2 py-2 bg-orange-700/40 text-orange-200 border border-orange-500/30 hover:bg-orange-700/60 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
+            disabled={locked}
+          >
+            ↔ {t("switchTeam", "Switch Team")}
+            {ineffectiveTeamLabel && (
+              <span className="ml-1 text-orange-300/70 normal-case font-normal">
+                ({ineffectiveTeamLabel})
+              </span>
+            )}
+          </button>
         )}
         {!hideResumeButton && clockMode !== "EFFECTIVE" && (
           <button

@@ -4,7 +4,12 @@ import {
   request,
   type APIRequestContext,
 } from "@playwright/test";
-import { BACKEND_BASE_URL, gotoLoggerPage, MATCH_ID } from "./utils/logger";
+import {
+  BACKEND_BASE_URL,
+  gotoLoggerPage,
+  MATCH_ID,
+  selectZoneIfVisible,
+} from "./utils/logger";
 
 let backendRequest: APIRequestContext;
 
@@ -42,6 +47,9 @@ test.describe("Logger Keyboard Shortcuts", () => {
 
     // Commit
     await page.keyboard.press("Enter");
+
+    // Handle mandatory zone selection step (zone-biased positioning)
+    await selectZoneIfVisible(page);
 
     // Verify player selected (Player 10 is usually a Forward or Midfielder in our seed)
     // Check that action selection is active by looking for action buttons
@@ -109,6 +117,9 @@ test.describe("Logger Keyboard Shortcuts", () => {
     const fieldPlayer = page.getByTestId("field-player-HOME-1");
     await expect(fieldPlayer).toBeVisible({ timeout: 5000 });
     await fieldPlayer.click();
+
+    // Select zone (mandatory step between player selection and action)
+    await selectZoneIfVisible(page);
 
     // Wait for quick action menu to appear
     await expect(page.getByTestId("quick-action-menu")).toBeVisible({

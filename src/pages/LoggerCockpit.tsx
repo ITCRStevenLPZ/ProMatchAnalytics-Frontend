@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
-import { List, BarChart3 } from "../components/icons";
+import { useParams, useSearchParams } from "react-router-dom";
+import { List, BarChart3, Eye } from "../components/icons";
 import { useMatchLogStore } from "../store/useMatchLogStore";
 import { useMatchSocket } from "../hooks/useMatchSocket";
 import { IS_E2E_TEST_MODE } from "../lib/loggerApi";
@@ -13,6 +13,7 @@ import SubstitutionFlow from "./logger/components/molecules/SubstitutionFlow";
 import type { CardSelection } from "./logger/components/molecules/QuickCardPanel";
 import AnalyticsView from "./logger/components/organisms/AnalyticsView";
 import LoggerView from "./logger/components/organisms/LoggerView";
+import ReviewView from "./logger/components/organisms/ReviewView";
 import CockpitTopSection from "./logger/components/organisms/CockpitTopSection";
 import { useDisciplinary } from "./logger/hooks/useDisciplinary";
 import { useLiveScore } from "./logger/hooks/useLiveScore";
@@ -44,6 +45,7 @@ import { useCockpitToast } from "./logger/hooks/useCockpitToast";
 import { useCockpitSubstitutionFlow } from "./logger/hooks/useCockpitSubstitutionFlow";
 import { useTacticalPositions } from "./logger/hooks/useTacticalPositions";
 import type { LoggerHarness } from "./logger/types";
+import type { CockpitViewMode } from "./logger/components/molecules/TeamSelector";
 import { parseClockToSeconds } from "./logger/lib/clockHelpers";
 
 import { useAuthStore } from "../store/authStore";
@@ -57,6 +59,13 @@ declare global {
 export default function LoggerCockpit() {
   const { t, ready: isLoggerReady } = useTranslation("logger");
   const { matchId } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialView: CockpitViewMode =
+    searchParams.get("view") === "analytics"
+      ? "analytics"
+      : searchParams.get("view") === "review"
+        ? "review"
+        : "logger";
 
   const {
     isConnected,
@@ -87,6 +96,7 @@ export default function LoggerCockpit() {
     removeQueuedEventByClientId,
     rejectPendingAck,
     lastTimelineRefreshRequest,
+    lastMatchRefreshRequest,
   } = useMatchLogStore();
   const currentUser = useAuthStore((state) => state.user);
   const isAdmin = currentUser?.role === "admin";
@@ -167,7 +177,7 @@ export default function LoggerCockpit() {
     },
     [movePlayerFromDisplay, manualFieldFlip],
   );
-  const [viewMode, setViewMode] = useState<"logger" | "analytics">("logger");
+  const [viewMode, setViewMode] = useState<CockpitViewMode>(initialView);
   const [dragLocked, setDragLocked] = useState(true);
   const [priorityPlayerId, setPriorityPlayerId] = useState<string | null>(null);
   const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
@@ -262,6 +272,7 @@ export default function LoggerCockpit() {
     endIneffectiveIfNeeded,
     confirmIneffectiveNote,
     cancelIneffectiveNote,
+    switchIneffectiveTeam,
     logNeutralTimerEvent,
   } = useIneffectiveTime({
     match,
@@ -363,7 +374,10 @@ export default function LoggerCockpit() {
     fieldAnchor,
     availableActions,
     availableOutcomes,
+    positionMode,
+    setPositionMode,
     handlePlayerClick,
+    handleZoneSelect,
     handleQuickActionSelect,
     handleOpenMoreActions,
     handleDestinationClick,
@@ -536,6 +550,12 @@ export default function LoggerCockpit() {
     resetFlow,
   });
 
+  // Re-fetch match document when another tab changes match state (clock, status, period)
+  useEffect(() => {
+    if (!lastMatchRefreshRequest) return;
+    fetchMatch();
+  }, [lastMatchRefreshRequest, fetchMatch]);
+
   const {
     handleGlobalClockStartGuarded,
     handleGlobalClockStopGuarded,
@@ -546,6 +566,7 @@ export default function LoggerCockpit() {
   } = useCockpitClockHandlers({
     cockpitLocked,
     clockMode,
+    currentPhase,
     isVarActiveLocal,
     isTimeoutActive,
     varTimeSeconds,
@@ -596,6 +617,7 @@ export default function LoggerCockpit() {
     handleDeletePendingEvent,
     handleDeleteLoggedEvent,
     handleUpdateEventNotes,
+    handleUpdateEventData,
   } = useCockpitEventHandlers({
     t,
     isAdmin,
@@ -842,6 +864,7 @@ export default function LoggerCockpit() {
                   <div className="flex rounded-lg border border-slate-600 overflow-hidden">
                     <button
                       type="button"
+                      data-testid="toggle-logger"
                       onClick={() => setViewMode("logger")}
                       className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800"
                     >
@@ -850,8 +873,17 @@ export default function LoggerCockpit() {
                     </button>
                     <button
                       type="button"
+                      data-testid="toggle-review-from-alt"
+                      onClick={() => setViewMode("review")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    >
+                      <Eye size={16} />
+                      {t("logger:logger.review", "Review")}
+                    </button>
+                    <button
+                      type="button"
                       data-testid="toggle-analytics"
-                      onClick={() => setViewMode("analytics")}
+                      onClick={() => setViewMode("logger")}
                       className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors bg-purple-600 text-white"
                     >
                       <BarChart3 size={16} />
@@ -869,6 +901,50 @@ export default function LoggerCockpit() {
                   varTimeSeconds={varTimeSeconds}
                   timeoutTimeSeconds={timeoutTimeSeconds}
                   ineffectiveBreakdown={ineffectiveBreakdown}
+                  t={t}
+                />
+              </>
+            ) : viewMode === "review" ? (
+              <>
+                {/* Segmented toggle for review view */}
+                <div className="flex justify-end mb-2">
+                  <div className="flex rounded-lg border border-slate-600 overflow-hidden">
+                    <button
+                      type="button"
+                      data-testid="toggle-logger"
+                      onClick={() => setViewMode("logger")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    >
+                      <List size={16} />
+                      {t("logger:logger.view", "Logger")}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="toggle-review"
+                      onClick={() => setViewMode("review")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors bg-teal-600 text-white"
+                    >
+                      <Eye size={16} />
+                      {t("logger:logger.review", "Review")}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="toggle-analytics-from-review"
+                      onClick={() => setViewMode("analytics")}
+                      className="inline-flex items-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                    >
+                      <BarChart3 size={16} />
+                      {t("logger:logger.analytics", "Analytics")}
+                    </button>
+                  </div>
+                </div>
+                <ReviewView
+                  match={match}
+                  liveEvents={liveEvents}
+                  isAdmin={isAdmin}
+                  onUpdateEventData={handleUpdateEventData}
+                  onUpdateEventNotes={handleUpdateEventNotes}
+                  onDeleteEvent={isAdmin ? handleDeleteLoggedEvent : undefined}
                   t={t}
                 />
               </>
@@ -894,6 +970,17 @@ export default function LoggerCockpit() {
                 isVarActive={isVarActive}
                 isTimeoutActive={isTimeoutActive}
                 showFieldResume={showFieldResume}
+                hasActiveIneffective={hasActiveIneffective}
+                ineffectiveTeamLabel={
+                  ineffectiveTeamSelection === "home"
+                    ? match?.away_team?.short_name ?? "Away"
+                    : match?.home_team?.short_name ?? "Home"
+                }
+                onSwitchIneffectiveTeam={() =>
+                  switchIneffectiveTeam(
+                    ineffectiveTeamSelection === "home" ? "away" : "home",
+                  )
+                }
                 periodElapsedSeconds={periodInfo.periodElapsedSeconds}
                 periodMinimumSeconds={periodInfo.periodMinimumSeconds}
                 currentStep={currentStep}
@@ -909,6 +996,7 @@ export default function LoggerCockpit() {
                 handlePlayerSelection={handlePlayerSelection}
                 handleFieldPlayerSelection={handleFieldPlayerSelection}
                 handleFieldDestination={handleFieldDestination}
+                handleZoneSelect={handleZoneSelect}
                 handleQuickActionSelect={handleQuickActionSelect}
                 handleOpenMoreActions={handleOpenMoreActions}
                 resetFlow={resetFlow}
@@ -925,6 +1013,7 @@ export default function LoggerCockpit() {
                 handleRecipientSelect={handleRecipientSelect}
                 handleUndoLastEvent={handleUndoLastEvent}
                 undoDisabled={undoDisabled}
+                undoCount={undoStack.length}
                 manualFieldFlip={manualFieldFlip}
                 setManualFieldFlip={setManualFieldFlip}
                 priorityPlayerId={priorityPlayerId}
@@ -934,6 +1023,7 @@ export default function LoggerCockpit() {
                 handleDeleteLoggedEvent={handleDeleteLoggedEvent}
                 isAdmin={isAdmin}
                 handleUpdateEventNotes={handleUpdateEventNotes}
+                handleUpdateEventData={handleUpdateEventData}
                 getDisplayPosition={getDisplayPosition}
                 onTacticalPlayerDragEnd={handleTacticalPlayerDragEnd}
                 draggingPlayerId={draggingPlayerId}
@@ -947,6 +1037,8 @@ export default function LoggerCockpit() {
                 setViewMode={setViewMode}
                 dragLocked={dragLocked}
                 onToggleDragLock={() => setDragLocked((prev) => !prev)}
+                positionMode={positionMode}
+                onPositionModeChange={setPositionMode}
                 t={t}
               />
             )}

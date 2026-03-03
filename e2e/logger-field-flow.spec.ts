@@ -126,6 +126,12 @@ test.describe("Tactical Field", () => {
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     // Use HOME-1 (GK) — guaranteed at x≈5, no overlap with AWAY-1 at x≈95
     const player = page.getByTestId("field-player-HOME-1");
     await expect(player).toBeVisible({ timeout: 15000 });
@@ -172,7 +178,14 @@ test.describe("Tactical Field", () => {
     await expect(player).toBeVisible({ timeout: 15000 });
     await player.click();
 
-    // After clicking a player, the quick-action menu should appear
+    // After clicking a player, the zone selector should appear first
+    const zoneSelector = page.getByTestId("field-zone-selector");
+    await expect(zoneSelector).toBeVisible({ timeout: 8000 });
+
+    // Select a zone to proceed to quick action menu
+    await page.getByTestId("zone-select-7").click();
+
+    // Now the quick-action menu should appear
     const quickAction = page.getByTestId("quick-action-Pass");
     await expect(quickAction).toBeVisible({ timeout: 8000 });
   });
@@ -189,10 +202,16 @@ test.describe("Tactical Field", () => {
     const beforeCoords = await getTacticalCoords(page, "HOME-2");
 
     // Use the same substitution flow as proven working tests:
-    // 1) Click a player → 2) More actions → 3) Substitution
+    // 1) Click a player → 2) Select zone → 3) More actions → 4) Substitution
     const player = page.getByTestId("field-player-HOME-2");
     await expect(player).toBeVisible({ timeout: 10000 });
     await player.click();
+
+    // Select zone to advance past zone selection step
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
 
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Substitution").click();
@@ -315,6 +334,14 @@ test.describe("Tactical Field", () => {
 
     // Verify clicking works and triggers the action flow
     await player.click();
+
+    // Zone selector should appear first
+    const zoneSelector = page.getByTestId("field-zone-selector");
+    await expect(zoneSelector).toBeVisible({ timeout: 8000 });
+
+    // Select a zone to proceed
+    await page.getByTestId("zone-select-7").click();
+
     const quickAction = page.getByTestId("quick-action-Pass");
     await expect(quickAction).toBeVisible({ timeout: 8000 });
 
@@ -327,6 +354,12 @@ test.describe("Tactical Field", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
+
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
 
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
@@ -377,6 +410,12 @@ test.describe("Tactical Field", () => {
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
 
@@ -414,6 +453,12 @@ test.describe("Tactical Field", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
+
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
 
     // HOME-2 (MF) and HOME-3 (MF) should both be visible
     const p2 = page.getByTestId("field-player-HOME-2");

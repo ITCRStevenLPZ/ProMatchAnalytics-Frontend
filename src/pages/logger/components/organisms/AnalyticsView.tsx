@@ -4,6 +4,7 @@ import { Match } from "../../types";
 import { usePlayerStats } from "../../hooks/usePlayerStats";
 import { MatchAnalytics } from "../molecules/MatchAnalytics";
 import { PlayerStatsTable } from "../molecules/PlayerStatsTable";
+import HeatMapSection from "../molecules/HeatMapSection";
 
 interface AnalyticsViewProps {
   match: Match;
@@ -67,6 +68,7 @@ export default function AnalyticsView({
         ineffectiveBreakdown={ineffectiveBreakdown}
         t={t}
       />
+      <HeatMapSection match={match} events={allEvents} t={t} />
       <PlayerStatsTable
         stats={playerStats}
         homeTeamName={match.home_team.short_name}

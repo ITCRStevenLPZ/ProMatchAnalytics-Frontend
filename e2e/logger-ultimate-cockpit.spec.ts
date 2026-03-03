@@ -11,6 +11,7 @@ import {
   ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   waitForPendingAckToClear,
 } from "./utils/logger";
 
@@ -86,6 +87,7 @@ const openActionEntry = async (
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await selectPlayerRow(page, playerIndex).click({ force: true });
     await page.waitForTimeout(250);
+    await selectZoneIfVisible(page);
 
     const quickPassVisible = await page
       .getByTestId("quick-action-Pass")
@@ -255,9 +257,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
     if (passMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (passMode === "action") {
@@ -270,9 +270,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
     if (shotMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (shotMode === "action") {
@@ -285,9 +283,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const foulMode = await openActionEntry(page, 0);
     await clickAction(page, foulMode, "Foul");
     if (foulMode === "quick") {
-      await expect(
-        page.locator('button[title="Destination"]').first(),
-      ).toBeVisible({
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
         timeout: 8000,
       });
     } else if (foulMode === "action") {
@@ -390,7 +386,7 @@ test.describe("Logger cockpit ultimate suite", () => {
     const outMode = await openActionEntry(page, 0);
     await clickAction(page, outMode, "Pass");
     if (outMode === "quick") {
-      await page.locator('button[title="Destination"]').first().click();
+      await page.locator('button[title^="Out"]').first().click();
     } else if (outMode === "action") {
       await page.getByTestId("outcome-btn-Out").click();
     } else {
@@ -431,6 +427,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     expect(effectiveAfterRun - effectiveBeforeStop).toBeGreaterThan(0.8);
 
     await page.getByTestId("btn-stop-clock").click();
+    // Allow time for the clock stop to propagate through state
+    await page.waitForTimeout(300);
     const effectiveBeforePause = await readTextClock(
       page,
       "effective-clock-value",

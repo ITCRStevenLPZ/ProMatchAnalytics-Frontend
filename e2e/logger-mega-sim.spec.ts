@@ -257,6 +257,17 @@ test.describe("Logger mega simulation", () => {
       }
     };
 
+    /** Select a zone after clicking a field player (zone selection step). */
+    const selectZoneAfterClick = async () => {
+      const zoneSelector = page.getByTestId("field-zone-selector");
+      const visible = await zoneSelector
+        .isVisible({ timeout: 2000 })
+        .catch(() => false);
+      if (visible) {
+        await page.getByTestId("zone-select-7").click();
+      }
+    };
+
     await expect(page.getByTestId(`field-player-${firstHome}`)).toBeVisible({
       timeout: 20000,
     });
@@ -265,6 +276,7 @@ test.describe("Logger mega simulation", () => {
     const logUiPass = async (playerId: string) => {
       await selectTeamSide("home");
       await clickFieldPlayer(playerId);
+      await selectZoneAfterClick();
       await openMoreActions();
       const passButton = page.getByTestId("action-btn-Pass");
       const passVisible = await passButton
@@ -298,6 +310,7 @@ test.describe("Logger mega simulation", () => {
     const logUiShotGoal = async (playerId: string) => {
       await selectTeamSide("away");
       await clickFieldPlayer(playerId);
+      await selectZoneAfterClick();
       await openMoreActions();
       const shotButton = page.getByTestId("action-btn-Shot");
       const shotVisible = await shotButton
@@ -324,6 +337,7 @@ test.describe("Logger mega simulation", () => {
     const logUiCorner = async (playerId: string) => {
       await selectTeamSide("home");
       await clickFieldPlayer(playerId);
+      await selectZoneAfterClick();
       await openMoreActions();
       const cornerButton = page.getByTestId("action-btn-Corner");
       const cornerVisible = await cornerButton
@@ -350,6 +364,7 @@ test.describe("Logger mega simulation", () => {
     const logUiFoulYellow = async (playerId: string) => {
       await selectTeamSide("away");
       await clickFieldPlayer(playerId);
+      await selectZoneAfterClick();
       await openMoreActions();
       const foulButton = page.getByTestId("action-btn-Foul");
       const foulVisible = await foulButton
@@ -375,6 +390,7 @@ test.describe("Logger mega simulation", () => {
     const logUiSubstitution = async () => {
       await selectTeamSide("home");
       await clickFieldPlayer(firstHome);
+      await selectZoneAfterClick();
       await openMoreActions();
       const substitutionButton = page.getByTestId("action-btn-Substitution");
       const substitutionVisible = await substitutionButton

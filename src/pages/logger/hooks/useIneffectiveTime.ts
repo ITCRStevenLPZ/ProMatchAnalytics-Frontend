@@ -53,6 +53,10 @@ export interface UseIneffectiveTimeResult {
   endIneffectiveIfNeeded: (nextMode: "EFFECTIVE") => void;
   confirmIneffectiveNote: () => void;
   cancelIneffectiveNote: () => void;
+  switchIneffectiveTeam: (
+    newTeam: "home" | "away",
+    newAction?: IneffectiveAction,
+  ) => void;
   logNeutralTimerEvent: (
     stoppageType: "VARStart" | "VARStop" | "TimeoutStart" | "TimeoutStop",
   ) => void;
@@ -118,8 +122,9 @@ export const useIneffectiveTime = ({
       context?: IneffectiveContext | null,
     ) => {
       if (!match) return;
-      const isVarAction = context?.actionType === "VAR";
-      const resolvedTeamId = isVarAction
+      const isNeutralAction =
+        context?.actionType === "VAR" || context?.actionType === "Referee";
+      const resolvedTeamId = isNeutralAction
         ? "NEUTRAL"
         : context?.teamId || getStoppageTeamId();
       if (!resolvedTeamId) return;
@@ -141,7 +146,7 @@ export const useIneffectiveTime = ({
           stoppage_type: stoppageType,
           reason: context?.actionType || "Other",
           trigger_action: context?.actionType || null,
-          trigger_team_id: isVarAction ? null : context?.teamId || null,
+          trigger_team_id: isNeutralAction ? null : context?.teamId || null,
           trigger_player_id: context?.playerId || null,
         },
         ...(notes ? { notes } : {}),
@@ -315,6 +320,39 @@ export const useIneffectiveTime = ({
     setIneffectiveTeamDropdownOpen(false);
   }, []);
 
+  /**
+   * Switch the team attribution during an active ineffective period.
+   * This ends the current stoppage for the old team and starts a new one
+   * for the target team, keeping the clock in INEFFECTIVE mode.
+   */
+  const switchIneffectiveTeam = useCallback(
+    (newTeam: "home" | "away", newAction?: IneffectiveAction) => {
+      if (!match) return;
+      if (clockMode !== "INEFFECTIVE" && !activeIneffectiveContextRef.current)
+        return;
+
+      // End current ineffective for the old team
+      logClockStoppage("ClockStart", null, activeIneffectiveContextRef.current);
+
+      // Start new ineffective for the target team
+      const newTeamId = getManualTeamId(newTeam);
+      const resolvedAction =
+        newAction ?? activeIneffectiveContextRef.current?.actionType ?? "Other";
+      const newContext: IneffectiveContext & { startedAtMs?: number } = {
+        teamId: newTeamId,
+        playerId: null,
+        actionType: resolvedAction,
+        startedAtMs: Date.now(),
+      };
+
+      logClockStoppage("ClockStop", null, newContext);
+      activeIneffectiveContextRef.current = newContext;
+      setIneffectiveTeamSelection(newTeam);
+      if (newAction) setIneffectiveActionType(newAction);
+    },
+    [clockMode, getManualTeamId, logClockStoppage, match],
+  );
+
   return {
     ineffectiveNoteOpen,
     setIneffectiveNoteOpen,
@@ -333,6 +371,7 @@ export const useIneffectiveTime = ({
     endIneffectiveIfNeeded,
     confirmIneffectiveNote,
     cancelIneffectiveNote,
+    switchIneffectiveTeam,
     logNeutralTimerEvent,
   };
 };

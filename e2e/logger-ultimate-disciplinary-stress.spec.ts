@@ -12,6 +12,7 @@ import {
   getHarnessMatchContext,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   sendRawEventThroughHarness,
   triggerUndoThroughHarness,
   waitForPendingAckToClear,
@@ -101,6 +102,7 @@ const logCardForPlayer = async (
 const openSubstitutionModal = async (page: Page) => {
   await resetHarnessFlow(page, "home");
   await page.getByTestId("field-player-HOME-2").click({ force: true });
+  await selectZoneIfVisible(page);
 
   const actionSelection = page.getByTestId("action-selection");
   const hasActionSelection = await actionSelection

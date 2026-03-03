@@ -10,8 +10,8 @@ interface CockpitHeaderProps {
   resetBlocked: boolean;
   resetTooltip?: string;
   undoError: string | null;
-  viewMode?: "logger" | "analytics";
-  setViewMode?: (mode: "logger" | "analytics") => void;
+  viewMode?: "logger" | "analytics" | "review";
+  setViewMode?: (mode: "logger" | "analytics" | "review") => void;
   matchTimeSeconds: number;
   statusOverride?: string | null;
   matchStatus?: string;

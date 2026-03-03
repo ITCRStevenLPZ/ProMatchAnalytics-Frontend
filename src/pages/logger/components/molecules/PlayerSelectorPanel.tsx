@@ -8,7 +8,6 @@ import {
 } from "../../../../components/icons";
 import SoccerField from "../../../../components/SoccerField";
 import TacticalField from "./TacticalField";
-import FormationPicker from "./FormationPicker";
 import type {
   TacticalPosition,
   Formation,
@@ -182,6 +181,8 @@ interface PlayerSelectorPanelProps {
   homeFormation?: Formation | null;
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
+  /** When set, only these player nodes are visible on the field */
+  visiblePlayerIds?: Set<string>;
   t: TFunction<"logger">;
 }
 
@@ -213,9 +214,10 @@ const PlayerSelectorPanel = ({
   onTacticalDragStart,
   onTacticalDragStop,
   allTacticalPositions,
-  homeFormation,
-  awayFormation,
-  applyFormation,
+  homeFormation: _homeFormation,
+  awayFormation: _awayFormation,
+  applyFormation: _applyFormation,
+  visiblePlayerIds,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
@@ -524,36 +526,6 @@ const PlayerSelectorPanel = ({
       getDisplayPosition &&
       onPlayerDragEnd ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
-          {/* Formation pickers — one per side */}
-          {applyFormation && (
-            <div
-              className="flex items-center justify-between mb-2 px-1"
-              data-testid="formation-pickers-row"
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  {match.home_team.short_name}
-                </span>
-                <FormationPicker
-                  currentFormation={homeFormation ?? null}
-                  onFormationChange={(f) => applyFormation("home", f)}
-                  side="home"
-                  t={t}
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  {match.away_team.short_name}
-                </span>
-                <FormationPicker
-                  currentFormation={awayFormation ?? null}
-                  onFormationChange={(f) => applyFormation("away", f)}
-                  side="away"
-                  t={t}
-                />
-              </div>
-            </div>
-          )}
           <TacticalField
             homeTeamName={match.home_team.name}
             awayTeamName={match.away_team.name}
@@ -586,6 +558,7 @@ const PlayerSelectorPanel = ({
             onDragStop={onTacticalDragStop}
             allPositions={allTacticalPositions}
             dragLocked={effectiveDragLocked}
+            visiblePlayerIds={visiblePlayerIds}
           />
         </div>
       ) : resolvedViewMode === "field" ? (

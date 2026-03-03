@@ -79,8 +79,14 @@ describe("useActionFlow", () => {
     act(() => {
       result.current.handlePlayerClick(mockPlayer1);
     });
-    expect(result.current.currentStep).toBe("selectAction");
+    expect(result.current.currentStep).toBe("selectZone");
     expect(result.current.selectedPlayer?.id).toBe(mockPlayer1.id);
+
+    // 1b. Select Zone
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    expect(result.current.currentStep).toBe("selectAction");
 
     // 2. Select Action that requires recipient (e.g., 'Pass')
     // Note: In the actual code, handleActionClick just sets action, flow waits for outcome
@@ -118,6 +124,11 @@ describe("useActionFlow", () => {
       result.current.handlePlayerClick(mockPlayer1);
     });
 
+    // 1b. Select Zone
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+
     // 2. Select Action (e.g. Clearance which doesn't need recipient)
     act(() => {
       result.current.handleActionClick("Clearance");
@@ -147,6 +158,11 @@ describe("useActionFlow", () => {
         xPercent: 50,
         yPercent: 50,
       });
+    });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(7);
     });
     expect(result.current.currentStep).toBe("selectQuickAction");
 
@@ -194,6 +210,11 @@ describe("useActionFlow", () => {
         yPercent: 44,
       });
     });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(10);
+    });
     expect(result.current.currentStep).toBe("selectQuickAction");
 
     act(() => {
@@ -221,6 +242,11 @@ describe("useActionFlow", () => {
         xPercent: 48,
         yPercent: 52,
       });
+    });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(7);
     });
     expect(result.current.currentStep).toBe("selectQuickAction");
 
@@ -270,6 +296,10 @@ describe("useActionFlow", () => {
     });
 
     act(() => {
+      result.current.handleZoneSelect(7);
+    });
+
+    act(() => {
       result.current.handleQuickActionSelect("Pass");
     });
     expect(result.current.currentStep).toBe("selectDestination");
@@ -316,6 +346,11 @@ describe("useActionFlow", () => {
     act(() => {
       result.current.handlePlayerClick(mockPlayer1);
     });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
     expect(result.current.currentStep).toBe("selectAction");
 
     act(() => {
@@ -359,6 +394,11 @@ describe("useActionFlow", () => {
         yPercent: 55,
       });
     });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
     expect(result.current.currentStep).toBe("selectQuickAction");
 
     act(() => {
@@ -396,6 +436,9 @@ describe("useActionFlow", () => {
       result.current.handlePlayerClick(mockPlayer1);
     });
     act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
       result.current.handleActionClick("Foul");
     });
     act(() => {
@@ -429,6 +472,9 @@ describe("useActionFlow", () => {
       result.current.handlePlayerClick(mockPlayer1);
     });
     act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
       result.current.handleActionClick("Card");
     });
     act(() => {
@@ -455,6 +501,11 @@ describe("useActionFlow", () => {
 
     act(() => {
       result.current.handlePlayerClick(mockPlayer1);
+    });
+    expect(result.current.currentStep).toBe("selectZone");
+
+    act(() => {
+      result.current.handleZoneSelect(7);
     });
     expect(result.current.currentStep).toBe("selectAction");
 
@@ -493,6 +544,9 @@ describe("useActionFlow", () => {
         xPercent: 52,
         yPercent: 51,
       });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
     });
     act(() => {
       result.current.handleQuickActionSelect("Shot");

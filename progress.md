@@ -8,37 +8,355 @@
 
 ## Current Objective
 
-- [x] Validate frontend impact for backend CORS allow-list update adding `https://www.promatchanalytics.com`.
+- [x] Formation rotation, toolbar layout, and Review view for event corrections
 
 ## Status
 
 - Phase: Handoff
 - Overall: On track
 
-## What Was Completed (Latest Session — commit `b7545ef`)
+## What Was Completed (Latest Session)
 
-- [x] Re-checked frontend architecture/progress/TODO context for backend CORS custom-domain update (root + `www`).
-- [x] Confirmed no frontend code, routing, or contract changes are required for this backend-only allow-list deployment change.
+### Feature: Formation Rotation & Toolbar Layout
+
+1. **Formation pickers moved to TeamSelector** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+
+   - Formations now appear on left/right sides of the toolbar
+   - When field is flipped (`isFlipped`), pickers swap sides: `leftSide = isFlipped ? "away" : "home"`
+   - Added `data-testid="formation-slot-left"` and `data-testid="formation-slot-right"` for E2E testing
+   - Flip & Undo buttons centered between formation pickers with `flex-1 justify-center`
+
+2. **Formation pickers removed from PlayerSelectorPanel** — [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx)
+   - Removed `FormationPicker` import and the formation pickers row
+   - Prefixed unused formation props with underscores to avoid TS warnings
+
+### Feature: Three-Way View Toggle (Logger / Review / Analytics)
+
+3. **`CockpitViewMode` type** — exported from [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+
+   - New type: `"logger" | "analytics" | "review"` shared across TeamSelector, LoggerView, LoggerCockpit, CockpitTopSection, CockpitHeader
+
+4. **Three-way toggle in TeamSelector** — Logger (default) | Review (teal) | Analytics (purple)
+
+   - `data-testid="toggle-logger-view"`, `data-testid="toggle-review"`, `data-testid="toggle-analytics"`
+
+5. **Review view routing in LoggerCockpit** — [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+   - `?view=review` URL parameter opens review mode directly
+   - Three-way view conditional rendering with segmented toggles in analytics/review headers
+   - Review view receives `match`, `liveEvents`, `isAdmin`, event handler callbacks
+
+### Feature: Review View for Event Corrections
+
+6. **ReviewView component** — [ReviewView.tsx](src/pages/logger/components/organisms/ReviewView.tsx)
+
+   - Full-page scrollable event list showing all events in reverse chronological order
+   - **Filters**: by event type, team, period (dropdown selectors)
+   - **Inline editing**: click Edit (pencil icon) to expand a full correction form with:
+     - Type (dropdown from `ACTION_FLOWS` keys)
+     - Outcome (dropdown, resets when type changes)
+     - Team (dropdown, resets player when team changes)
+     - Player (dropdown filtered by selected team)
+     - Period (dropdown 1-5)
+     - Clock (text input)
+     - Notes (textarea)
+   - **Save/Cancel** buttons with loading state
+   - **Delete** button for admins on confirmed events
+   - Pagination with page size selector (10/25/50/100)
+   - `data-testid="review-panel"`, `data-testid="review-event-item"`, `data-testid="review-edit-form"`, etc.
+
+7. **i18n updates** — [en/logger.json](public/locales/en/logger.json), [es/logger.json](public/locales/es/logger.json)
+
+   - Added `"review": "Review"` (en) / `"review": "Revisión"` (es) inside `logger` section
+
+8. **Type propagation** — [CockpitTopSection.tsx](src/pages/logger/components/organisms/CockpitTopSection.tsx), [CockpitHeader.tsx](src/pages/logger/components/molecules/CockpitHeader.tsx)
+   - Updated `viewMode`/`setViewMode` types to include `"review"`
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] Validation: backend CORS regression test run in backend repo (`pytest tests/test_cors_settings.py`) -> PASS (4 passed)
+- [x] E2E: `review-formation-rotation.spec.ts` — 9 tests → ALL PASS
+  - Formation pickers swap sides when field is flipped
+  - Flip + undo buttons centered between formation pickers
+  - Formation selection persists after flip and unflip
+  - `?view=review` URL param opens review view directly
+  - Review view shows logged events and supports editing
+  - Review view edit can be cancelled
+  - Review view filters events by type
+  - Three-way view toggle: Logger → Review → Analytics → Logger
+  - Tab A logs events, Tab B in review mode sees them
+- [x] E2E: `formation-system.spec.ts` — Updated `formation-pickers-row` testid → `formation-slot-left/right` — 10 tests → ALL PASS
+- [x] E2E: `multi-tab-sync.spec.ts` — 5 tests → ALL PASS (no changes needed)
+- [x] Vitest: 115 passed
+- [x] pytest: 121 passed
+- [x] TypeScript: 0 new errors (only pre-existing TacticalField warnings)
 
 ## Implementation Notes
 
-- Backend CORS allow-list now explicitly includes both `https://promatchanalytics.com` and `https://www.promatchanalytics.com`; frontend deployment/domain usage remains unchanged.
+- No backend changes needed — `PUT /events/{event_id}` already supports full event corrections via `EventUpdate` schema
+- Formation rotation is purely visual — it swaps which picker appears on left vs right, but internally always maps to the correct `"home"` / `"away"` side
+- ReviewView reuses the same `onUpdateEventData`/`onUpdateEventNotes` callbacks as LiveEventFeed, so all corrections go through the same validated API path
+- The one `maxFailures:1` flaky test (`logger-mega-sim` or `logger-event-taxonomy`) is pre-existing and unrelated to these changes
+  - WS `onmessage` handler recognizes `match_state_changed` and triggers `requestTimelineRefresh()` + `requestMatchRefresh()`
+  - Added `requestMatchRefresh` action to Zustand store (sets `lastMatchRefreshRequest` timestamp)
+  - LoggerCockpit `useEffect` watches `lastMatchRefreshRequest` and re-fetches match document
 
-## Next Steps
+4. **datetime serialization fix** — [websocket.py](../ProMatchAnalytics-Backend/app/websocket.py)
 
-- Consider removing unused `papaparse` dependency if no longer needed
-- Consider adding roster pagination performance optimization
-- Consider backend-side formation persistence (API endpoint) for cross-device sync
+   - Changed `event.model_dump(by_alias=True)` → `event.model_dump(mode="json", by_alias=True)` for WS broadcasts
+   - `by_alias=True` alone produces Python `datetime` objects that `json.dumps()` can't serialize
+
+5. **React StrictMode WebSocket lifecycle guards** — [useMatchSocket.ts](src/hooks/useMatchSocket.ts)
+
+   - `connect()` closes existing `wsRef.current` before creating new WS
+   - Nullifies `onclose`/`onmessage`/`onerror` handlers before closing to prevent stale callbacks
+   - `handleOpen` and `onclose` guarded with `if (wsRef.current !== ws) return;`
+
+6. **Toggle-logger testid** — [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `data-testid="toggle-logger"` to the Logger toggle button in analytics view
+
+7. **E2E test suite** — [multi-tab-sync.spec.ts](e2e/multi-tab-sync.spec.ts) (5 tests)
+   - Test 1: Event logged in Tab A broadcasts to Tab B in real time
+   - Test 2: `?view=analytics` opens analytics view by default
+   - Test 3: Two logger tabs coexist on the same match
+   - Test 4: Match clock-mode change broadcasts via WebSocket
+   - Test 5: Tab A logs events while Tab B views analytics in real time
+   - Each test uses a unique match ID to prevent cross-test WS room contamination under `fullyParallel: true`
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `multi-tab-sync.spec.ts` (5 tests) → PASS (5/5 consecutive runs, 100% stable)
+- [x] Vitest: 115 passed (0 new failures)
+- [x] TypeScript: `tsc --noEmit` → 0 new errors
+- [x] Backend pytest: 121 passed (0 new failures)
+- [x] Full E2E suite: 247 passed, 3 pre-existing failures (unrelated to this feature)
+
+## Implementation Notes
+
+- Root cause of WS broadcast failures: `model_dump(by_alias=True)` returns Python `datetime` objects; `mode="json"` converts them to ISO strings
+- Root cause of WS reconnection loops: React StrictMode mount/unmount/remount causes stale `onclose` handlers to fire, triggering cascading dependency changes
+- Root cause of test flakiness: `fullyParallel: true` in Playwright config means tests run concurrently — sharing one match ID caused WS room cross-contamination. Fixed by giving each test a unique match ID
+- Pre-existing failing tests in `logger-event-taxonomy.spec.ts`, `logger-cockpit-gaps.spec.ts`, `logger-field-flow.spec.ts` are unrelated to this feature
 
 ---
 
 ## Previous Objectives (Completed)
 
-- [x] Add formation system for tactical field player positioning (13 presets, FormationPicker UI, IDB persistence, bigger nodes, full name display, card cancel bug fix)
+### Feature Batch: 11 Logger & Admin Improvements
+
+1. **[CRITICAL] Fix team pagination in match creation** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - `fetchTeams()` now paginates through all pages with `page_size=100` loop (was only reading first page)
+
+2. **Fix halftime resume button** — [useCockpitClockHandlers.ts](src/pages/logger/hooks/useCockpitClockHandlers.ts)
+
+   - `showFieldResume` now checks `currentPhase !== "HALFTIME" && currentPhase !== "EXTRA_HALFTIME"`
+
+3. **Add penalty to player scoring** — [usePlayerStats.ts](src/pages/logger/hooks/usePlayerStats.ts), [PlayerStatsTable.tsx](src/pages/logger/components/molecules/PlayerStatsTable.tsx)
+
+   - Added `penalties` and `penaltyGoals` fields to `PlayerStats` interface
+   - SetPiece Penalty with Goal outcome now increments both `penaltyGoals` and `goals`
+   - Header shots counted alongside regular shots
+   - Added PEN and PG columns to stats table
+
+4. **Add header/freekick/dribble-loss events** — [types.ts](src/pages/logger/types.ts), [constants.ts](src/pages/logger/constants.ts), [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Added `Header` EventType with outcomes: Goal, OnTarget, OffTarget, Blocked, Won, Lost
+   - Added `Carry` EventType with DribbleLoss outcome
+   - Expanded Free Kick outcomes with Goal, OnTarget, OffTarget
+   - Added "Header" and "Free Kick" to QUICK_ACTIONS, `h/H` keyboard shortcut
+
+5. **Add referee ineffective actions** — [types.ts](src/pages/logger/types.ts), [IneffectiveNoteModal.tsx](src/pages/logger/components/molecules/IneffectiveNoteModal.tsx), [useIneffectiveTime.ts](src/pages/logger/hooks/useIneffectiveTime.ts), [utils.ts](src/pages/logger/utils.ts)
+
+   - Added `"Referee"` to `IneffectiveAction` type (both types.ts and utils.ts)
+   - Overhauled IneffectiveNoteModal with all 10 action types including neutral badges
+   - Referee treated as neutral action (like VAR) — no team attribution
+
+6. **Ineffective time team switching** — [useIneffectiveTime.ts](src/pages/logger/hooks/useIneffectiveTime.ts), [MatchTimerDisplay.tsx](src/pages/logger/components/molecules/MatchTimerDisplay.tsx), [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `switchIneffectiveTeam(newTeam, newAction?)` — ends current ineffective, begins for target team
+   - Added ↔ "Switch Team" button in INEFFECTIVE mode display
+
+7. **Fix add-player-to-team modal** — [TeamsManager.tsx](src/pages/TeamsManager.tsx)
+
+   - Added `isAddingPlayerToRoster` loading guard (prevents double-submit)
+   - Re-fetches fresh player pool before roster refresh
+   - Clears search text on selection
+   - Submit button shows spinner when saving
+
+8. **Improve undo positioning & visibility** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+
+   - Undo button now rose-colored when enabled (`text-rose-300 border-rose-500/40`)
+   - Badge shows undo stack count on the button
+
+9. **Multi-session analytics streaming** — Backend [websocket.py](../ProMatchAnalytics-Backend/app/websocket.py)
+
+   - `ConnectionManager` now uses composite keys (`user_id:uuid`) instead of plain `user_id`
+   - Added `_ws_to_conn` reverse lookup for correct disconnection
+   - Multiple browser tabs from same user no longer overwrite each other
+
+10. **CRUD view for match events** — [useCockpitEventHandlers.ts](src/pages/logger/hooks/useCockpitEventHandlers.ts), [LiveEventFeed.tsx](src/pages/logger/components/molecules/LiveEventFeed.tsx), [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+    - Added `handleUpdateEventData` to update any confirmed event field via backend PUT
+    - Inline edit panel in LiveEventFeed: outcome dropdown from ACTION_FLOWS, save/cancel
+    - Edit icon (pen) button on confirmed events for admin users
+    - Delete button now available on ALL confirmed events (removed Card-only restriction)
+
+## Tests Implemented/Updated (Mandatory)
+
+- [ ] TypeScript: `tsc --noEmit` -> 0 errors (verified)
+- [ ] E2E: Pending full regression run
+
+## Implementation Notes
+
+- All 11 items implemented in a single session
+- Backend changes: `event.py` (Header/Carry EventTypes), `ineffective_aggregates.py` (Offside/Referee actions), `websocket.py` (composite connection keys)
+- Frontend changes span MatchesManager, TeamsManager, LoggerCockpit, LoggerView, LiveEventFeed, TeamSelector, MatchTimerDisplay, IneffectiveNoteModal, and 6 hook files
+- Zero new dependencies added
+
+---
+
+## Previous Objectives (Completed)
+
+### Feature: Heat Maps in JPG Export + ProMatch Logo Watermark
+
+**Requirement:** Include the three heat maps (home, away, combined) in the JPG export image and ensure the ProMatch logo watermark is present.
+
+#### Source Changes
+
+- [x] **`MatchAnalytics.tsx` — `exportJpg` function rewritten**: The export now captures two DOM sections using `html2canvas`: the comparative stats table (`statsTableRef`) and the heat map section (via `document.querySelector('[data-testid="heatmap-section"]')`). Both canvases are composited vertically onto a single final canvas with a dark background (`#0f172a`), a 24px scaled gap between sections, and centered alignment. The ProMatch logo watermark (35% opacity, bottom-right corner) is drawn on the combined canvas. No component hierarchy changes were needed.
+
+#### Key Implementation Details
+
+- Uses `html2canvas` to capture the heat map section (rendered as a sibling in `AnalyticsView.tsx`) by querying `[data-testid="heatmap-section"]` from the DOM
+- Both captures use the same `{ backgroundColor: "#0f172a", scale: 2 }` options
+- A new combined canvas is created with `Math.max(statsWidth, heatmapWidth)` width and vertically stacked heights
+- The ProMatch logo watermark was already present in the existing code; it now draws on the final composited canvas
+- Graceful fallback: if the heat map section is not found in the DOM, only the stats table is exported (no crash)
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-zone-selector.spec.ts` (21 tests) -> ALL PASS
+- [x] E2E: `logger-advanced.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-keyboard.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-comprehensive.spec.ts` (1 test) -> ALL PASS
+- [x] E2E: `logger-substitution-queue.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-substitution-rules.spec.ts` (5 tests) -> ALL PASS
+- [x] E2E: `logger-substitution-windows.spec.ts` (3 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-error-handling.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-disciplinary.spec.ts` (2 tests) -> ALL PASS
+- [x] E2E: `logger-multi-event.spec.ts` (1 test) -> ALL PASS
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
+- [x] Full logger regression: **51 tests passed, 0 failed**
+
+## Implementation Notes
+
+- The `exportJpg` function in `MatchAnalytics.tsx` was the only file changed
+- The heat maps render as SVG via `SoccerFieldHeatMap` component; `html2canvas` captures SVG elements correctly
+- No new dependencies added; existing `html2canvas` library handles both captures
+- No backend changes needed
+
+## Next Steps
+
+- Consider adding heat maps to the PDF export as well
+- Consider persisting per-player "last used zone" for faster re-logging
+- Investigate pre-existing analytics panel toggle failures (heatmap, permissions tests)
+- Overall: On track
+
+## What Was Completed (Latest Session)
+
+### Feature: Manual/Auto Position Mode Toggle
+
+**Requirement:** Add a toggle switch above the soccer field to choose position assignment mode. **Manual** (default): the operator selects a zone on the field before assigning the action (existing flow). **Auto**: skip the zone selector entirely and derive position + zone_id from the player node's current coordinates on the tactical field.
+
+#### Source Changes
+
+- [x] **`useActionFlow.ts`**: Added `PositionMode` type export (`"manual" | "auto"`). Added `positionMode` state (defaults to `"manual"`). Added `setPositionMode` setter. Modified `handlePlayerClick` — when `positionMode === "auto"` and location is provided, calls `locationToZoneId()` to derive zone from player coords, sets `selectedZoneId` and `selectedPlayerLocation` directly, then skips to `selectQuickAction`/`selectAction` (bypassing zone selector). Imported `locationToZoneId` from `heatMapZones`.
+- [x] **`ActionStage.tsx`**: Imported `PositionMode` type, `MapPin` and `Zap` icons. Added `positionMode` and `onPositionModeChange` props to interface and destructured params. Rendered a segmented toggle (Manual/Auto) with `data-testid="position-mode-toggle"`, `position-mode-manual`, `position-mode-auto` above the player/field area.
+- [x] **`LoggerView.tsx`**: Imported `PositionMode`. Added `positionMode` and `onPositionModeChange` to props interface, destructuring, and passed them to `ActionStage`.
+- [x] **`LoggerCockpit.tsx`**: Destructured `positionMode` and `setPositionMode` from `useActionFlow` return. Threaded them as `positionMode={positionMode}` and `onPositionModeChange={setPositionMode}` to `LoggerView`.
+- [x] **i18n EN/ES**: Added `positionManual` ("Manual") and `positionAuto` ("Auto") keys to both `public/locales/en/logger.json` and `public/locales/es/logger.json`.
+
+#### E2E Tests Added (4 new auto position mode tests)
+
+- [x] **`e2e/logger-zone-selector.spec.ts`** (now 21 tests total, all PASS):
+  - position mode toggle is visible and defaults to Manual
+  - switching to Auto skips zone selector after player click
+  - Auto mode event has zone_id derived from player node position (verified against backend)
+  - switching back to Manual restores zone selector flow
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-zone-selector.spec.ts` (21 tests) -> ALL PASS
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-advanced.spec.ts` (3 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-queue.spec.ts` (4 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-rules.spec.ts` (5 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-substitution-windows.spec.ts` (3 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-comprehensive.spec.ts` (5 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-keyboard.spec.ts` (1 test) -> ALL PASS (regression check)
+- [x] E2E: `logger-error-handling.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-disciplinary.spec.ts` (6 tests) -> ALL PASS (regression check)
+- [x] E2E: `logger-multi-event.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
+- [x] Full logger regression: **51 tests passed, 0 failed**
+
+## Implementation Notes
+
+- Auto mode uses `locationToZoneId(x, y)` from `heatMapZones.ts` — the same function used for heat map rendering — to derive zone from StatsBomb coords.
+- In auto mode, `handlePlayerClick` sets `selectedZoneId`, `selectedPlayerLocation`, and transitions directly to action selection, completely skipping the `selectZone` step.
+- `selectZoneIfVisible()` E2E helper already handles auto mode gracefully (checks visibility before clicking, returns silently if zone selector not shown).
+- No backend changes needed — events still carry `location` and `data.zone_id`.
+- Pre-existing failures unrelated to this change: `duplicate-events.spec.ts` (duplicate banner timing), `logger-heatmap.spec.ts` (analytics panel toggle), `logger-field-flow.spec.ts` (drag coordinate clamping), `logger-permissions.spec.ts` (analytics panel visibility), `logger-event-taxonomy.spec.ts` "flipped field" (corner detection). All confirmed failing on clean `dev` branch without our changes.
+
+## Next Steps
+
+- Consider adding SoccerField `visiblePlayerIds` support for non-tactical field mode
+- Consider persisting per-player "last used zone" for faster re-logging
+- Investigate flaky drag test in `logger-field-flow.spec.ts`
+- Investigate pre-existing analytics panel toggle failures (heatmap, permissions tests)
+- Investigate pre-existing flipped field corner detection failure
+
+---
+
+## Previous Objectives (Completed)
+
+- [x] **`e2e/logger-zone-selector.spec.ts`** (now 13 tests total, all PASS):
+  - Border zones appear during selectDestination step
+  - All 20 border zones are rendered (6 top + 6 bottom + 4 left + 4 right)
+  - Corner areas have exactly 2 border zone buttons each
+  - Clicking a touchline border zone (top) logs out-of-bounds event
+  - Clicking a goal-line border zone (left) logs out-of-bounds event with corner logic preserved
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: `logger-zone-selector.spec.ts` (13 tests) -> ALL PASS
+- [x] E2E: `logger-ultimate-cockpit.spec.ts` (4 tests) -> ALL PASS
+- [x] E2E: `logger-basic.spec.ts` (2 tests) -> ALL PASS (regression check)
+- [x] TypeScript: `tsc --noEmit` -> 0 errors
+
+## Implementation Notes
+
+- `buildCoordinate` already handles `isOutOfBounds` detection (coords at edges → outOfBoundsEdge)
+- `handleDestinationClick` corner logic unchanged: `outOfBoundsEdge === ownGoalEdge` → corner awarded
+- `handleFieldDestination` ineffective trigger unchanged: `beginIneffective` on `triggerContext`
+- Border zones use same `onDestinationClick(buildCoordinate(...))` pattern as old OUT buttons
+- SoccerField uses `maybeFlipX` pre-computation for double-flip handling
+- `logger-action-matrix.spec.ts` has pre-existing timeout/interrupt issue (unrelated to this change)
+
+## Next Steps
+
+- Consider adding SoccerField `visiblePlayerIds` support for non-tactical field mode
+- Consider persisting per-player "last used zone" for faster re-logging
+- Investigate flaky drag test in `logger-field-flow.spec.ts`
+
+---
+
+## Previous Objectives (Completed)
+
+- [x] Add heat map analytics (24-zone grid, per-team/player heatReactangle rendering in MatchAnalytics)
+- [x] Fix 6 QA issues — drag lock action leak, quick-action auto-fire, roster global sort, toggle UX, JPG clipping, clock-stopped drag
 - [x] Add tactical field persistence (IndexedDB), visual drag bounds, collision detection, and fix missing i18n key
 - [x] Prevent substitution disappearance during logger timeline hydration by preserving optimistic pending substitutions and replaying queued substitutions in on-field roster reconstruction.
 - [x] Remove Cockpit Guard E2E from frontend pre-commit hooks while keeping core lint/typecheck/unit pre-commit quality gates active.

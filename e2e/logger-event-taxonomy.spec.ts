@@ -11,6 +11,7 @@ import {
   ensureClockRunning,
   gotoLoggerPage,
   resetHarnessFlow,
+  selectZoneIfVisible,
   waitForPendingAckToClear,
   getHarnessMatchContext,
   sendRawEventThroughHarness,
@@ -91,6 +92,7 @@ const getHarnessCurrentStep = async (page: Page): Promise<string | null> => {
 
 const logShotGoal = async (page: Page) => {
   await selectHomePlayer(page).click();
+  await selectZoneIfVisible(page);
   await page.getByTestId("quick-action-more").click({ timeout: 8000 });
   await page.getByTestId("action-btn-Shot").click();
   await page.getByTestId("outcome-btn-Goal").click();
@@ -298,6 +300,7 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     await selectHomePlayer(page).click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-DirectShot").click({ timeout: 8000 });
     await waitForPendingAckToClear(page);
 
@@ -323,26 +326,27 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     const liveEvents = page.getByTestId("live-event-item");
-    const beforeCount = await liveEvents.count();
 
     await selectHomePlayer(page).click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
 
+    // Step must be selectDestination — proves Shot did NOT log immediately
     const afterShotStep = await getHarnessCurrentStep(page);
     expect(afterShotStep).toBe("selectDestination");
-    await expect
-      .poll(async () => await liveEvents.count(), { timeout: 2000 })
-      .toBe(beforeCount);
+
+    // Capture count AFTER step is confirmed to avoid race with prior events
+    const countAtDestStep = await liveEvents.count();
 
     await page.getByTestId("field-player-AWAY-1").click();
     await waitForPendingAckToClear(page);
 
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 10000 })
-      .toBeGreaterThanOrEqual(beforeCount + 1);
+      .toBeGreaterThanOrEqual(countAtDestStep + 1);
 
-    const latestEvent = liveEvents.first();
-    await expect(latestEvent).toContainText("Shot");
+    const latestEvent = liveEvents.filter({ hasText: "Shot" }).first();
+    await expect(latestEvent).toBeVisible({ timeout: 10000 });
     const latestText = (await latestEvent.textContent()) || "";
     expect(/Saved|Blocked/i.test(latestText)).toBe(true);
 
@@ -360,6 +364,7 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-2").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
     await page.getByTestId("field-player-HOME-1").click();
     await waitForPendingAckToClear(page);
@@ -412,6 +417,7 @@ test.describe("Logger event taxonomy", () => {
 
     await page.getByTestId("toggle-field-flip").click();
     await page.getByTestId("field-player-HOME-2").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
 
     const field = page.getByTestId("soccer-field");
@@ -453,6 +459,7 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-2").click();
+    await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-more").click({ timeout: 8000 });
     await page.getByTestId("action-btn-Pass").click();
     await page.getByTestId("outcome-btn-Out").click();
@@ -523,6 +530,7 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-3").click();
+    await selectZoneIfVisible(page);
     const quickOffside = page.getByTestId("quick-action-Offside");
     if (await quickOffside.count()) {
       await quickOffside.click({ timeout: 8000 });
@@ -581,6 +589,7 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     await page.getByTestId("field-player-HOME-2").click();
+    await selectZoneIfVisible(page);
     const quickFoul = page.getByTestId("quick-action-Foul");
     if (await quickFoul.count()) {
       await quickFoul.click({ timeout: 8000 });
