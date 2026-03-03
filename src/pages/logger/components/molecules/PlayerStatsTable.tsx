@@ -17,6 +17,8 @@ type SortField = keyof Pick<
   | "shots"
   | "shotsOnTarget"
   | "goals"
+  | "penalties"
+  | "penaltyGoals"
   | "duelsWon"
   | "duelsLost"
   | "foulsCommitted"
@@ -57,6 +59,13 @@ const COLUMNS: ColumnDef[] = [
     group: "shooting",
   },
   { key: "goals", label: "Goals", abbr: "G", group: "shooting" },
+  { key: "penalties", label: "Penalties", abbr: "PEN", group: "shooting" },
+  {
+    key: "penaltyGoals",
+    label: "Penalty Goals",
+    abbr: "PGO",
+    group: "shooting",
+  },
   { key: "duelsWon", label: "Duels Won", abbr: "DW", group: "duels" },
   { key: "duelsLost", label: "Duels Lost", abbr: "DL", group: "duels" },
   {
@@ -282,6 +291,8 @@ export function PlayerStatsTable({
         <span>SH = {t("analytics.shots", "Shots")}</span>
         <span>SOT = {t("analytics.shotsOnTarget", "On Target")}</span>
         <span>G = {t("analytics.goals", "Goals")}</span>
+        <span>PEN = {t("analytics.penalties", "Penalties")}</span>
+        <span>PGO = {t("analytics.penaltyGoals", "Penalty Goals")}</span>
         <span>DW = {t("analytics.duelsWon", "Duels Won")}</span>
         <span>DL = {t("analytics.duelsLost", "Duels Lost")}</span>
         <span>FC = {t("analytics.foulsCommitted", "Fouls Done")}</span>

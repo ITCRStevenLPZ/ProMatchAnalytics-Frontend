@@ -326,6 +326,7 @@
   },
   "logger": {
     "view": "Logger",
+    "review": "Review",
     "analytics": "Analytics",
     "progress": {
       "1h": "1H",

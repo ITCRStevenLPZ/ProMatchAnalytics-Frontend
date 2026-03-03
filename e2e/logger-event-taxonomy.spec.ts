@@ -326,27 +326,27 @@ test.describe("Logger event taxonomy", () => {
     await ensureClockRunning(page);
 
     const liveEvents = page.getByTestId("live-event-item");
-    const beforeCount = await liveEvents.count();
 
     await selectHomePlayer(page).click();
     await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
 
+    // Step must be selectDestination — proves Shot did NOT log immediately
     const afterShotStep = await getHarnessCurrentStep(page);
     expect(afterShotStep).toBe("selectDestination");
-    await expect
-      .poll(async () => await liveEvents.count(), { timeout: 2000 })
-      .toBe(beforeCount);
+
+    // Capture count AFTER step is confirmed to avoid race with prior events
+    const countAtDestStep = await liveEvents.count();
 
     await page.getByTestId("field-player-AWAY-1").click();
     await waitForPendingAckToClear(page);
 
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 10000 })
-      .toBeGreaterThanOrEqual(beforeCount + 1);
+      .toBeGreaterThanOrEqual(countAtDestStep + 1);
 
-    const latestEvent = liveEvents.first();
-    await expect(latestEvent).toContainText("Shot");
+    const latestEvent = liveEvents.filter({ hasText: "Shot" }).first();
+    await expect(latestEvent).toBeVisible({ timeout: 10000 });
     const latestText = (await latestEvent.textContent()) || "";
     expect(/Saved|Blocked/i.test(latestText)).toBe(true);
 

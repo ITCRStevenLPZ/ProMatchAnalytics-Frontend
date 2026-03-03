@@ -794,7 +794,10 @@ export function MatchAnalytics({
 
   if (!match || !analytics) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div
+        className="flex items-center justify-center h-64 text-gray-400"
+        data-testid="analytics-panel"
+      >
         <Activity size={48} className="mr-3" />
         <div className="text-lg">
           {t(

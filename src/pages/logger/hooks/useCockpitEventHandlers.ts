@@ -35,6 +35,10 @@ interface UseCockpitEventHandlersResult {
     event: MatchEvent,
     notes: string | null,
   ) => Promise<void>;
+  handleUpdateEventData: (
+    event: MatchEvent,
+    updates: Partial<MatchEvent>,
+  ) => Promise<void>;
 }
 
 export const useCockpitEventHandlers = ({
@@ -129,6 +133,21 @@ export const useCockpitEventHandlers = ({
       }
     },
     [showToast, t, updateEventNotes, upsertLiveEvent],
+  );
+
+  const handleUpdateEventData = useCallback(
+    async (event: MatchEvent, updates: Partial<MatchEvent>) => {
+      if (!event._id || !isAdmin) return;
+      try {
+        const updated = await updateMatchEvent(event._id, updates);
+        upsertLiveEvent(updated);
+        showToast(t("eventUpdated", "Event updated successfully."));
+      } catch (error) {
+        console.error("Failed to update event", error);
+        showToast(t("eventUpdateFailed", "Unable to update event right now."));
+      }
+    },
+    [isAdmin, showToast, t, upsertLiveEvent],
   );
 
   const handleUndoLastEvent = useCallback(async () => {
@@ -230,5 +249,6 @@ export const useCockpitEventHandlers = ({
     handleDeletePendingEvent,
     handleDeleteLoggedEvent,
     handleUpdateEventNotes,
+    handleUpdateEventData,
   };
 };

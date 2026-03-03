@@ -12,12 +12,14 @@ import {
   ChevronsRight,
   Trash2,
   Trophy,
+  Edit,
 } from "../../../../components/icons";
 import {
   MatchEvent,
   DuplicateHighlight,
 } from "../../../../store/useMatchLogStore";
 import { Match } from "../../types";
+import { ACTION_FLOWS } from "../../constants";
 
 interface LiveEventFeedProps {
   events: MatchEvent[];
@@ -27,6 +29,10 @@ interface LiveEventFeedProps {
   onDeleteEvent?: (event: MatchEvent) => Promise<void> | void;
   canDeleteEvent?: (event: MatchEvent) => boolean;
   onUpdateEventNotes?: (event: MatchEvent, notes: string | null) => void;
+  onUpdateEventData?: (
+    event: MatchEvent,
+    updates: Partial<MatchEvent>,
+  ) => Promise<void> | void;
   t: any;
 }
 
@@ -142,6 +148,7 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   onDeleteEvent,
   canDeleteEvent,
   onUpdateEventNotes,
+  onUpdateEventData,
   t,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,6 +156,11 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  const [editingDataKey, setEditingDataKey] = useState<string | null>(null);
+  const [editDrafts, setEditDrafts] = useState<
+    Record<string, { outcome?: string }>
+  >({});
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
 
   const pendingCount = useMemo(
     () => events.filter((event) => event.client_id && !event._id).length,
@@ -338,7 +350,30 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                     <span className="text-sm font-mono font-semibold text-slate-300">
                       {event.match_clock}
                     </span>
-                    {canDelete && displayType === "Card" && (
+                    {onUpdateEventData && event._id && (
+                      <button
+                        type="button"
+                        data-testid="event-edit"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const key = getEventKey(event);
+                          if (editingDataKey === key) {
+                            setEditingDataKey(null);
+                          } else {
+                            setEditingDataKey(key);
+                            setEditDrafts((prev) => ({
+                              ...prev,
+                              [key]: { outcome: event.data?.outcome || "" },
+                            }));
+                          }
+                        }}
+                        className="text-slate-400 hover:text-blue-300 p-1 rounded hover:bg-slate-800"
+                        title={t("editEvent", "Edit event")}
+                      >
+                        <Edit size={14} />
+                      </button>
+                    )}
+                    {canDelete && (
                       <button
                         type="button"
                         data-testid="event-delete"
@@ -383,6 +418,108 @@ export const LiveEventFeed: React.FC<LiveEventFeedProps> = ({
                     </span>
                   </div>
                 )}
+
+                {/* Inline Edit Panel */}
+                {editingDataKey === eventKey &&
+                  onUpdateEventData &&
+                  (() => {
+                    const draft = editDrafts[eventKey] ?? {
+                      outcome: event.data?.outcome || "",
+                    };
+                    const isSaving = savingKeys.has(eventKey);
+                    // Find available outcomes for this event type from ACTION_FLOWS
+                    const flowConfig = ACTION_FLOWS[event.type];
+                    const availableOutcomes: string[] = flowConfig
+                      ? Object.values(flowConfig.outcomes ?? {}).flat()
+                      : [];
+                    const uniqueOutcomes = [...new Set(availableOutcomes)];
+
+                    return (
+                      <div
+                        className="mt-2 p-2 bg-slate-900/80 border border-blue-800/40 rounded-lg space-y-2"
+                        data-testid="event-edit-panel"
+                      >
+                        {/* Outcome Editor */}
+                        {uniqueOutcomes.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] uppercase tracking-wide text-slate-500 w-16 flex-shrink-0">
+                              {t("outcome", "Outcome")}
+                            </span>
+                            <select
+                              className="flex-1 text-xs bg-slate-800 text-slate-200 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              data-testid="event-edit-outcome"
+                              value={draft.outcome || ""}
+                              onChange={(e) =>
+                                setEditDrafts((prev) => ({
+                                  ...prev,
+                                  [eventKey]: {
+                                    ...draft,
+                                    outcome: e.target.value,
+                                  },
+                                }))
+                              }
+                            >
+                              <option value="">
+                                {t("selectOutcome", "— Select —")}
+                              </option>
+                              {uniqueOutcomes.map((o) => (
+                                <option key={o} value={o}>
+                                  {o}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {/* Save / Cancel */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            data-testid="event-edit-save"
+                            disabled={isSaving}
+                            className="text-xs px-3 py-1 rounded bg-blue-600/30 text-blue-200 border border-blue-500/40 hover:bg-blue-600/50 disabled:opacity-50"
+                            onClick={async () => {
+                              setSavingKeys((prev) =>
+                                new Set(prev).add(eventKey),
+                              );
+                              try {
+                                const updates: Partial<MatchEvent> = {};
+                                if (
+                                  draft.outcome !== (event.data?.outcome || "")
+                                ) {
+                                  updates.data = {
+                                    ...event.data,
+                                    outcome: draft.outcome || undefined,
+                                  };
+                                }
+                                if (Object.keys(updates).length > 0) {
+                                  await onUpdateEventData(event, updates);
+                                }
+                                setEditingDataKey(null);
+                              } finally {
+                                setSavingKeys((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(eventKey);
+                                  return next;
+                                });
+                              }
+                            }}
+                          >
+                            {isSaving
+                              ? t("saving", "Saving…")
+                              : t("save", "Save")}
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="event-edit-cancel"
+                            className="text-xs px-3 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700"
+                            onClick={() => setEditingDataKey(null)}
+                          >
+                            {t("cancel", "Cancel")}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                 {/* Notes */}
                 <div className="mt-2">

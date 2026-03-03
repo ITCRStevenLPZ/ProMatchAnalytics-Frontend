@@ -101,7 +101,6 @@ describe("payload builders", () => {
     const payload = buildVenuePayload(venueInput);
 
     expect(payload).toEqual({
-      venue_id: "venue-1",
       name: "Grand Arena",
       city: "Madrid",
       country_name: "Spain",
@@ -147,7 +146,6 @@ describe("payload builders", () => {
     const payload = buildRefereePayload(refereeInput);
 
     expect(payload).toEqual({
-      referee_id: "ref-7",
       name: "Maria Gomez",
       country_name: "Chile",
       years_of_experience: 12,
@@ -167,7 +165,6 @@ describe("payload builders", () => {
     const payload = buildCompetitionPayload(competitionInput);
 
     expect(payload).toEqual({
-      competition_id: "comp-1",
       name: "National League",
       short_name: "NL",
       gender: "male",

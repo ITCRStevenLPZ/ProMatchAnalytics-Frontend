@@ -12,6 +12,12 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
       Shot: ["Goal", "OnTarget", "OffTarget", "Blocked", "Post", "Saved"],
     },
   },
+  Header: {
+    actions: ["Header"],
+    outcomes: {
+      Header: ["Goal", "OnTarget", "OffTarget", "Blocked", "Won", "Lost"],
+    },
+  },
   Duel: {
     actions: ["Duel"],
     outcomes: { Duel: ["Won", "Lost", "Success (Dispossessed)"] },
@@ -22,7 +28,7 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
   },
   Carry: {
     actions: ["Carry"],
-    outcomes: { Carry: ["Successful", "Dispossessed"] },
+    outcomes: { Carry: ["Successful", "Dispossessed", "DribbleLoss"] },
   },
   Interception: {
     actions: ["Interception"],
@@ -55,7 +61,14 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
     ],
     outcomes: {
       Corner: ["Complete", "Incomplete"],
-      "Free Kick": ["Complete", "Incomplete", "Shot"],
+      "Free Kick": [
+        "Complete",
+        "Incomplete",
+        "Shot",
+        "Goal",
+        "OnTarget",
+        "OffTarget",
+      ],
       "Throw-in": ["Complete", "Incomplete"],
       "Goal Kick": ["Complete", "Incomplete"],
       Penalty: ["Goal", "Saved", "Missed"],
@@ -84,10 +97,12 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
 export const QUICK_ACTIONS = [
   "Pass",
   "Shot",
+  "Header",
   "DirectShot",
   "Goal",
   "Foul",
   "Offside",
+  "Free Kick",
 ] as const;
 
 export const DEFAULT_PERIOD_MAP: Record<MatchStatus, number> = {
@@ -129,6 +144,9 @@ export const KEY_ACTION_MAP: Record<string, string> = {
   // Carry
   a: "Carry",
   A: "Carry",
+  // Header
+  h: "Header",
+  H: "Header",
   // Set pieces
   k: "Corner",
   K: "Corner",

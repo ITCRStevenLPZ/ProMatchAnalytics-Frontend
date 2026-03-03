@@ -452,8 +452,12 @@ test.describe("Logger ineffective time breakdown", () => {
     await page.getByTestId("ineffective-note-action").click();
     const actionMenu = page.getByTestId("ineffective-note-action-menu");
     await expect(actionMenu).toBeVisible({ timeout: 10000 });
-    await expect(actionMenu).not.toContainText("Injury");
-    await expect(actionMenu).not.toContainText("VAR");
+    await expect(
+      page.getByTestId("ineffective-note-action-option-Injury"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("ineffective-note-action-option-VAR"),
+    ).toBeVisible();
     await page
       .getByTestId("ineffective-note-action-option-Substitution")
       .click();

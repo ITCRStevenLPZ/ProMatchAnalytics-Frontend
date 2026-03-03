@@ -125,6 +125,7 @@ export const useMatchSocket = ({
     requestTimelineRefresh,
     pushUndoCandidate,
     removeUndoCandidate,
+    requestMatchRefresh,
   } = useMatchLogStore();
 
   const queuedEventsRef =
@@ -504,11 +505,24 @@ export const useMatchSocket = ({
       const wsBase = resolveWsBaseUrl();
       const wsUrl = `${wsBase}/ws/${matchId}?token=${token}`;
 
+      // Close any existing connection before creating a new one to avoid
+      // orphaned WebSockets (e.g. during React StrictMode remounts).
+      if (wsRef.current) {
+        const prev = wsRef.current;
+        wsRef.current = null;
+        prev.onclose = null;
+        prev.onmessage = null;
+        prev.onerror = null;
+        prev.close();
+      }
+
       console.log("Connecting to WebSocket:", wsUrl);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       const handleOpen = () => {
+        // Guard: only process if this WS is still the current one
+        if (wsRef.current !== ws) return;
         console.log("✓ WebSocket connected");
         suppressReconnectRef.current = false;
         setConnected(true);
@@ -523,6 +537,9 @@ export const useMatchSocket = ({
 
       // Step 10: On-Disconnect Handler (Section 4.3)
       ws.onclose = (event) => {
+        // Guard: only process if this WS is still the current one.
+        // Prevents stale WS onclose from tearing down a newer connection.
+        if (wsRef.current !== null && wsRef.current !== ws) return;
         console.log("✗ WebSocket disconnected:", event.code, event.reason);
         flushPendingAcksToQueue();
         pendingAckOrderRef.current = [];
@@ -545,7 +562,6 @@ export const useMatchSocket = ({
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-
           // Handle acknowledgment
           if (message.type === "ack") {
             handleAckResult(message.result ?? {});
@@ -567,6 +583,13 @@ export const useMatchSocket = ({
               removeQueuedEventByClientId(message.client_id);
               removeUndoCandidate(message.client_id);
             }
+            return;
+          }
+
+          // Handle match state changes (clock mode, status, period) from other tabs
+          if (message.type === "match_state_changed") {
+            requestTimelineRefresh();
+            requestMatchRefresh();
             return;
           }
         } catch (error) {
@@ -604,8 +627,14 @@ export const useMatchSocket = ({
     }
 
     if (wsRef.current) {
-      wsRef.current.close();
+      const ws = wsRef.current;
       wsRef.current = null;
+      // Nullify handlers BEFORE closing to prevent stale onclose/onopen
+      // from interfering with future connections (React StrictMode safety).
+      ws.onclose = null;
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.close();
     }
 
     setConnected(false);

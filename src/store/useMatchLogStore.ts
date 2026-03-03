@@ -84,6 +84,7 @@ interface MatchLogState {
   effectiveTime: number; // Accumulated effective time in seconds
   isBallInPlay: boolean;
   lastTimelineRefreshRequest: number;
+  lastMatchRefreshRequest: number;
 
   // Actions
   setConnected: (connected: boolean) => void;
@@ -131,6 +132,7 @@ interface MatchLogState {
     period?: number;
   }) => void;
   requestTimelineRefresh: () => void;
+  requestMatchRefresh: () => void;
   resetStore: () => void;
 }
 
@@ -187,6 +189,7 @@ export const useMatchLogStore = create<MatchLogState>()(
       effectiveTime: 0,
       isBallInPlay: false,
       lastTimelineRefreshRequest: 0,
+      lastMatchRefreshRequest: 0,
 
       // Set connection status
       setConnected: (connected: boolean) => {
@@ -578,6 +581,10 @@ export const useMatchLogStore = create<MatchLogState>()(
         set({ lastTimelineRefreshRequest: Date.now() });
       },
 
+      requestMatchRefresh: () => {
+        set({ lastMatchRefreshRequest: Date.now() });
+      },
+
       // Reset store to initial state
       resetStore: () => {
         set({
@@ -596,6 +603,7 @@ export const useMatchLogStore = create<MatchLogState>()(
           effectiveTime: 0,
           isBallInPlay: false,
           lastTimelineRefreshRequest: 0,
+          lastMatchRefreshRequest: 0,
         });
       },
     }),

@@ -88,9 +88,12 @@ test.describe("Formation System", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await ensureAdminRole(page);
 
-    // Formation pickers row should be visible
-    const pickersRow = page.getByTestId("formation-pickers-row");
-    await expect(pickersRow).toBeVisible({ timeout: 15000 });
+    // Formation pickers should be visible inside the TeamSelector toolbar
+    // They are now rendered inside formation-slot-left and formation-slot-right
+    const leftSlot = page.getByTestId("formation-slot-left");
+    await expect(leftSlot).toBeVisible({ timeout: 15000 });
+    const rightSlot = page.getByTestId("formation-slot-right");
+    await expect(rightSlot).toBeVisible({ timeout: 15000 });
 
     // Both pickers should be present
     await expect(page.getByTestId("formation-picker-home")).toBeVisible();

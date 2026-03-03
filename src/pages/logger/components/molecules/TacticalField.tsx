@@ -116,10 +116,6 @@ const BORDER_COLS = 6;
 const BORDER_ROWS = 4;
 const BORDER_COL_PCT = 100 / BORDER_COLS; // 16.667%
 const BORDER_ROW_PCT = 100 / BORDER_ROWS; // 25%
-/** Thickness of horizontal border strips (top/bottom) as % of field height */
-const BORDER_H_THICK = 8;
-/** Thickness of vertical border strips (left/right) as % of field width */
-const BORDER_V_THICK = 6;
 
 interface BorderZone {
   id: string;
@@ -295,243 +291,285 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
     ],
   );
 
+  /** Whether the outer out-of-bounds frame should render */
+  const showBorderFrame = Boolean(
+    onDestinationClick && showDestinationControls,
+  );
+
+  /** Render a single border-zone button */
+  const renderBorderButton = (zone: BorderZone) => {
+    const isGoalLine = zone.edge === "left" || zone.edge === "right";
+    return (
+      <button
+        key={zone.id}
+        type="button"
+        data-testid={zone.id}
+        className={`flex items-center justify-center
+          text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer w-full h-full
+          ${
+            isGoalLine
+              ? "bg-red-900/60 hover:bg-red-700/70 text-red-200 border border-red-500/40 hover:border-red-300/60"
+              : "bg-amber-900/60 hover:bg-amber-700/70 text-amber-200 border border-amber-500/40 hover:border-amber-300/60"
+          }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDestinationClick!(buildCoordinate(zone.coordX, zone.coordY, false));
+        }}
+        title={`Out — ${zone.edge}`}
+      >
+        <span
+          className={`inline-flex items-center gap-1 ${
+            isGoalLine ? "-rotate-90" : ""
+          }`}
+        >
+          OUT
+        </span>
+      </button>
+    );
+  };
+
+  /** Build the ordered array of zones for an edge, respecting flipSides */
+  const getEdgeZones = (edge: BorderZone["edge"]) => {
+    const zones = BORDER_ZONES.filter((z) => z.edge === edge);
+    // For horizontal edges, flip column order when sides are flipped
+    if (flipSides && (edge === "top" || edge === "bottom")) {
+      return [...zones].reverse();
+    }
+    // For vertical edges, no index reversal needed (rows stay same)
+    return zones;
+  };
+
+  // Build edge zone arrays once
+  const topZones = getEdgeZones("top");
+  const bottomZones = getEdgeZones("bottom");
+  const leftEdge = flipSides ? "right" : "left";
+  const rightEdge = flipSides ? "left" : "right";
+  const leftZones = getEdgeZones(leftEdge);
+  const rightZones = getEdgeZones(rightEdge);
+
   return (
     <div className="relative w-full px-2 py-2">
-      <div className="relative overflow-visible">
+      {/* Outer frame: CSS grid with border-zone strips surrounding the field */}
+      <div
+        className="relative"
+        style={
+          showBorderFrame
+            ? {
+                display: "grid",
+                gridTemplateColumns: "28px 1fr 28px",
+                gridTemplateRows: "24px auto 24px",
+                gap: "0px",
+              }
+            : {}
+        }
+      >
+        {/* ─── Top border strip ─── */}
+        {showBorderFrame && (
+          <div
+            className="col-start-2 col-end-3 row-start-1 row-end-2 grid rounded-t-lg overflow-hidden"
+            style={{
+              gridTemplateColumns: `repeat(${BORDER_COLS}, 1fr)`,
+            }}
+          >
+            {topZones.map(renderBorderButton)}
+          </div>
+        )}
+        {/* ─── Top-left corner ─── */}
+        {showBorderFrame && (
+          <div className="col-start-1 col-end-2 row-start-1 row-end-2" />
+        )}
+        {/* ─── Top-right corner ─── */}
+        {showBorderFrame && (
+          <div className="col-start-3 col-end-4 row-start-1 row-end-2" />
+        )}
+
+        {/* ─── Left border strip ─── */}
+        {showBorderFrame && (
+          <div
+            className="col-start-1 col-end-2 row-start-2 row-end-3 grid rounded-l-lg overflow-hidden"
+            style={{
+              gridTemplateRows: `repeat(${BORDER_ROWS}, 1fr)`,
+            }}
+          >
+            {leftZones.map(renderBorderButton)}
+          </div>
+        )}
+
+        {/* ─── The soccer field (center cell) ─── */}
         <div
-          ref={fieldRef}
-          data-testid="soccer-field"
-          onClick={handleFieldClick}
-          className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner"
+          className={`${
+            showBorderFrame ? "col-start-2 col-end-3 row-start-2 row-end-3" : ""
+          } relative overflow-visible`}
         >
-          {/* ─── Field Markings ─── */}
-          <div className="absolute inset-0 border-2 border-white opacity-50 m-4" />
-          {/* Centre line */}
-          <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white opacity-50 -translate-x-1/2" />
-          {/* Centre circle */}
-          <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 opacity-50" />
-          {/* Penalty areas */}
-          <div className="absolute top-1/2 left-0 w-32 h-64 border-2 border-white -translate-y-1/2 translate-x-4 opacity-50" />
-          <div className="absolute top-1/2 right-0 w-32 h-64 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-50" />
-          {/* Goal areas */}
-          <div className="absolute top-1/2 left-0 w-16 h-32 border-2 border-white -translate-y-1/2 translate-x-4 opacity-30" />
-          <div className="absolute top-1/2 right-0 w-16 h-32 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-30" />
+          <div
+            ref={fieldRef}
+            data-testid="soccer-field"
+            onClick={handleFieldClick}
+            className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner"
+          >
+            {/* ─── Field Markings ─── */}
+            <div className="absolute inset-0 border-2 border-white opacity-50 m-4" />
+            {/* Centre line */}
+            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white opacity-50 -translate-x-1/2" />
+            {/* Centre circle */}
+            <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 opacity-50" />
+            {/* Penalty areas */}
+            <div className="absolute top-1/2 left-0 w-32 h-64 border-2 border-white -translate-y-1/2 translate-x-4 opacity-50" />
+            <div className="absolute top-1/2 right-0 w-32 h-64 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-50" />
+            {/* Goal areas */}
+            <div className="absolute top-1/2 left-0 w-16 h-32 border-2 border-white -translate-y-1/2 translate-x-4 opacity-30" />
+            <div className="absolute top-1/2 right-0 w-16 h-32 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-30" />
 
-          {/* ─── Team labels ─── */}
-          <div className="absolute top-2 left-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">
-            {flipSides ? `${awayTeamName} (Away)` : `${homeTeamName} (Home)`}
-          </div>
-          <div className="absolute top-2 right-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">
-            {flipSides ? `${homeTeamName} (Home)` : `${awayTeamName} (Away)`}
-          </div>
-
-          {/* ─── Drag bounds overlay ─── */}
-          {draggingPlayerId &&
-            (() => {
-              // Find the dragged player's position and side
-              const allPlayers = [
-                ...homePlayers.map((p) => ({ ...p, side: "home" as const })),
-                ...awayPlayers.map((p) => ({ ...p, side: "away" as const })),
-              ];
-              const draggedPlayer = allPlayers.find(
-                (p) => p.id === draggingPlayerId,
-              );
-              if (!draggedPlayer) return null;
-              const bounds = getBoundsForPlayer(
-                draggedPlayer.position,
-                draggedPlayer.side,
-              );
-              // Convert bounds to display space (may need flip)
-              const displayBounds = flipSides
-                ? {
-                    xMin: 100 - bounds.xMax,
-                    xMax: 100 - bounds.xMin,
-                    yMin: bounds.yMin,
-                    yMax: bounds.yMax,
-                  }
-                : bounds;
-              const group = getPositionGroup(draggedPlayer.position);
-              const colorMap: Record<string, string> = {
-                goalkeeper: "rgba(255, 220, 0, 0.15)",
-                defense: "rgba(59, 130, 246, 0.12)",
-                midfield: "rgba(34, 197, 94, 0.12)",
-                attack: "rgba(239, 68, 68, 0.12)",
-                other: "rgba(255, 255, 255, 0.08)",
-              };
-              const borderColorMap: Record<string, string> = {
-                goalkeeper: "rgba(255, 220, 0, 0.6)",
-                defense: "rgba(59, 130, 246, 0.5)",
-                midfield: "rgba(34, 197, 94, 0.5)",
-                attack: "rgba(239, 68, 68, 0.5)",
-                other: "rgba(255, 255, 255, 0.3)",
-              };
-              return (
-                <div
-                  data-testid="drag-bounds-overlay"
-                  className="absolute pointer-events-none z-[5] transition-opacity duration-150"
-                  style={{
-                    left: `${displayBounds.xMin}%`,
-                    top: `${displayBounds.yMin}%`,
-                    width: `${displayBounds.xMax - displayBounds.xMin}%`,
-                    height: `${displayBounds.yMax - displayBounds.yMin}%`,
-                    backgroundColor: colorMap[group] ?? colorMap.other,
-                    border: `2px dashed ${
-                      borderColorMap[group] ?? borderColorMap.other
-                    }`,
-                    borderRadius: "8px",
-                  }}
-                />
-              );
-            })()}
-
-          {/* ─── Collision proximity rings (shown during drag) ─── */}
-          {draggingPlayerId &&
-            allPositions &&
-            (() => {
-              const rings: React.ReactNode[] = [];
-              for (const [pid, pos] of allPositions) {
-                if (pid === draggingPlayerId) continue;
-                const display = flipSides ? { x: 100 - pos.x, y: pos.y } : pos;
-                rings.push(
-                  <div
-                    key={`ring-${pid}`}
-                    className="absolute pointer-events-none z-[4] rounded-full border border-white/20"
-                    style={{
-                      left: `${display.x}%`,
-                      top: `${display.y}%`,
-                      width: `${MIN_PLAYER_SEPARATION * 2}%`,
-                      height: `${MIN_PLAYER_SEPARATION * 2}%`,
-                      transform: "translate(-50%, -50%)",
-                      backgroundColor: "rgba(255, 255, 255, 0.04)",
-                    }}
-                  />,
-                );
-              }
-              return rings;
-            })()}
-
-          {/* ─── Player Nodes ─── */}
-          <div className="absolute inset-0 pointer-events-none">
-            {homePlayers
-              .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
-              .map((p) => renderPlayerNode(p, "home"))}
-            {awayPlayers
-              .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
-              .map((p) => renderPlayerNode(p, "away"))}
-          </div>
-
-          {/* ─── Overlay (e.g. QuickActionMenu) ─── */}
-          {overlay && (
-            <div
-              className="absolute inset-0 z-30 pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <div className="relative h-full w-full">{overlay}</div>
+            {/* ─── Team labels ─── */}
+            <div className="absolute top-2 left-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">
+              {flipSides ? `${awayTeamName} (Away)` : `${homeTeamName} (Home)`}
             </div>
-          )}
-        </div>
-      </div>
+            <div className="absolute top-2 right-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">
+              {flipSides ? `${homeTeamName} (Home)` : `${awayTeamName} (Away)`}
+            </div>
 
-      {/* ─── Border-zone out-of-bounds destination strips ─── */}
-      {onDestinationClick && showDestinationControls && (
-        <div className="absolute inset-0 pointer-events-none overflow-visible z-20">
-          {BORDER_ZONES.map((zone) => {
-            let style: React.CSSProperties;
-            const isGoalLine = zone.edge === "left" || zone.edge === "right";
-
-            switch (zone.edge) {
-              case "top": {
-                const leftPct = flipSides
-                  ? 100 - (zone.idx + 1) * BORDER_COL_PCT
-                  : zone.idx * BORDER_COL_PCT;
-                style = {
-                  left: `${leftPct}%`,
-                  top: 0,
-                  width: `${BORDER_COL_PCT}%`,
-                  height: `${BORDER_H_THICK}%`,
-                };
-                break;
-              }
-              case "bottom": {
-                const leftPct = flipSides
-                  ? 100 - (zone.idx + 1) * BORDER_COL_PCT
-                  : zone.idx * BORDER_COL_PCT;
-                style = {
-                  left: `${leftPct}%`,
-                  bottom: 0,
-                  width: `${BORDER_COL_PCT}%`,
-                  height: `${BORDER_H_THICK}%`,
-                };
-                break;
-              }
-              case "left": {
-                style = flipSides
+            {/* ─── Drag bounds overlay ─── */}
+            {draggingPlayerId &&
+              (() => {
+                // Find the dragged player's position and side
+                const allPlayers = [
+                  ...homePlayers.map((p) => ({ ...p, side: "home" as const })),
+                  ...awayPlayers.map((p) => ({ ...p, side: "away" as const })),
+                ];
+                const draggedPlayer = allPlayers.find(
+                  (p) => p.id === draggingPlayerId,
+                );
+                if (!draggedPlayer) return null;
+                const bounds = getBoundsForPlayer(
+                  draggedPlayer.position,
+                  draggedPlayer.side,
+                );
+                // Convert bounds to display space (may need flip)
+                const displayBounds = flipSides
                   ? {
-                      right: 0,
-                      top: `${zone.idx * BORDER_ROW_PCT}%`,
-                      width: `${BORDER_V_THICK}%`,
-                      height: `${BORDER_ROW_PCT}%`,
+                      xMin: 100 - bounds.xMax,
+                      xMax: 100 - bounds.xMin,
+                      yMin: bounds.yMin,
+                      yMax: bounds.yMax,
                     }
-                  : {
-                      left: 0,
-                      top: `${zone.idx * BORDER_ROW_PCT}%`,
-                      width: `${BORDER_V_THICK}%`,
-                      height: `${BORDER_ROW_PCT}%`,
-                    };
-                break;
-              }
-              case "right": {
-                style = flipSides
-                  ? {
-                      left: 0,
-                      top: `${zone.idx * BORDER_ROW_PCT}%`,
-                      width: `${BORDER_V_THICK}%`,
-                      height: `${BORDER_ROW_PCT}%`,
-                    }
-                  : {
-                      right: 0,
-                      top: `${zone.idx * BORDER_ROW_PCT}%`,
-                      width: `${BORDER_V_THICK}%`,
-                      height: `${BORDER_ROW_PCT}%`,
-                    };
-                break;
-              }
-            }
+                  : bounds;
+                const group = getPositionGroup(draggedPlayer.position);
+                const colorMap: Record<string, string> = {
+                  goalkeeper: "rgba(255, 220, 0, 0.15)",
+                  defense: "rgba(59, 130, 246, 0.12)",
+                  midfield: "rgba(34, 197, 94, 0.12)",
+                  attack: "rgba(239, 68, 68, 0.12)",
+                  other: "rgba(255, 255, 255, 0.08)",
+                };
+                const borderColorMap: Record<string, string> = {
+                  goalkeeper: "rgba(255, 220, 0, 0.6)",
+                  defense: "rgba(59, 130, 246, 0.5)",
+                  midfield: "rgba(34, 197, 94, 0.5)",
+                  attack: "rgba(239, 68, 68, 0.5)",
+                  other: "rgba(255, 255, 255, 0.3)",
+                };
+                return (
+                  <div
+                    data-testid="drag-bounds-overlay"
+                    className="absolute pointer-events-none z-[5] transition-opacity duration-150"
+                    style={{
+                      left: `${displayBounds.xMin}%`,
+                      top: `${displayBounds.yMin}%`,
+                      width: `${displayBounds.xMax - displayBounds.xMin}%`,
+                      height: `${displayBounds.yMax - displayBounds.yMin}%`,
+                      backgroundColor: colorMap[group] ?? colorMap.other,
+                      border: `2px dashed ${
+                        borderColorMap[group] ?? borderColorMap.other
+                      }`,
+                      borderRadius: "8px",
+                    }}
+                  />
+                );
+              })()}
 
-            return (
-              <button
-                key={zone.id}
-                type="button"
-                data-testid={zone.id}
-                className={`pointer-events-auto absolute z-30 flex items-center justify-center
-                  text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer
-                  ${
-                    isGoalLine
-                      ? "bg-red-900/50 hover:bg-red-700/60 text-red-200 border border-red-500/40 hover:border-red-300/60"
-                      : "bg-amber-900/50 hover:bg-amber-700/60 text-amber-200 border border-amber-500/40 hover:border-amber-300/60"
-                  }`}
-                style={style}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDestinationClick(
-                    buildCoordinate(zone.coordX, zone.coordY, flipSides),
+            {/* ─── Collision proximity rings (shown during drag) ─── */}
+            {draggingPlayerId &&
+              allPositions &&
+              (() => {
+                const rings: React.ReactNode[] = [];
+                for (const [pid, pos] of allPositions) {
+                  if (pid === draggingPlayerId) continue;
+                  const display = flipSides
+                    ? { x: 100 - pos.x, y: pos.y }
+                    : pos;
+                  rings.push(
+                    <div
+                      key={`ring-${pid}`}
+                      className="absolute pointer-events-none z-[4] rounded-full border border-white/20"
+                      style={{
+                        left: `${display.x}%`,
+                        top: `${display.y}%`,
+                        width: `${MIN_PLAYER_SEPARATION * 2}%`,
+                        height: `${MIN_PLAYER_SEPARATION * 2}%`,
+                        transform: "translate(-50%, -50%)",
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                      }}
+                    />,
                   );
-                }}
-                title={`Out — ${zone.edge}`}
+                }
+                return rings;
+              })()}
+
+            {/* ─── Player Nodes ─── */}
+            <div className="absolute inset-0 pointer-events-none">
+              {homePlayers
+                .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
+                .map((p) => renderPlayerNode(p, "home"))}
+              {awayPlayers
+                .filter((p) => !visiblePlayerIds || visiblePlayerIds.has(p.id))
+                .map((p) => renderPlayerNode(p, "away"))}
+            </div>
+
+            {/* ─── Overlay (e.g. QuickActionMenu) ─── */}
+            {overlay && (
+              <div
+                className="absolute inset-0 z-30 pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
               >
-                <span
-                  className={`inline-flex items-center gap-1 ${
-                    isGoalLine ? "-rotate-90" : ""
-                  }`}
-                >
-                  OUT
-                </span>
-              </button>
-            );
-          })}
+                <div className="relative h-full w-full">{overlay}</div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* ─── Right border strip ─── */}
+        {showBorderFrame && (
+          <div
+            className="col-start-3 col-end-4 row-start-2 row-end-3 grid rounded-r-lg overflow-hidden"
+            style={{
+              gridTemplateRows: `repeat(${BORDER_ROWS}, 1fr)`,
+            }}
+          >
+            {rightZones.map(renderBorderButton)}
+          </div>
+        )}
+
+        {/* ─── Bottom-left corner ─── */}
+        {showBorderFrame && (
+          <div className="col-start-1 col-end-2 row-start-3 row-end-4" />
+        )}
+        {/* ─── Bottom border strip ─── */}
+        {showBorderFrame && (
+          <div
+            className="col-start-2 col-end-3 row-start-3 row-end-4 grid rounded-b-lg overflow-hidden"
+            style={{
+              gridTemplateColumns: `repeat(${BORDER_COLS}, 1fr)`,
+            }}
+          >
+            {bottomZones.map(renderBorderButton)}
+          </div>
+        )}
+        {/* ─── Bottom-right corner ─── */}
+        {showBorderFrame && (
+          <div className="col-start-3 col-end-4 row-start-3 row-end-4" />
+        )}
+      </div>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { MatchEvent } from "../../../../store/useMatchLogStore";
 import { CardSelection } from "../molecules/QuickCardPanel";
 import MatchTimerDisplay from "../molecules/MatchTimerDisplay";
 import TeamSelector from "../molecules/TeamSelector";
+import type { CockpitViewMode } from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
 import LiveEventFeed from "../molecules/LiveEventFeed";
 import ActionStage from "./ActionStage";
@@ -33,6 +34,9 @@ interface LoggerViewProps {
   isVarActive: boolean;
   isTimeoutActive: boolean;
   showFieldResume: boolean;
+  hasActiveIneffective?: boolean;
+  ineffectiveTeamLabel?: string;
+  onSwitchIneffectiveTeam?: () => void;
   periodElapsedSeconds: number;
   periodMinimumSeconds: number;
   currentStep: any;
@@ -65,6 +69,7 @@ interface LoggerViewProps {
   handleRecipientSelect: (...args: any[]) => void;
   handleUndoLastEvent: () => void;
   undoDisabled: boolean;
+  undoCount?: number;
   manualFieldFlip: boolean;
   setManualFieldFlip: (value: boolean | ((prev: boolean) => boolean)) => void;
   priorityPlayerId: string | null;
@@ -74,6 +79,10 @@ interface LoggerViewProps {
   handleDeleteLoggedEvent: (...args: any[]) => void;
   isAdmin: boolean;
   handleUpdateEventNotes: (...args: any[]) => Promise<void> | void;
+  handleUpdateEventData?: (
+    event: MatchEvent,
+    updates: Partial<MatchEvent>,
+  ) => Promise<void> | void;
   getDisplayPosition?: (
     playerId: string,
     flipSides: boolean,
@@ -92,8 +101,8 @@ interface LoggerViewProps {
   homeFormation?: Formation | null;
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
-  viewMode?: "logger" | "analytics";
-  setViewMode?: (mode: "logger" | "analytics") => void;
+  viewMode?: CockpitViewMode;
+  setViewMode?: (mode: CockpitViewMode) => void;
   dragLocked?: boolean;
   onToggleDragLock?: () => void;
   positionMode: PositionMode;
@@ -122,6 +131,9 @@ export default function LoggerView({
   isVarActive,
   isTimeoutActive,
   showFieldResume,
+  hasActiveIneffective,
+  ineffectiveTeamLabel,
+  onSwitchIneffectiveTeam,
   periodElapsedSeconds,
   periodMinimumSeconds,
   currentStep,
@@ -154,6 +166,7 @@ export default function LoggerView({
   handleRecipientSelect,
   handleUndoLastEvent,
   undoDisabled,
+  undoCount,
   manualFieldFlip,
   setManualFieldFlip,
   priorityPlayerId,
@@ -163,6 +176,7 @@ export default function LoggerView({
   handleDeleteLoggedEvent,
   isAdmin,
   handleUpdateEventNotes,
+  handleUpdateEventData,
   getDisplayPosition,
   onTacticalPlayerDragEnd,
   draggingPlayerId,
@@ -204,6 +218,9 @@ export default function LoggerView({
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
           hideResumeButton={showFieldResume}
+          hasActiveIneffective={hasActiveIneffective}
+          ineffectiveTeamLabel={ineffectiveTeamLabel}
+          onSwitchIneffectiveTeam={onSwitchIneffectiveTeam}
           periodElapsedSeconds={periodElapsedSeconds}
           periodMinimumSeconds={periodMinimumSeconds}
           t={t}
@@ -216,11 +233,17 @@ export default function LoggerView({
           onFlip={() => setManualFieldFlip((prev) => !prev)}
           onUndo={handleUndoLastEvent}
           undoDisabled={undoDisabled}
+          undoCount={undoCount}
           disabled={cockpitLocked}
           viewMode={viewMode}
           setViewMode={setViewMode}
           dragLocked={dragLocked}
           onToggleDragLock={onToggleDragLock}
+          homeFormation={homeFormation}
+          awayFormation={awayFormation}
+          applyFormation={applyFormation}
+          homeTeamName={match?.home_team?.short_name}
+          awayTeamName={match?.away_team?.short_name}
           t={t}
         />
       </div>
@@ -323,10 +346,9 @@ export default function LoggerView({
             duplicateHighlight={duplicateHighlight}
             onDeletePending={handleDeletePendingEvent}
             onDeleteEvent={isAdmin ? handleDeleteLoggedEvent : undefined}
-            canDeleteEvent={(event) =>
-              isAdmin && event.type === "Card" && Boolean(event._id)
-            }
+            canDeleteEvent={(event) => isAdmin && Boolean(event._id)}
             onUpdateEventNotes={handleUpdateEventNotes}
+            onUpdateEventData={isAdmin ? handleUpdateEventData : undefined}
             t={t}
           />
         </div>

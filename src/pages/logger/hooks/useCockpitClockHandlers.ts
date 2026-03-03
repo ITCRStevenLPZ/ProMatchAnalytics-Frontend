@@ -4,6 +4,7 @@ import { parseClockToSeconds } from "../lib/clockHelpers";
 interface UseCockpitClockHandlersParams {
   cockpitLocked: boolean;
   clockMode: "EFFECTIVE" | "INEFFECTIVE";
+  currentPhase?: string;
   isVarActiveLocal: boolean;
   isTimeoutActive: boolean;
   varTimeSeconds: number;
@@ -38,6 +39,7 @@ interface UseCockpitClockHandlersResult {
 export const useCockpitClockHandlers = ({
   cockpitLocked,
   clockMode,
+  currentPhase,
   isVarActiveLocal,
   isTimeoutActive,
   varTimeSeconds,
@@ -121,6 +123,10 @@ export const useCockpitClockHandlers = ({
     handleModeSwitchGuarded,
     handleVarToggle,
     handleTimeoutToggle,
-    showFieldResume: clockMode !== "EFFECTIVE" && !cockpitLocked,
+    showFieldResume:
+      clockMode !== "EFFECTIVE" &&
+      !cockpitLocked &&
+      currentPhase !== "HALFTIME" &&
+      currentPhase !== "EXTRA_HALFTIME",
   };
 };

@@ -11,6 +11,7 @@ export type IneffectiveAction =
   | "Substitution"
   | "Injury"
   | "VAR"
+  | "Referee"
   | "Other";
 
 export type IneffectiveTeamKey = "home" | "away" | "neutral";
@@ -47,6 +48,7 @@ const INEFFECTIVE_ACTIONS: IneffectiveAction[] = [
   "Substitution",
   "Injury",
   "VAR",
+  "Referee",
   "Other",
 ];
 
@@ -64,6 +66,8 @@ const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
   if (normalized.includes("sub")) return "Substitution";
   if (normalized.includes("injury")) return "Injury";
   if (normalized.includes("var")) return "VAR";
+  if (normalized.includes("referee") || normalized.includes("ref"))
+    return "Referee";
   return "Other";
 };
 
@@ -374,7 +378,9 @@ export const buildIneffectiveBreakdownFromAggregates = (
         }
       }
       totals[active.teamKey] += deltaSeconds;
-      totals.byAction[active.action][active.teamKey] += deltaSeconds;
+      if (totals.byAction[active.action]) {
+        totals.byAction[active.action][active.teamKey] += deltaSeconds;
+      }
     }
   }
 

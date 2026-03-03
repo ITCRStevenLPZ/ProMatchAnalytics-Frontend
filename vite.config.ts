@@ -35,7 +35,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/api\.promatchanalytics\.com\/.*/i,
+            // Matches Cloud Run URLs (*.run.app) and custom domains (promatchanalytics.com, dev.promatchanalytics.com)
+            urlPattern:
+              /^https:\/\/(?:[\w-]+\.run\.app|(?:dev\.)?promatchanalytics\.com)\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",

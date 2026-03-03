@@ -16,6 +16,8 @@ export interface PlayerStats {
   shots: number;
   shotsOnTarget: number;
   goals: number;
+  penalties: number;
+  penaltyGoals: number;
   duelsWon: number;
   duelsLost: number;
   foulsCommitted: number;
@@ -86,6 +88,8 @@ export function usePlayerStats(
           shots: 0,
           shotsOnTarget: 0,
           goals: 0,
+          penalties: 0,
+          penaltyGoals: 0,
           duelsWon: 0,
           duelsLost: 0,
           foulsCommitted: 0,
@@ -137,7 +141,8 @@ export function usePlayerStats(
           break;
         }
 
-        case "Shot": {
+        case "Shot":
+        case "Header": {
           author.shots++;
           const outcome = String(data.outcome ?? "").toLowerCase();
           if (
@@ -150,6 +155,19 @@ export function usePlayerStats(
           }
           if (outcome === "goal") {
             author.goals++;
+          }
+          break;
+        }
+
+        case "SetPiece": {
+          const action = String(data.action ?? "").toLowerCase();
+          const outcome = String(data.outcome ?? "").toLowerCase();
+          if (action === "penalty") {
+            author.penalties++;
+            if (outcome === "goal") {
+              author.penaltyGoals++;
+              author.goals++;
+            }
           }
           break;
         }

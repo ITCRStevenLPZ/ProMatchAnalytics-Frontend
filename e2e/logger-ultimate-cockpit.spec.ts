@@ -427,6 +427,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     expect(effectiveAfterRun - effectiveBeforeStop).toBeGreaterThan(0.8);
 
     await page.getByTestId("btn-stop-clock").click();
+    // Allow time for the clock stop to propagate through state
+    await page.waitForTimeout(300);
     const effectiveBeforePause = await readTextClock(
       page,
       "effective-clock-value",

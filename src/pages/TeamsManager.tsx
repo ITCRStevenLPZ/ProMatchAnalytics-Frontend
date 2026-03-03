@@ -196,6 +196,7 @@ export default function TeamsManager() {
   >({});
   const [rosterPlayerSearch, setRosterPlayerSearch] = useState("");
   const [isPlayerPickerOpen, setIsPlayerPickerOpen] = useState(false);
+  const [isAddingPlayerToRoster, setIsAddingPlayerToRoster] = useState(false);
   const [isRosterPositionPickerOpen, setIsRosterPositionPickerOpen] =
     useState(false);
   const [rosterPositionFilter, setRosterPositionFilter] = useState<
@@ -634,8 +635,10 @@ export default function TeamsManager() {
   const handleAddPlayerToRoster = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeam) return;
+    if (isAddingPlayerToRoster) return;
 
     try {
+      setIsAddingPlayerToRoster(true);
       setRosterFormError(null);
       clearRosterFieldErrors();
       const selectedIsAvailable = availablePlayers.some(
@@ -651,7 +654,14 @@ export default function TeamsManager() {
         team_id: selectedTeam.team_id,
       };
       await apiClient.post(`/teams/${selectedTeam.team_id}/players`, payload);
-      await fetchTeamRoster(selectedTeam.team_id);
+      const freshPlayers = await fetchAllPlayers();
+      await fetchTeamRoster(
+        selectedTeam.team_id,
+        "refresh",
+        undefined,
+        undefined,
+        freshPlayers,
+      );
       setRosterFormData({
         player_id: "",
         jersey_number: 1,
@@ -661,7 +671,6 @@ export default function TeamsManager() {
       setRosterPlayerSearch("");
       setIsPlayerPickerOpen(false);
       setIsRosterPositionPickerOpen(false);
-      clearRosterFieldErrors();
       setRosterFormError(null);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -682,6 +691,8 @@ export default function TeamsManager() {
       } else {
         setRosterFormError(t("errorSavingData"));
       }
+    } finally {
+      setIsAddingPlayerToRoster(false);
     }
   };
 
@@ -1652,6 +1663,7 @@ export default function TeamsManager() {
                                         ...rosterFormData,
                                         player_id: player.player_id,
                                       });
+                                      setRosterPlayerSearch("");
                                       setIsPlayerPickerOpen(false);
                                     }}
                                     className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
@@ -1774,8 +1786,16 @@ export default function TeamsManager() {
                         {t("active")}
                       </label>
                     </div>
-                    <button type="submit" className="btn btn-primary w-full">
-                      <Plus className="h-5 w-5 inline mr-2" />
+                    <button
+                      type="submit"
+                      className="btn btn-primary w-full"
+                      disabled={isAddingPlayerToRoster}
+                    >
+                      {isAddingPlayerToRoster ? (
+                        <span className="inline-block animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2" />
+                      ) : (
+                        <Plus className="h-5 w-5 inline mr-2" />
+                      )}
                       {t("addToRoster")}
                     </button>
                   </form>

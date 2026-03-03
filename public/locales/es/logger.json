@@ -326,6 +326,7 @@
   },
   "logger": {
     "view": "Cabina",
+    "review": "Revisión",
     "analytics": "Analítica",
     "progress": {
       "1h": "1T",

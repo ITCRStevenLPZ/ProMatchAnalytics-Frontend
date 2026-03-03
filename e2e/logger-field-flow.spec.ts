@@ -126,6 +126,12 @@ test.describe("Tactical Field", () => {
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     // Use HOME-1 (GK) — guaranteed at x≈5, no overlap with AWAY-1 at x≈95
     const player = page.getByTestId("field-player-HOME-1");
     await expect(player).toBeVisible({ timeout: 15000 });
@@ -349,6 +355,12 @@ test.describe("Tactical Field", () => {
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
 
@@ -398,6 +410,12 @@ test.describe("Tactical Field", () => {
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
 
@@ -435,6 +453,12 @@ test.describe("Tactical Field", () => {
     await gotoLoggerPage(page, MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
+
+    // Unlock drag — drag is locked by default
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
 
     // HOME-2 (MF) and HOME-3 (MF) should both be visible
     const p2 = page.getByTestId("field-player-HOME-2");

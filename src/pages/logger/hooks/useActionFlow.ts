@@ -37,13 +37,15 @@ const resolveEventType = (action: string): EventType => {
   if (action === "Pass") return "Pass";
   if (action === "Shot" || action === "Goal" || action === "DirectShot")
     return "Shot";
+  if (action === "Header") return "Header";
   if (action === "Duel") return "Duel";
   if (action === "Foul") return "FoulCommitted";
   if (action === "Card") return "Card";
   if (action === "Interception") return "Interception";
   if (action === "Clearance") return "Clearance";
   if (action === "Block") return "Block";
-  if (action === "Recovery" || action === "Carry") return "Recovery";
+  if (action === "Recovery") return "Recovery";
+  if (action === "Carry") return "Carry";
   if (action === "Offside") return "Offside";
   if (
     [
@@ -117,6 +119,13 @@ const buildEventPayload = (
         ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;
+    case "Header":
+      eventData.data = {
+        shot_type: "Header",
+        outcome: outcome || "OnTarget",
+        ...(endLocation ? { end_location: endLocation } : {}),
+      };
+      break;
     case "Duel":
       eventData.data = {
         duel_type: "Ground",
@@ -160,6 +169,13 @@ const buildEventPayload = (
     case "Recovery":
       eventData.data = {
         recovery_type: outcome || "Loose Ball",
+        ...(endLocation ? { end_location: endLocation } : {}),
+      };
+      break;
+    case "Carry":
+      eventData.data = {
+        carry_type: "Standard",
+        outcome: outcome || "Successful",
         ...(endLocation ? { end_location: endLocation } : {}),
       };
       break;

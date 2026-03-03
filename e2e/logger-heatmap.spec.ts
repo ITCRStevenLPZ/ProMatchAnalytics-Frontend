@@ -73,7 +73,11 @@ const sendEvent = async (
 const openAnalytics = async (page: Page) => {
   const panel = page.getByTestId("analytics-panel");
   if (await panel.isVisible().catch(() => false)) return;
-  await page.getByTestId("toggle-analytics").click();
+  const btn = page.getByTestId("toggle-analytics");
+  await expect(btn).toBeVisible({ timeout: 10000 });
+  await btn.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await btn.click();
   await expect(panel).toBeVisible({ timeout: 15000 });
 };
 
