@@ -256,18 +256,22 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
-    // Pass always goes to outcome selection now
-    await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible({
-      timeout: 8000,
-    });
+    // Pass/Shot now go to destination selection (field-based)
+    if (passMode !== "harness") {
+      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
+        timeout: 8000,
+      });
+    }
     await resetHarnessFlow(page, "home");
 
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
-    // Shot always goes to outcome selection now
-    await expect(page.getByTestId("outcome-btn-OnTarget")).toBeVisible({
-      timeout: 8000,
-    });
+    // Shot goes to destination selection — field-goal-btn overlay visible
+    if (shotMode !== "harness") {
+      await expect(page.getByTestId("field-goal-btn")).toBeVisible({
+        timeout: 8000,
+      });
+    }
     await resetHarnessFlow(page, "home");
 
     const foulMode = await openActionEntry(page, 0);
@@ -287,7 +291,16 @@ test.describe("Logger cockpit ultimate suite", () => {
     const directMode = await openActionEntry(page, 0);
     await clickAction(page, directMode, "DirectShot");
     if (directMode === "action") {
-      await page.getByTestId("outcome-btn-OnTarget").click();
+      // Shot goes to destination now — click empty field area
+      const field = page.getByTestId("soccer-field");
+      await field.scrollIntoViewIfNeeded();
+      const box = await field.boundingBox();
+      if (box) {
+        await page.mouse.click(
+          box.x + box.width * 0.8,
+          box.y + box.height * 0.5,
+        );
+      }
     }
     await waitForPendingAckToClear(page);
     await expect
@@ -298,7 +311,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     const goalMode = await openActionEntry(page, 0);
     await clickAction(page, goalMode, "Goal");
     if (goalMode === "action") {
-      await page.getByTestId("outcome-btn-Goal").click();
+      // Shot goes to destination now — click Goal overlay button
+      await page.getByTestId("field-goal-btn").click({ timeout: 5000 });
     }
     await waitForPendingAckToClear(page);
     await expect
@@ -328,12 +342,12 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforePassComplete = await getLiveEventCount(page);
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
-    // Pass always goes to outcome selection now
-    await page.getByTestId("outcome-btn-Complete").click();
-    await page
-      .locator('[data-testid^="recipient-card-HOME-"]')
-      .first()
-      .click({ force: true });
+    // Pass now goes to destination selection — click a teammate on the field
+    if (passMode !== "harness") {
+      const teammate = page.getByTestId("field-player-HOME-3");
+      await expect(teammate).toBeVisible({ timeout: 5000 });
+      await teammate.click();
+    }
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
@@ -359,8 +373,14 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforeShotKeeper = await getLiveEventCount(page);
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
-    // Shot always goes to outcome selection now
-    await page.getByTestId("outcome-btn-Saved").click();
+    // Shot now goes to destination selection — click opponent GK for Saved
+    if (shotMode !== "harness") {
+      const gkNode = page
+        .locator('[data-testid^="field-player-AWAY-"]')
+        .first();
+      await expect(gkNode).toBeVisible({ timeout: 5000 });
+      await gkNode.click();
+    }
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
@@ -369,8 +389,12 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforeOutCount = await getLiveEventCount(page);
     const outMode = await openActionEntry(page, 0);
     await clickAction(page, outMode, "Pass");
-    // Pass always goes to outcome selection now
-    await page.getByTestId("outcome-btn-Out").click();
+    // Pass now goes to destination — click border zone for Out
+    if (outMode !== "harness") {
+      const borderZone = page.locator('[data-testid^="border-zone-"]').first();
+      await expect(borderZone).toBeVisible({ timeout: 5000 });
+      await borderZone.click();
+    }
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 15000 })
@@ -503,18 +527,27 @@ test.describe("Logger cockpit ultimate suite", () => {
     const directMode = await openActionEntry(page, 0);
     await clickAction(page, directMode, "DirectShot");
     if (directMode === "action") {
-      await page.getByTestId("outcome-btn-OnTarget").click();
+      // Shot goes to destination now — click empty field area
+      const field = page.getByTestId("soccer-field");
+      await field.scrollIntoViewIfNeeded();
+      const box = await field.boundingBox();
+      if (box) {
+        await page.mouse.click(
+          box.x + box.width * 0.8,
+          box.y + box.height * 0.5,
+        );
+      }
     }
     await waitForPendingAckToClear(page);
 
     const passMode = await openActionEntry(page, 1);
     await clickAction(page, passMode, "Pass");
-    // Pass always goes to outcome selection now
-    await page.getByTestId("outcome-btn-Complete").click();
-    await page
-      .locator('[data-testid^="recipient-card-HOME-"]')
-      .nth(1)
-      .click({ force: true });
+    // Pass now goes to destination — click a teammate on the field
+    if (passMode !== "harness") {
+      const teammate = page.getByTestId("field-player-HOME-3");
+      await expect(teammate).toBeVisible({ timeout: 5000 });
+      await teammate.click();
+    }
     await waitForPendingAckToClear(page);
 
     const offsideMode = await openActionEntry(page, 3);

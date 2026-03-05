@@ -524,10 +524,6 @@ export const useActionFlow = ({
         }
         return;
       }
-      if (action === "Shot" || action === "Pass") {
-        setCurrentStep("selectOutcome");
-        return;
-      }
       setCurrentStep("selectDestination");
     },
     [
@@ -546,7 +542,12 @@ export const useActionFlow = ({
   const handleActionClick = useCallback((action: string) => {
     setSelectedAction(action);
     setPendingOutcome(null);
-    setCurrentStep("selectOutcome");
+    // Shot/Pass use field-based destination selection; others use outcome panel
+    if (action === "Shot" || action === "Pass") {
+      setCurrentStep("selectDestination");
+    } else {
+      setCurrentStep("selectOutcome");
+    }
   }, []);
 
   const handleDestinationClick = useCallback(

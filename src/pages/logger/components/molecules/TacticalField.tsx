@@ -528,7 +528,11 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
             {/* ─── Overlay (e.g. QuickActionMenu) ─── */}
             {overlay && (
               <div
-                className="absolute inset-0 z-30 pointer-events-auto"
+                className={`absolute inset-0 z-30 ${
+                  showDestinationControls
+                    ? "pointer-events-none"
+                    : "pointer-events-auto"
+                }`}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               >

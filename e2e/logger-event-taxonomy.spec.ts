@@ -93,9 +93,9 @@ const getHarnessCurrentStep = async (page: Page): Promise<string | null> => {
 const logShotGoal = async (page: Page) => {
   await selectHomePlayer(page).click();
   await selectZoneIfVisible(page);
-  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-  await page.getByTestId("action-btn-Shot").click();
-  await page.getByTestId("outcome-btn-Goal").click();
+  await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
+  // Shot goes to selectDestination; click the Goal overlay button
+  await page.getByTestId("field-goal-btn").click({ timeout: 8000 });
   await waitForPendingAckToClear(page);
 };
 
@@ -331,25 +331,30 @@ test.describe("Logger event taxonomy", () => {
     await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
 
-    // Step must be selectOutcome — Shot now uses two-step outcome flow
+    // Step must be selectDestination — Shot uses field-based destination flow
     const afterShotStep = await getHarnessCurrentStep(page);
-    expect(afterShotStep).toBe("selectOutcome");
+    expect(afterShotStep).toBe("selectDestination");
 
     // Capture count AFTER step is confirmed to avoid race with prior events
-    const countAtOutcomeStep = await liveEvents.count();
+    const countAtDestStep = await liveEvents.count();
 
-    // Select "OnTarget" outcome
-    await page.getByTestId("outcome-btn-OnTarget").click({ timeout: 5000 });
+    // Click an empty area on the field → Shot resolves to OffTarget
+    const field = page.getByTestId("soccer-field");
+    await field.scrollIntoViewIfNeeded();
+    const box = await field.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) throw new Error("soccer-field bounding box unavailable");
+    await page.mouse.click(box.x + box.width * 0.8, box.y + box.height / 2);
     await waitForPendingAckToClear(page);
 
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 10000 })
-      .toBeGreaterThanOrEqual(countAtOutcomeStep + 1);
+      .toBeGreaterThanOrEqual(countAtDestStep + 1);
 
     const latestEvent = liveEvents.filter({ hasText: "Shot" }).first();
     await expect(latestEvent).toBeVisible({ timeout: 10000 });
     const latestText = (await latestEvent.textContent()) || "";
-    expect(/OnTarget/i.test(latestText)).toBe(true);
+    expect(/OffTarget/i.test(latestText)).toBe(true);
 
     const finalStep = await getHarnessCurrentStep(page);
     expect(finalStep).toBe("selectPlayer");
@@ -368,21 +373,14 @@ test.describe("Logger event taxonomy", () => {
     await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
 
-    // Pass now goes to selectOutcome
+    // Pass now goes to selectDestination — field-based flow
     const afterPassStep = await getHarnessCurrentStep(page);
-    expect(afterPassStep).toBe("selectOutcome");
+    expect(afterPassStep).toBe("selectDestination");
 
-    // Select Complete → goes to selectRecipient
-    await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
-    const recipientStep = await getHarnessCurrentStep(page);
-    expect(recipientStep).toBe("selectRecipient");
-
-    // Select a teammate as recipient
-    const recipient = page
-      .locator('[data-testid^="recipient-card-HOME-"]')
-      .first();
-    await expect(recipient).toBeVisible({ timeout: 5000 });
-    await recipient.click();
+    // Click a teammate player on the field → Complete pass
+    const teammate = page.getByTestId("field-player-HOME-3");
+    await expect(teammate).toBeVisible({ timeout: 8000 });
+    await teammate.click();
     await waitForPendingAckToClear(page);
 
     const liveEvents = page.getByTestId("live-event-item");
@@ -438,6 +436,7 @@ test.describe("Logger event taxonomy", () => {
     await page.getByTestId("quick-action-Header").click({ timeout: 8000 });
 
     const field = page.getByTestId("soccer-field");
+    await field.scrollIntoViewIfNeeded();
     const box = await field.boundingBox();
     expect(box).not.toBeNull();
     if (!box) {
@@ -466,7 +465,7 @@ test.describe("Logger event taxonomy", () => {
       .toBeGreaterThanOrEqual(1);
   });
 
-  test("Pass Out logs immediately and stops effective time without destination", async ({
+  test("Pass Out logs immediately and stops effective time via border zone", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -477,9 +476,10 @@ test.describe("Logger event taxonomy", () => {
 
     await page.getByTestId("field-player-HOME-2").click();
     await selectZoneIfVisible(page);
-    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
-    await page.getByTestId("action-btn-Pass").click();
-    await page.getByTestId("outcome-btn-Out").click();
+    await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
+
+    // Pass goes to selectDestination — click border zone for Out
+    await page.getByTestId("border-zone-top-0").click({ timeout: 8000 });
     await waitForPendingAckToClear(page);
 
     const currentStep = await getHarnessCurrentStep(page);

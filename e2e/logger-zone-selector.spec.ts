@@ -252,23 +252,14 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       });
       await page.getByTestId("quick-action-Pass").click();
 
-      // 5. Step should be selectOutcome now (Pass uses two-step outcome flow)
+      // 5. Step should be selectDestination (Pass uses field-based destination flow)
       const step = await getHarnessCurrentStep(page);
-      expect(step).toBe("selectOutcome");
+      expect(step).toBe("selectDestination");
 
-      // 6. Select Complete outcome → goes to selectRecipient
-      await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
-
-      // 7. Wait for recipient step and select a teammate
-      await page.waitForTimeout(500);
-      const stepAfterOutcome = await getHarnessCurrentStep(page);
-      if (stepAfterOutcome === "selectRecipient") {
-        const recipient = page
-          .locator('[data-testid^="recipient-card-HOME-"]')
-          .first();
-        await expect(recipient).toBeVisible({ timeout: 5000 });
-        await recipient.click();
-      }
+      // 6. Click a teammate on the field → Complete pass
+      const teammate = page.getByTestId("field-player-HOME-3");
+      await expect(teammate).toBeVisible({ timeout: 8000 });
+      await teammate.click();
 
       // Event should be submitted — wait for ack
       await waitForPendingAckToClear(page);
@@ -552,19 +543,10 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await page.getByTestId("zone-select-8").click();
       await page.getByTestId("quick-action-Pass").click();
 
-      // Select Complete outcome
-      await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
-
-      // Handle recipient step
-      await page.waitForTimeout(500);
-      const stepAfter = await getHarnessCurrentStep(page);
-      if (stepAfter === "selectRecipient") {
-        const recipient = page
-          .locator('[data-testid^="recipient-card-HOME-"]')
-          .first();
-        await expect(recipient).toBeVisible({ timeout: 5000 });
-        await recipient.click();
-      }
+      // Complete the pass by clicking a teammate on the field
+      const teammate = page.getByTestId("field-player-HOME-3");
+      await expect(teammate).toBeVisible({ timeout: 5000 });
+      await teammate.click();
 
       await waitForPendingAckToClear(page);
       await expect(page.getByTestId("live-event-item").first()).toBeVisible({
