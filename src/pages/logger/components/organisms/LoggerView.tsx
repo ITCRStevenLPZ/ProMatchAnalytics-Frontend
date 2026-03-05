@@ -34,6 +34,7 @@ interface LoggerViewProps {
   isVarActive: boolean;
   isTimeoutActive: boolean;
   showFieldResume: boolean;
+  isHalftimePhase?: boolean;
   hasActiveIneffective?: boolean;
   ineffectiveTeamLabel?: string;
   onSwitchIneffectiveTeam?: () => void;
@@ -131,6 +132,7 @@ export default function LoggerView({
   isVarActive,
   isTimeoutActive,
   showFieldResume,
+  isHalftimePhase = false,
   hasActiveIneffective,
   ineffectiveTeamLabel,
   onSwitchIneffectiveTeam,
@@ -217,7 +219,7 @@ export default function LoggerView({
           onTimeoutToggle={handleTimeoutToggle}
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
-          hideResumeButton={showFieldResume}
+          hideResumeButton={showFieldResume || isHalftimePhase}
           hasActiveIneffective={hasActiveIneffective}
           ineffectiveTeamLabel={ineffectiveTeamLabel}
           onSwitchIneffectiveTeam={onSwitchIneffectiveTeam}

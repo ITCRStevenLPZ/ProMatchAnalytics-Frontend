@@ -970,6 +970,10 @@ export default function LoggerCockpit() {
                 isVarActive={isVarActive}
                 isTimeoutActive={isTimeoutActive}
                 showFieldResume={showFieldResume}
+                isHalftimePhase={
+                  currentPhase === "HALFTIME" ||
+                  currentPhase === "EXTRA_HALFTIME"
+                }
                 hasActiveIneffective={hasActiveIneffective}
                 ineffectiveTeamLabel={
                   ineffectiveTeamSelection === "home"

@@ -196,11 +196,11 @@ export const submitStandardShot = async (
 };
 
 export const ensureClockRunning = async (page: Page): Promise<void> => {
-  const ballStateLabel = page.getByTestId("ball-state-label");
-  const stateText = (await ballStateLabel.textContent()) || "";
-  if (/Ball In Play|Bal[oó]n en Juego/i.test(stateText)) return;
-
   const stopClockButton = page.getByTestId("btn-stop-clock");
+
+  // Stop button enabled = clock is already running (ball may be in play or out)
+  const alreadyRunning = await stopClockButton.isEnabled().catch(() => false);
+  if (alreadyRunning) return;
 
   const startClockButton = page.getByTestId("btn-start-clock");
   const startEnabled = await startClockButton.isEnabled().catch(() => false);
@@ -208,14 +208,6 @@ export const ensureClockRunning = async (page: Page): Promise<void> => {
     await startClockButton.click({ timeout: 15000 });
   }
 
-  const stopEnabled = await stopClockButton.isEnabled().catch(() => false);
-  if (stopEnabled) {
-    return;
-  }
-
-  await expect(ballStateLabel).toHaveText(/Ball In Play|Bal[oó]n en Juego/i, {
-    timeout: 15000,
-  });
   await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
 };
 

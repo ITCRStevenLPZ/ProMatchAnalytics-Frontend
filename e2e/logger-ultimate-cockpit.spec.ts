@@ -256,28 +256,18 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
-    if (passMode === "quick") {
-      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
-        timeout: 8000,
-      });
-    } else if (passMode === "action") {
-      await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible({
-        timeout: 8000,
-      });
-    }
+    // Pass always goes to outcome selection now
+    await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible({
+      timeout: 8000,
+    });
     await resetHarnessFlow(page, "home");
 
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
-    if (shotMode === "quick") {
-      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
-        timeout: 8000,
-      });
-    } else if (shotMode === "action") {
-      await expect(page.getByTestId("outcome-btn-OnTarget")).toBeVisible({
-        timeout: 8000,
-      });
-    }
+    // Shot always goes to outcome selection now
+    await expect(page.getByTestId("outcome-btn-OnTarget")).toBeVisible({
+      timeout: 8000,
+    });
     await resetHarnessFlow(page, "home");
 
     const foulMode = await openActionEntry(page, 0);
@@ -338,15 +328,12 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforePassComplete = await getLiveEventCount(page);
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
-    if (passMode === "quick") {
-      await selectPlayerRow(page, 1).click({ force: true });
-    } else if (passMode === "action") {
-      await page.getByTestId("outcome-btn-Complete").click();
-      await page
-        .locator('[data-testid^="recipient-card-HOME-"]')
-        .first()
-        .click({ force: true });
-    }
+    // Pass always goes to outcome selection now
+    await page.getByTestId("outcome-btn-Complete").click();
+    await page
+      .locator('[data-testid^="recipient-card-HOME-"]')
+      .first()
+      .click({ force: true });
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
@@ -372,11 +359,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforeShotKeeper = await getLiveEventCount(page);
     const shotMode = await openActionEntry(page, 0);
     await clickAction(page, shotMode, "Shot");
-    if (shotMode === "quick") {
-      await selectPlayerRow(page, 11).click({ force: true });
-    } else if (shotMode === "action") {
-      await page.getByTestId("outcome-btn-Saved").click();
-    }
+    // Shot always goes to outcome selection now
+    await page.getByTestId("outcome-btn-Saved").click();
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
@@ -385,22 +369,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     const beforeOutCount = await getLiveEventCount(page);
     const outMode = await openActionEntry(page, 0);
     await clickAction(page, outMode, "Pass");
-    if (outMode === "quick") {
-      await page.locator('button[title^="Out"]').first().click();
-    } else if (outMode === "action") {
-      await page.getByTestId("outcome-btn-Out").click();
-    } else {
-      await sendHarnessEvent(page, {
-        type: "Pass",
-        match_clock: nextHarnessClock(),
-        data: {
-          pass_type: "Standard",
-          outcome: "Out",
-          destination_type: "out_of_bounds",
-          out_of_bounds: true,
-        },
-      });
-    }
+    // Pass always goes to outcome selection now
+    await page.getByTestId("outcome-btn-Out").click();
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 15000 })
@@ -539,15 +509,12 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const passMode = await openActionEntry(page, 1);
     await clickAction(page, passMode, "Pass");
-    if (passMode === "quick") {
-      await selectPlayerRow(page, 2).click({ force: true });
-    } else {
-      await page.getByTestId("outcome-btn-Complete").click();
-      await page
-        .locator('[data-testid^="recipient-card-HOME-"]')
-        .nth(1)
-        .click({ force: true });
-    }
+    // Pass always goes to outcome selection now
+    await page.getByTestId("outcome-btn-Complete").click();
+    await page
+      .locator('[data-testid^="recipient-card-HOME-"]')
+      .nth(1)
+      .click({ force: true });
     await waitForPendingAckToClear(page);
 
     const offsideMode = await openActionEntry(page, 3);

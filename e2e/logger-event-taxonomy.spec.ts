@@ -316,7 +316,7 @@ test.describe("Logger event taxonomy", () => {
     await expect(latestEvent).toContainText("Direct");
   });
 
-  test("quick Shot requires destination and resolves defender/keeper outcome", async ({
+  test("quick Shot uses outcome selection and dispatches chosen outcome", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -331,30 +331,31 @@ test.describe("Logger event taxonomy", () => {
     await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
 
-    // Step must be selectDestination — proves Shot did NOT log immediately
+    // Step must be selectOutcome — Shot now uses two-step outcome flow
     const afterShotStep = await getHarnessCurrentStep(page);
-    expect(afterShotStep).toBe("selectDestination");
+    expect(afterShotStep).toBe("selectOutcome");
 
     // Capture count AFTER step is confirmed to avoid race with prior events
-    const countAtDestStep = await liveEvents.count();
+    const countAtOutcomeStep = await liveEvents.count();
 
-    await page.getByTestId("field-player-AWAY-1").click();
+    // Select "OnTarget" outcome
+    await page.getByTestId("outcome-btn-OnTarget").click({ timeout: 5000 });
     await waitForPendingAckToClear(page);
 
     await expect
       .poll(async () => await liveEvents.count(), { timeout: 10000 })
-      .toBeGreaterThanOrEqual(countAtDestStep + 1);
+      .toBeGreaterThanOrEqual(countAtOutcomeStep + 1);
 
     const latestEvent = liveEvents.filter({ hasText: "Shot" }).first();
     await expect(latestEvent).toBeVisible({ timeout: 10000 });
     const latestText = (await latestEvent.textContent()) || "";
-    expect(/Saved|Blocked/i.test(latestText)).toBe(true);
+    expect(/OnTarget/i.test(latestText)).toBe(true);
 
     const finalStep = await getHarnessCurrentStep(page);
     expect(finalStep).toBe("selectPlayer");
   });
 
-  test("pass to same-side keeper stays complete and does not auto-award corner", async ({
+  test("pass Complete outcome goes through recipient and logs without corner", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -366,7 +367,22 @@ test.describe("Logger event taxonomy", () => {
     await page.getByTestId("field-player-HOME-2").click();
     await selectZoneIfVisible(page);
     await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
-    await page.getByTestId("field-player-HOME-1").click();
+
+    // Pass now goes to selectOutcome
+    const afterPassStep = await getHarnessCurrentStep(page);
+    expect(afterPassStep).toBe("selectOutcome");
+
+    // Select Complete → goes to selectRecipient
+    await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
+    const recipientStep = await getHarnessCurrentStep(page);
+    expect(recipientStep).toBe("selectRecipient");
+
+    // Select a teammate as recipient
+    const recipient = page
+      .locator('[data-testid^="recipient-card-HOME-"]')
+      .first();
+    await expect(recipient).toBeVisible({ timeout: 5000 });
+    await recipient.click();
     await waitForPendingAckToClear(page);
 
     const liveEvents = page.getByTestId("live-event-item");
@@ -418,7 +434,8 @@ test.describe("Logger event taxonomy", () => {
     await page.getByTestId("toggle-field-flip").click();
     await page.getByTestId("field-player-HOME-2").click();
     await selectZoneIfVisible(page);
-    await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
+    // Use Header (still goes to selectDestination) to test corner detection
+    await page.getByTestId("quick-action-Header").click({ timeout: 8000 });
 
     const field = page.getByTestId("soccer-field");
     const box = await field.boundingBox();

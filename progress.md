@@ -8,7 +8,7 @@
 
 ## Current Objective
 
-- [x] Formation rotation, toolbar layout, and Review view for event corrections
+- [x] Fix bugs and implement Shot/Pass two-step outcome flow
 
 ## Status
 
@@ -17,18 +17,65 @@
 
 ## What Was Completed (Latest Session)
 
-### Feature: Formation Rotation & Toolbar Layout
+### Bug Fixes & Feature Changes
 
-1. **Formation pickers moved to TeamSelector** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+1. **Fix Auto→Manual zone disappear bug** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
 
-   - Formations now appear on left/right sides of the toolbar
-   - When field is flipped (`isFlipped`), pickers swap sides: `leftSide = isFlipped ? "away" : "home"`
-   - Added `data-testid="formation-slot-left"` and `data-testid="formation-slot-right"` for E2E testing
-   - Flip & Undo buttons centered between formation pickers with `flex-1 justify-center`
+   - Replaced raw `setPositionMode` export with `handlePositionModeChange` wrapper
+   - When switching from auto→manual mid-flow (player already selected), resets step to `selectZone` and clears zone/location state
+   - Prevents the zone selector from disappearing after mode switch
 
-2. **Formation pickers removed from PlayerSelectorPanel** — [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx)
-   - Removed `FormationPicker` import and the formation pickers row
-   - Prefixed unused formation props with underscores to avoid TS warnings
+2. **Fix resume button showing during halftime** — [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `isHalftimePhase` prop to LoggerView
+   - Timer's resume button now hidden during HALFTIME and EXTRA_HALFTIME phases
+   - `hideResumeButton={showFieldResume || isHalftimePhase}`
+
+3. **Fix penalty stats not counting** — [usePlayerStats.ts](src/pages/logger/hooks/usePlayerStats.ts)
+
+   - SetPiece case now checks `data.set_piece_type` (matching `buildEventPayload` output) with fallback to `data.action`
+   - Penalties are now correctly counted in player scoring stats
+
+4. **Shot/Pass two-step outcome flow** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Shot and Pass quick actions now go to `selectOutcome` step instead of `selectDestination`
+   - Shot outcomes: Goal, OnTarget, OffTarget, Blocked, Post, Saved
+   - Pass outcomes: Complete (→selectRecipient), Incomplete (→selectRecipient), Out (→auto-dispatch + ineffective trigger), Pass Offside
+   - Shot "Goal" outcome triggers ineffective event automatically
+   - Destination-click flow preserved for other actions (Header, Foul, Free Kick)
+   - Header added to `isPassOrShot` corner-detection logic for consistent behavior
+
+5. **Fix add-players modal dropdown clipping** — [TeamsManager.tsx](src/pages/TeamsManager.tsx)
+
+   - Changed roster modal from `overflow-y-auto` on outer container to flex layout with `overflow-hidden`
+   - Content area uses `overflow-y-auto flex-1 min-h-0` so dropdowns in header/filter area are not clipped
+
+6. **Fix ensureClockRunning E2E flake** — [e2e/utils/logger.ts](e2e/utils/logger.ts)
+   - Previous helper only accepted "Ball In Play" as proof of running clock; "Balón Fuera" (ball out) also indicates running clock
+   - Replaced fragile ball-state-label text check with stop-button enabled check
+
+### E2E Test Updates
+
+- [logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts): Shot → outcome flow, Pass → outcome→recipient flow, Header corner detection
+- [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Border zone tests use Header instead of Pass; full-flow uses outcome path
+- [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): Pass/Shot always use outcome buttons (no more quick/action branching)
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: Full suite — 265/265 PASS
+- [x] Unit: vitest — 115/115 PASS
+- [x] Pre-commit: All hooks PASS (both repos)
+
+### Items Verified as Already Working (No Changes Needed)
+
+- Teams pagination in match creation (full pagination loop with page_size: 100)
+- Multi-session analytics streaming (WebSocket ConnectionManager supports multiple connections per user)
+- Referee neutral ineffective actions (isNeutral: true, team_id: "NEUTRAL")
+- Undo action position/centering in toolbar
+- ReviewView edit + delete functionality
+- Header, Free Kick actions in QUICK_ACTIONS; DribbleLoss accessible via Carry action
+- Ineffective team switch already implemented
+  - Prefixed unused formation props with underscores to avoid TS warnings
 
 ### Feature: Three-Way View Toggle (Logger / Review / Analytics)
 

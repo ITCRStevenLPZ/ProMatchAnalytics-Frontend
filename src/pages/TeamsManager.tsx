@@ -1432,7 +1432,7 @@ export default function TeamsManager() {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           data-testid="roster-modal"
         >
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-2xl font-bold">
                 {t("roster")} - {selectedTeam.name}
@@ -1444,7 +1444,7 @@ export default function TeamsManager() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Current Roster */}
                 <div>

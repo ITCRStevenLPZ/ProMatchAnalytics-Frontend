@@ -226,7 +226,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       });
     });
 
-    test("full flow: player → zone → quick action (Pass) → destination → complete", async ({
+    test("full flow: player → zone → quick action (Pass) → outcome → complete", async ({
       page,
     }) => {
       test.setTimeout(90000);
@@ -252,27 +252,17 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       });
       await page.getByTestId("quick-action-Pass").click();
 
-      // 5. Step should be selectDestination now
+      // 5. Step should be selectOutcome now (Pass uses two-step outcome flow)
       const step = await getHarnessCurrentStep(page);
-      expect(step).toBe("selectDestination");
+      expect(step).toBe("selectOutcome");
 
-      // 6. Click a destination on the soccer field
-      const soccerField = page.getByTestId("soccer-field");
-      await expect(soccerField).toBeVisible({ timeout: 5000 });
-      const fieldBox = await soccerField.boundingBox();
-      expect(fieldBox).not.toBeNull();
-      if (!fieldBox) throw new Error("Missing field bounding box");
+      // 6. Select Complete outcome → goes to selectRecipient
+      await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
 
-      // Click somewhere on the right half of the field (pass destination)
-      await page.mouse.click(
-        fieldBox.x + fieldBox.width * 0.7,
-        fieldBox.y + fieldBox.height * 0.5,
-      );
-
-      // 7. Wait for any follow up step (recipient) or completion
+      // 7. Wait for recipient step and select a teammate
       await page.waitForTimeout(500);
-      const stepAfterDest = await getHarnessCurrentStep(page);
-      if (stepAfterDest === "selectRecipient") {
+      const stepAfterOutcome = await getHarnessCurrentStep(page);
+      if (stepAfterOutcome === "selectRecipient") {
         const recipient = page
           .locator('[data-testid^="recipient-card-HOME-"]')
           .first();
@@ -386,10 +376,10 @@ test.describe("Logger Zone & Border Zone Tests", () => {
         timeout: 8000,
       });
       await page.getByTestId("zone-select-7").click();
-      await expect(page.getByTestId("quick-action-Pass")).toBeVisible({
+      await expect(page.getByTestId("quick-action-Header")).toBeVisible({
         timeout: 8000,
       });
-      await page.getByTestId("quick-action-Pass").click();
+      await page.getByTestId("quick-action-Header").click();
 
       const step = await getHarnessCurrentStep(page);
       expect(step).toBe("selectDestination");
@@ -417,7 +407,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
         timeout: 8000,
       });
       await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Pass").click();
+      await page.getByTestId("quick-action-Header").click();
 
       // Count all border zone buttons
       const borderZones = page.locator('[data-testid^="border-zone-"]');
@@ -440,7 +430,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
         timeout: 8000,
       });
       await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Pass").click();
+      await page.getByTestId("quick-action-Header").click();
 
       // Top-left corner: top-0 (touchline) + left-0 (goal line) = 2 buttons
       await expect(page.getByTestId("border-zone-top-0")).toBeVisible({
@@ -470,13 +460,13 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
 
-      // Full flow: player → zone → Pass → click top border zone (touchline out)
+      // Full flow: player → zone → Header → click top border zone (touchline out)
       await page.getByTestId("field-player-HOME-3").click();
       await expect(page.getByTestId("field-zone-selector")).toBeVisible({
         timeout: 8000,
       });
       await page.getByTestId("zone-select-8").click();
-      await page.getByTestId("quick-action-Pass").click();
+      await page.getByTestId("quick-action-Header").click();
 
       const step = await getHarnessCurrentStep(page);
       expect(step).toBe("selectDestination");
@@ -500,14 +490,13 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
 
-      // Full flow: player → zone → Pass → click left border zone (goal line out)
-      // HOME player passing behind own goal line → corner awarded to away team
+      // Full flow: player → zone → Header → click left border zone (goal line out)
       await page.getByTestId("field-player-HOME-3").click();
       await expect(page.getByTestId("field-zone-selector")).toBeVisible({
         timeout: 8000,
       });
       await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Pass").click();
+      await page.getByTestId("quick-action-Header").click();
 
       const step = await getHarnessCurrentStep(page);
       expect(step).toBe("selectDestination");
@@ -555,7 +544,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
 
-      // Flow: player → zone 8 → Pass → destination (field click)
+      // Flow: player → zone 8 → Pass → outcome (Complete) → recipient
       await page.getByTestId("field-player-HOME-3").click();
       await expect(page.getByTestId("field-zone-selector")).toBeVisible({
         timeout: 8000,
@@ -563,14 +552,10 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await page.getByTestId("zone-select-8").click();
       await page.getByTestId("quick-action-Pass").click();
 
-      // Click on the right side of the field as destination
-      const field = page.getByTestId("soccer-field");
-      const box = await field.boundingBox();
-      expect(box).not.toBeNull();
-      if (!box) throw new Error("Missing field bounding box");
-      await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.5);
+      // Select Complete outcome
+      await page.getByTestId("outcome-btn-Complete").click({ timeout: 5000 });
 
-      // Handle possible recipient step
+      // Handle recipient step
       await page.waitForTimeout(500);
       const stepAfter = await getHarnessCurrentStep(page);
       if (stepAfter === "selectRecipient") {
