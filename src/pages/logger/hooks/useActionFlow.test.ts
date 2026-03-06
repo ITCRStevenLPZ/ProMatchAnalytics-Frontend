@@ -421,6 +421,134 @@ describe("useActionFlow", () => {
     expect(result.current.currentStep).toBe("selectPlayer");
   });
 
+  it("should dispatch Corner quick action and trigger OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Corner");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("SetPiece");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        set_piece_type: "Corner",
+        outcome: "Complete",
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
+  it("should dispatch Throw-in quick action and trigger OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Throw-in");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("SetPiece");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        set_piece_type: "Throw-in",
+        outcome: "Complete",
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
+  it("should dispatch Shot Out quick action as Shot OffTarget with OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Shot Out");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("Shot");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        shot_type: "Standard",
+        outcome: "OffTarget",
+        destination_type: "out_of_bounds",
+        out_of_bounds: true,
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
   it("should attribute foul ineffective trigger to opponent team", () => {
     const onIneffectiveTrigger = vi.fn();
     const props = {

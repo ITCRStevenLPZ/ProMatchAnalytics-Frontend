@@ -9,6 +9,8 @@
 ## Current Objective
 
 - [x] Field-based Shot/Pass destination flow (replaces outcome panel)
+- [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
+- [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
 
 ## Status
 
@@ -17,44 +19,59 @@
 
 ## What Was Completed (Latest Session)
 
-### Field-Based Shot/Pass Destination Flow
+### Replace Out Border Zones with Corner/Throw-in/Shot Out Quick Actions
 
-1. **Shot/Pass routing to field destination** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+1. **Added Corner, Throw-in, Shot Out to QuickActionMenu** — [constants.ts](src/pages/logger/constants.ts)
 
-   - Changed Shot/Pass from `setCurrentStep("selectOutcome")` to `setCurrentStep("selectDestination")`
-   - `handleDestinationClick` determines outcome: teammate=Complete, opponent=Blocked/Intercepted, field=OffTarget/OnTarget, Out=OffTarget
-   - Eliminates the below-field OutcomeSelectionPanel for Shot/Pass actions
+   - Added `"Corner"`, `"Throw-in"`, `"Shot Out"` to `QUICK_ACTIONS` array (now 11 items)
 
-2. **Field overlay for destination selection** — [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx)
+2. **Quick action handlers** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
 
-   - Added `fieldOverlay` with Goal button (Shot only, `data-testid="field-goal-btn"`), Cancel button (`data-testid="field-cancel-btn"`), and hint text
-   - Overlay rendered at z-30 with `pointer-events-none` container, buttons `pointer-events-auto`
+   - Corner: dispatches SetPiece Corner (Complete) + triggers OutOfBounds ineffective → resetFlow
+   - Throw-in: dispatches SetPiece Throw-in (Complete) + triggers OutOfBounds ineffective → resetFlow
+   - Shot Out: dispatches Shot OffTarget (out_of_bounds: true) + triggers OutOfBounds ineffective → resetFlow
+   - Added `onIneffectiveTrigger` and `resolveOpponentTeamId` to dependency array
 
-3. **TacticalField overlay pointer-events fix** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
-   - Overlay wrapper conditionally uses `pointer-events-none` when `showDestinationControls` is true
-   - Allows player node clicks (z-10) and field background clicks to pass through during destination selection
-   - When `showDestinationControls` is false, overlay remains `pointer-events-auto` + `stopPropagation` (original behavior)
+3. **Removed border zone rendering** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
+
+   - Removed ~180 lines: BORDER_COLS/ROWS, BORDER_ZONES array, renderBorderButton, getEdgeZones, all border strip JSX
+
+4. **Removed border zone rendering** — [SoccerField.tsx](src/components/SoccerField.tsx)
+   - Removed ~140 lines of border zone button rendering code
 
 ### E2E Test Updates
 
-- [utils/logger.ts](e2e/utils/logger.ts): `submitStandardPass`/`submitStandardShot` rewritten to use harness directly
-- [logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts): Added `scrollIntoViewIfNeeded()` for all `mouse.click` calls
-- [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): Added `scrollIntoViewIfNeeded()` for click calls
-- [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Updated for destination flow
-- [logger-mega-sim.spec.ts](e2e/logger-mega-sim.spec.ts): Pass uses dynamic teammate ID from roster
-- [logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts): Updated for destination flow
-- [logger-action-matrix.spec.ts](e2e/logger-action-matrix.spec.ts): Harness fallback for Pass/Shot
+- [logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts): "Pass Out via border zone" → "Throw-in quick action logs immediately and stops effective time"
+- [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): ULT-01 `Out` button checks → `field-cancel-btn`, Foul quick mode fix; ULT-02 border zone Out → Throw-in quick action; added Corner/Throw-in/Shot Out to clickAction type union + harness fallbacks
+- [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Replaced entire "Border Zone Destination Flow" describe block (5 tests) with "Out-of-Play Quick Actions" (3 tests: Corner, Throw-in, Shot Out)
+- [logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts): Replaced `Out` button check with `field-cancel-btn`
 
 ### Unit Test Updates
 
-- [useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts): 6 tests rewritten for `selectDestination` + `handleDestinationClick` flow
+- [useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts): 3 new tests — Corner, Throw-in, Shot Out quick action dispatch + OutOfBounds ineffective trigger (118/118 total)
+
+### Fix: Clock Phantom Time Accumulation on Stop/Start
+
+**Bug**: Stopping and restarting the clock while in INEFFECTIVE mode caused time to jump by the entire stopped duration (e.g. 01:01 → 118:17).
+
+**Root cause**: Two issues —
+
+1. `ineffective_time_seconds` was not persisted to the backend on clock stop (only effective time was saved)
+2. `last_mode_change_timestamp` was not refreshed on clock start, causing the timer to calculate `now - old_timestamp` which included all stopped time
+
+**Fixes**:
+
+1. **Frontend** [useMatchTimer.ts](src/pages/logger/hooks/useMatchTimer.ts): `handleGlobalClockStop` now also persists `ineffective_time_seconds` via `updateMatch`
+2. **Backend** [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py): Clock start handler resets `last_mode_change_timestamp = now` when clock_mode is INEFFECTIVE
+
+**Test**: [test_matches_new_router.py](../ProMatchAnalytics-Backend/tests/test_matches_new_router.py): `test_clock_restart_in_ineffective_mode_resets_last_mode_change` — verifies stale timestamp is refreshed on restart (122/122 backend tests pass)
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: Full suite — 245+ passed (flaky failures are pre-existing, all pass in isolation)
-- [x] Unit: vitest — 115/115 PASS
+- [x] E2E: Full suite — 159+ passed (flaky failures are pre-existing, all pass in isolation)
+- [x] Unit: vitest — 118/118 PASS
+- [x] Backend: pytest — 122/122 PASS
 - [x] TypeScript: 0 errors
-- [x] ESLint + i18n: 0 warnings
 
 ## Implementation Notes
 

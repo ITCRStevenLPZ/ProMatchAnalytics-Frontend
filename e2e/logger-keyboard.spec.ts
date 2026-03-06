@@ -59,9 +59,9 @@ test.describe("Logger Keyboard Shortcuts", () => {
     await page.keyboard.press("p");
 
     // Pass now goes to destination selection (field-based), not outcome buttons
-    // Verify action buttons are gone and border OUT zones appear on the field
+    // Verify action buttons are gone and cancel destination button is visible
     await expect(page.getByTestId("action-btn-Pass")).not.toBeVisible();
-    await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
+    await expect(page.getByTestId("field-cancel-btn")).toBeVisible({
       timeout: 8000,
     });
 

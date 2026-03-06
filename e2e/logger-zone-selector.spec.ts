@@ -343,106 +343,16 @@ test.describe("Logger Zone & Border Zone Tests", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Border Zone (Out-of-Bounds) Tests
+  // Out-of-Play Quick Action Tests (Corner, Throw-in, Shot Out)
   // ---------------------------------------------------------------------------
 
-  test.describe("Border Zone Destination Flow", () => {
+  test.describe("Out-of-Play Quick Actions", () => {
     test.beforeEach(async ({ page }) => {
       await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
       await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
     });
 
-    test("border zones appear during selectDestination step", async ({
-      page,
-    }) => {
-      test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
-      await ensureAdminRole(page);
-      await ensureClockRunning(page);
-      await resetHarnessFlow(page, "home");
-
-      // Complete the zone-selection → quick-action flow to reach selectDestination
-      await page.getByTestId("field-player-HOME-3").click();
-      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
-        timeout: 8000,
-      });
-      await page.getByTestId("zone-select-7").click();
-      await expect(page.getByTestId("quick-action-Header")).toBeVisible({
-        timeout: 8000,
-      });
-      await page.getByTestId("quick-action-Header").click();
-
-      const step = await getHarnessCurrentStep(page);
-      expect(step).toBe("selectDestination");
-
-      // Border zones should now be visible
-      await expect(page.getByTestId("border-zone-top-0")).toBeVisible({
-        timeout: 5000,
-      });
-      await expect(page.getByTestId("border-zone-bottom-5")).toBeVisible();
-      await expect(page.getByTestId("border-zone-left-0")).toBeVisible();
-      await expect(page.getByTestId("border-zone-right-3")).toBeVisible();
-    });
-
-    test("all 20 border zones are rendered (6 top + 6 bottom + 4 left + 4 right)", async ({
-      page,
-    }) => {
-      test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
-      await ensureAdminRole(page);
-      await ensureClockRunning(page);
-      await resetHarnessFlow(page, "home");
-
-      await page.getByTestId("field-player-HOME-3").click();
-      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
-        timeout: 8000,
-      });
-      await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Header").click();
-
-      // Count all border zone buttons
-      const borderZones = page.locator('[data-testid^="border-zone-"]');
-      await expect(borderZones.first()).toBeVisible({ timeout: 5000 });
-      const count = await borderZones.count();
-      expect(count).toBe(20);
-    });
-
-    test("corner areas have exactly 2 border zone buttons each", async ({
-      page,
-    }) => {
-      test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
-      await ensureAdminRole(page);
-      await ensureClockRunning(page);
-      await resetHarnessFlow(page, "home");
-
-      await page.getByTestId("field-player-HOME-3").click();
-      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
-        timeout: 8000,
-      });
-      await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Header").click();
-
-      // Top-left corner: top-0 (touchline) + left-0 (goal line) = 2 buttons
-      await expect(page.getByTestId("border-zone-top-0")).toBeVisible({
-        timeout: 5000,
-      });
-      await expect(page.getByTestId("border-zone-left-0")).toBeVisible();
-
-      // Top-right corner: top-5 + right-0
-      await expect(page.getByTestId("border-zone-top-5")).toBeVisible();
-      await expect(page.getByTestId("border-zone-right-0")).toBeVisible();
-
-      // Bottom-left corner: bottom-0 + left-3
-      await expect(page.getByTestId("border-zone-bottom-0")).toBeVisible();
-      await expect(page.getByTestId("border-zone-left-3")).toBeVisible();
-
-      // Bottom-right corner: bottom-5 + right-3
-      await expect(page.getByTestId("border-zone-bottom-5")).toBeVisible();
-      await expect(page.getByTestId("border-zone-right-3")).toBeVisible();
-    });
-
-    test("clicking a touchline border zone (top) logs out-of-bounds event", async ({
+    test("Corner quick action logs SetPiece event and triggers OutOfBounds ineffective", async ({
       page,
     }) => {
       test.setTimeout(90000);
@@ -451,28 +361,58 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
 
-      // Full flow: player → zone → Header → click top border zone (touchline out)
+      await page.getByTestId("field-player-HOME-3").click();
+      await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+        timeout: 8000,
+      });
+      await page.getByTestId("zone-select-7").click();
+      await page.getByTestId("quick-action-Corner").click({ timeout: 8000 });
+
+      await waitForPendingAckToClear(page);
+
+      const step = await getHarnessCurrentStep(page);
+      expect(step).toBe("selectPlayer");
+
+      await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      await expect(page.getByTestId("btn-resume-effective")).toBeVisible({
+        timeout: 10000,
+      });
+    });
+
+    test("Throw-in quick action logs SetPiece event and triggers OutOfBounds ineffective", async ({
+      page,
+    }) => {
+      test.setTimeout(90000);
+      await gotoLoggerPage(page, MATCH_ID);
+      await ensureAdminRole(page);
+      await ensureClockRunning(page);
+      await resetHarnessFlow(page, "home");
+
       await page.getByTestId("field-player-HOME-3").click();
       await expect(page.getByTestId("field-zone-selector")).toBeVisible({
         timeout: 8000,
       });
       await page.getByTestId("zone-select-8").click();
-      await page.getByTestId("quick-action-Header").click();
+      await page.getByTestId("quick-action-Throw-in").click({ timeout: 8000 });
+
+      await waitForPendingAckToClear(page);
 
       const step = await getHarnessCurrentStep(page);
-      expect(step).toBe("selectDestination");
+      expect(step).toBe("selectPlayer");
 
-      // Click a top (touchline) border zone — ball went out over the sideline
-      await page.getByTestId("border-zone-top-3").click();
-
-      // Should have submitted the event
-      await waitForPendingAckToClear(page);
       await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      await expect(page.getByTestId("btn-resume-effective")).toBeVisible({
         timeout: 10000,
       });
     });
 
-    test("clicking a goal-line border zone (left) logs out-of-bounds event with corner logic preserved", async ({
+    test("Shot Out quick action logs Shot OffTarget event and triggers OutOfBounds ineffective", async ({
       page,
     }) => {
       test.setTimeout(90000);
@@ -481,23 +421,23 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
 
-      // Full flow: player → zone → Header → click left border zone (goal line out)
       await page.getByTestId("field-player-HOME-3").click();
       await expect(page.getByTestId("field-zone-selector")).toBeVisible({
         timeout: 8000,
       });
-      await page.getByTestId("zone-select-7").click();
-      await page.getByTestId("quick-action-Header").click();
+      await page.getByTestId("zone-select-8").click();
+      await page.getByTestId("quick-action-Shot Out").click({ timeout: 8000 });
+
+      await waitForPendingAckToClear(page);
 
       const step = await getHarnessCurrentStep(page);
-      expect(step).toBe("selectDestination");
+      expect(step).toBe("selectPlayer");
 
-      // Click a left (goal line) border zone
-      await page.getByTestId("border-zone-left-1").click();
-
-      // Should have submitted the event (pass out + potential corner set piece)
-      await waitForPendingAckToClear(page);
       await expect(page.getByTestId("live-event-item").first()).toBeVisible({
+        timeout: 10000,
+      });
+
+      await expect(page.getByTestId("btn-resume-effective")).toBeVisible({
         timeout: 10000,
       });
     });

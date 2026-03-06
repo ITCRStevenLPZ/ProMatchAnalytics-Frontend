@@ -524,12 +524,69 @@ export const useActionFlow = ({
         }
         return;
       }
+      if (action === "Corner") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Complete", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Corner kick",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
+      if (action === "Throw-in") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Complete", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Throw-in",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
+      if (action === "Shot Out") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent("Shot", "OffTarget", null, {
+            location: selectedPlayerLocation ?? undefined,
+            extraData: {
+              destination_type: "out_of_bounds",
+              out_of_bounds: true,
+            },
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Shot out of bounds",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
       setCurrentStep("selectDestination");
     },
     [
       currentTeam,
       dispatchEvent,
+      onIneffectiveTrigger,
       resetFlow,
+      resolveOpponentTeamId,
       selectedPlayer,
       selectedPlayerLocation,
     ],

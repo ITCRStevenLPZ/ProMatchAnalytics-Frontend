@@ -103,6 +103,9 @@ export const QUICK_ACTIONS = [
   "Foul",
   "Offside",
   "Free Kick",
+  "Corner",
+  "Throw-in",
+  "Shot Out",
 ] as const;
 
 export const DEFAULT_PERIOD_MAP: Record<MatchStatus, number> = {

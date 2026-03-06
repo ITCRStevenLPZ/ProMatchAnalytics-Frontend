@@ -109,72 +109,6 @@ const buildCoordinate = (
 };
 
 // ---------------------------------------------------------------------------
-// Border-zone definitions (out-of-bounds destination strips)
-// ---------------------------------------------------------------------------
-
-const BORDER_COLS = 6;
-const BORDER_ROWS = 4;
-const BORDER_COL_PCT = 100 / BORDER_COLS; // 16.667%
-const BORDER_ROW_PCT = 100 / BORDER_ROWS; // 25%
-
-interface BorderZone {
-  id: string;
-  edge: "top" | "bottom" | "left" | "right";
-  /** Segment index within the edge (col for H, row for V) */
-  idx: number;
-  /** % coordinate to pass to buildCoordinate */
-  coordX: number;
-  coordY: number;
-}
-
-const BORDER_ZONES: BorderZone[] = [
-  // Top touchline — 6 segments aligned with zone columns
-  ...Array.from(
-    { length: BORDER_COLS },
-    (_, i): BorderZone => ({
-      id: `border-zone-top-${i}`,
-      edge: "top",
-      idx: i,
-      coordX: (i + 0.5) * BORDER_COL_PCT,
-      coordY: 0,
-    }),
-  ),
-  // Bottom touchline
-  ...Array.from(
-    { length: BORDER_COLS },
-    (_, i): BorderZone => ({
-      id: `border-zone-bottom-${i}`,
-      edge: "bottom",
-      idx: i,
-      coordX: (i + 0.5) * BORDER_COL_PCT,
-      coordY: 100,
-    }),
-  ),
-  // Left goal line — 4 segments aligned with zone rows
-  ...Array.from(
-    { length: BORDER_ROWS },
-    (_, i): BorderZone => ({
-      id: `border-zone-left-${i}`,
-      edge: "left",
-      idx: i,
-      coordX: 0,
-      coordY: (i + 0.5) * BORDER_ROW_PCT,
-    }),
-  ),
-  // Right goal line
-  ...Array.from(
-    { length: BORDER_ROWS },
-    (_, i): BorderZone => ({
-      id: `border-zone-right-${i}`,
-      edge: "right",
-      idx: i,
-      coordX: 100,
-      coordY: (i + 0.5) * BORDER_ROW_PCT,
-    }),
-  ),
-];
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -291,116 +225,11 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
     ],
   );
 
-  /** Whether the outer out-of-bounds frame should render */
-  const showBorderFrame = Boolean(
-    onDestinationClick && showDestinationControls,
-  );
-
-  /** Render a single border-zone button */
-  const renderBorderButton = (zone: BorderZone) => {
-    const isGoalLine = zone.edge === "left" || zone.edge === "right";
-    return (
-      <button
-        key={zone.id}
-        type="button"
-        data-testid={zone.id}
-        className={`flex items-center justify-center
-          text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer w-full h-full
-          ${
-            isGoalLine
-              ? "bg-red-900/60 hover:bg-red-700/70 text-red-200 border border-red-500/40 hover:border-red-300/60"
-              : "bg-amber-900/60 hover:bg-amber-700/70 text-amber-200 border border-amber-500/40 hover:border-amber-300/60"
-          }`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDestinationClick!(buildCoordinate(zone.coordX, zone.coordY, false));
-        }}
-        title={`Out — ${zone.edge}`}
-      >
-        <span
-          className={`inline-flex items-center gap-1 ${
-            isGoalLine ? "-rotate-90" : ""
-          }`}
-        >
-          OUT
-        </span>
-      </button>
-    );
-  };
-
-  /** Build the ordered array of zones for an edge, respecting flipSides */
-  const getEdgeZones = (edge: BorderZone["edge"]) => {
-    const zones = BORDER_ZONES.filter((z) => z.edge === edge);
-    // For horizontal edges, flip column order when sides are flipped
-    if (flipSides && (edge === "top" || edge === "bottom")) {
-      return [...zones].reverse();
-    }
-    // For vertical edges, no index reversal needed (rows stay same)
-    return zones;
-  };
-
-  // Build edge zone arrays once
-  const topZones = getEdgeZones("top");
-  const bottomZones = getEdgeZones("bottom");
-  const leftEdge = flipSides ? "right" : "left";
-  const rightEdge = flipSides ? "left" : "right";
-  const leftZones = getEdgeZones(leftEdge);
-  const rightZones = getEdgeZones(rightEdge);
-
   return (
     <div className="relative w-full px-2 py-2">
-      {/* Outer frame: CSS grid with border-zone strips surrounding the field */}
-      <div
-        className="relative"
-        style={
-          showBorderFrame
-            ? {
-                display: "grid",
-                gridTemplateColumns: "28px 1fr 28px",
-                gridTemplateRows: "24px auto 24px",
-                gap: "0px",
-              }
-            : {}
-        }
-      >
-        {/* ─── Top border strip ─── */}
-        {showBorderFrame && (
-          <div
-            className="col-start-2 col-end-3 row-start-1 row-end-2 grid rounded-t-lg overflow-hidden"
-            style={{
-              gridTemplateColumns: `repeat(${BORDER_COLS}, 1fr)`,
-            }}
-          >
-            {topZones.map(renderBorderButton)}
-          </div>
-        )}
-        {/* ─── Top-left corner ─── */}
-        {showBorderFrame && (
-          <div className="col-start-1 col-end-2 row-start-1 row-end-2" />
-        )}
-        {/* ─── Top-right corner ─── */}
-        {showBorderFrame && (
-          <div className="col-start-3 col-end-4 row-start-1 row-end-2" />
-        )}
-
-        {/* ─── Left border strip ─── */}
-        {showBorderFrame && (
-          <div
-            className="col-start-1 col-end-2 row-start-2 row-end-3 grid rounded-l-lg overflow-hidden"
-            style={{
-              gridTemplateRows: `repeat(${BORDER_ROWS}, 1fr)`,
-            }}
-          >
-            {leftZones.map(renderBorderButton)}
-          </div>
-        )}
-
-        {/* ─── The soccer field (center cell) ─── */}
-        <div
-          className={`${
-            showBorderFrame ? "col-start-2 col-end-3 row-start-2 row-end-3" : ""
-          } relative overflow-visible`}
-        >
+      <div className="relative">
+        {/* ─── The soccer field ─── */}
+        <div className="relative overflow-visible">
           <div
             ref={fieldRef}
             data-testid="soccer-field"
@@ -541,38 +370,6 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
             )}
           </div>
         </div>
-
-        {/* ─── Right border strip ─── */}
-        {showBorderFrame && (
-          <div
-            className="col-start-3 col-end-4 row-start-2 row-end-3 grid rounded-r-lg overflow-hidden"
-            style={{
-              gridTemplateRows: `repeat(${BORDER_ROWS}, 1fr)`,
-            }}
-          >
-            {rightZones.map(renderBorderButton)}
-          </div>
-        )}
-
-        {/* ─── Bottom-left corner ─── */}
-        {showBorderFrame && (
-          <div className="col-start-1 col-end-2 row-start-3 row-end-4" />
-        )}
-        {/* ─── Bottom border strip ─── */}
-        {showBorderFrame && (
-          <div
-            className="col-start-2 col-end-3 row-start-3 row-end-4 grid rounded-b-lg overflow-hidden"
-            style={{
-              gridTemplateColumns: `repeat(${BORDER_COLS}, 1fr)`,
-            }}
-          >
-            {bottomZones.map(renderBorderButton)}
-          </div>
-        )}
-        {/* ─── Bottom-right corner ─── */}
-        {showBorderFrame && (
-          <div className="col-start-3 col-end-4 row-start-3 row-end-4" />
-        )}
       </div>
     </div>
   );

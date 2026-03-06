@@ -185,9 +185,16 @@ export const useMatchTimer = (
   const handleGlobalClockStop = async () => {
     if (!match) return;
     try {
-      // Capture current time before network call to avoid delay
+      // Capture current times before network call to avoid delay
       const currentTime = Math.round(currentEffectiveRef.current);
+      const currentIneffective = Math.round(currentIneffectiveRef.current);
       await updateMatchStatus(match.id, undefined, "stop", currentTime);
+      // Persist ineffective time so it survives stop/start cycles
+      if (currentIneffective > 0) {
+        await updateMatch(match.id, {
+          ineffective_time_seconds: currentIneffective,
+        });
+      }
       fetchMatch();
     } catch (error) {
       console.error("Failed to stop global clock:", error);

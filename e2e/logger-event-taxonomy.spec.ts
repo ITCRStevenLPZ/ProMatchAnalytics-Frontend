@@ -465,7 +465,7 @@ test.describe("Logger event taxonomy", () => {
       .toBeGreaterThanOrEqual(1);
   });
 
-  test("Pass Out logs immediately and stops effective time via border zone", async ({
+  test("Throw-in quick action logs immediately and stops effective time", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -476,10 +476,7 @@ test.describe("Logger event taxonomy", () => {
 
     await page.getByTestId("field-player-HOME-2").click();
     await selectZoneIfVisible(page);
-    await page.getByTestId("quick-action-Pass").click({ timeout: 8000 });
-
-    // Pass goes to selectDestination — click border zone for Out
-    await page.getByTestId("border-zone-top-0").click({ timeout: 8000 });
+    await page.getByTestId("quick-action-Throw-in").click({ timeout: 8000 });
     await waitForPendingAckToClear(page);
 
     const currentStep = await getHarnessCurrentStep(page);
@@ -490,14 +487,10 @@ test.describe("Logger event taxonomy", () => {
 
     const liveEvents = page.getByTestId("live-event-item");
     await expect
-      .poll(async () => await liveEvents.filter({ hasText: /Pass/i }).count(), {
-        timeout: 10000,
-      })
-      .toBeGreaterThanOrEqual(1);
-    await expect
-      .poll(async () => await liveEvents.filter({ hasText: /Out/i }).count(), {
-        timeout: 10000,
-      })
+      .poll(
+        async () => await liveEvents.filter({ hasText: /Throw-in/i }).count(),
+        { timeout: 10000 },
+      )
       .toBeGreaterThanOrEqual(1);
 
     await expect(page.getByTestId("btn-resume-effective")).toBeVisible({

@@ -126,7 +126,16 @@ const sendHarnessEvent = async (
 const clickAction = async (
   page: Page,
   mode: EntryMode,
-  action: "Pass" | "Shot" | "DirectShot" | "Goal" | "Foul" | "Offside",
+  action:
+    | "Pass"
+    | "Shot"
+    | "DirectShot"
+    | "Goal"
+    | "Foul"
+    | "Offside"
+    | "Corner"
+    | "Throw-in"
+    | "Shot Out",
 ) => {
   if (mode === "quick") {
     await page.getByTestId(`quick-action-${action}`).click();
@@ -142,6 +151,28 @@ const clickAction = async (
           passerId: "HOME-1",
           recipientId: "HOME-2",
         });
+      });
+      return;
+    }
+
+    if (action === "Corner" || action === "Throw-in") {
+      await sendHarnessEvent(page, {
+        type: "SetPiece",
+        match_clock: nextHarnessClock(),
+        data: { set_piece_type: action, outcome: "Complete" },
+      });
+      return;
+    }
+
+    if (action === "Shot Out") {
+      await sendHarnessEvent(page, {
+        type: "Shot",
+        match_clock: nextHarnessClock(),
+        data: {
+          shot_type: "Standard",
+          outcome: "OffTarget",
+          out_of_bounds: true,
+        },
       });
       return;
     }
@@ -256,9 +287,9 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const passMode = await openActionEntry(page, 0);
     await clickAction(page, passMode, "Pass");
-    // Pass/Shot now go to destination selection (field-based)
+    // Pass now goes to destination selection (field-based)
     if (passMode !== "harness") {
-      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
+      await expect(page.getByTestId("field-cancel-btn")).toBeVisible({
         timeout: 8000,
       });
     }
@@ -274,18 +305,21 @@ test.describe("Logger cockpit ultimate suite", () => {
     }
     await resetHarnessFlow(page, "home");
 
+    const beforeFoul = await getLiveEventCount(page);
     const foulMode = await openActionEntry(page, 0);
     await clickAction(page, foulMode, "Foul");
-    if (foulMode === "quick") {
-      await expect(page.locator('button[title^="Out"]').first()).toBeVisible({
-        timeout: 8000,
-      });
-    } else if (foulMode === "action") {
+    if (foulMode === "action") {
       await expect(page.getByTestId("outcome-btn-Standard")).toBeVisible({
         timeout: 8000,
       });
+      await resetHarnessFlow(page, "home");
+    } else {
+      // Foul in quick mode dispatches immediately
+      await waitForPendingAckToClear(page);
+      await expect
+        .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
+        .toBeGreaterThan(beforeFoul);
     }
-    await resetHarnessFlow(page, "home");
 
     const beforeDirect = await getLiveEventCount(page);
     const directMode = await openActionEntry(page, 0);
@@ -388,13 +422,8 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const beforeOutCount = await getLiveEventCount(page);
     const outMode = await openActionEntry(page, 0);
-    await clickAction(page, outMode, "Pass");
-    // Pass now goes to destination — click border zone for Out
-    if (outMode !== "harness") {
-      const borderZone = page.locator('[data-testid^="border-zone-"]').first();
-      await expect(borderZone).toBeVisible({ timeout: 5000 });
-      await borderZone.click();
-    }
+    // Use Throw-in quick action for out-of-bounds scenario
+    await clickAction(page, outMode, "Throw-in");
     await waitForPendingAckToClear(page);
     await expect
       .poll(async () => await getLiveEventCount(page), { timeout: 15000 })
