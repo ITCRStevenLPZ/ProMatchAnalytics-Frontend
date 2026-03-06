@@ -380,6 +380,24 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       await expect(page.getByTestId("btn-resume-effective")).toBeVisible({
         timeout: 10000,
       });
+
+      // Corner committed by home side should be attributed to away side.
+      await page.getByTestId("toggle-analytics").click();
+      await expect(page.getByTestId("analytics-panel")).toBeVisible({
+        timeout: 10000,
+      });
+      const cornersRow = page.getByTestId("stat-corners");
+      await expect(cornersRow).toBeVisible({ timeout: 10000 });
+      const homeCornersText =
+        (await cornersRow.locator("div").nth(0).textContent()) || "0";
+      const awayCornersText =
+        (await cornersRow.locator("div").nth(2).textContent()) || "0";
+      const parseNumber = (value: string) => {
+        const match = String(value).match(/\d+/);
+        return match ? Number(match[0]) : 0;
+      };
+      expect(parseNumber(homeCornersText)).toBe(0);
+      expect(parseNumber(awayCornersText)).toBe(1);
     });
 
     test("Throw-in quick action logs SetPiece event and triggers OutOfBounds ineffective", async ({

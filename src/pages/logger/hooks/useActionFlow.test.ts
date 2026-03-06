@@ -446,10 +446,13 @@ describe("useActionFlow", () => {
     expect(props.sendEvent).toHaveBeenCalledTimes(1);
     const payload = (props.sendEvent as any).mock.calls[0][0];
     expect(payload.type).toBe("SetPiece");
+    expect(payload.team_id).toBe("t2");
     expect(payload.data).toEqual(
       expect.objectContaining({
         set_piece_type: "Corner",
         outcome: "Complete",
+        source_team_id: "t1",
+        source_player_id: "p1",
       }),
     );
 

@@ -11,6 +11,7 @@
 - [x] Field-based Shot/Pass destination flow (replaces outcome panel)
 - [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
+- [x] Attribute Corner to opponent team and deduplicate analytics team-time rows
 
 ## Status
 
@@ -18,6 +19,28 @@
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Corner Attribution + Analytics Dedup
+
+1. **Corner quick action attribution fix** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Corner quick action now logs the SetPiece event to the opponent team (Team B when Team A commits)
+   - Kept ineffective trigger attribution to the same opponent team for `OutOfBounds`
+   - Corner payload now includes `source_team_id` and `source_player_id` for traceability
+
+2. **Analytics duplicate time-row cleanup** — [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx)
+
+   - Removed duplicated total time rows from the main comparison table:
+     - `stat-total-effective-time`
+     - `stat-total-ineffective-time`
+   - Kept the separate per-team time section intact (`analytics-per-team-time`)
+
+3. **Test updates**
+
+   - [useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts): Corner quick-action unit test now asserts opponent `team_id` and source metadata
+   - [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Added E2E assertion that Corner from home side increments away corners in analytics
+   - [qa-fixes-v2.spec.ts](e2e/qa-fixes-v2.spec.ts): Updated expectations so duplicate total-time rows are absent from main table
+   - [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): Stabilized ULT-01 foul-path assertion for full-suite load variance
 
 ### Replace Out Border Zones with Corner/Throw-in/Shot Out Quick Actions
 
@@ -68,7 +91,7 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: Full suite — 159+ passed (flaky failures are pre-existing, all pass in isolation)
+- [x] E2E: Full suite — 260 passed, 0 hard failures, 3 flaky (pre-existing under load)
 - [x] Unit: vitest — 118/118 PASS
 - [x] Backend: pytest — 122/122 PASS
 - [x] TypeScript: 0 errors

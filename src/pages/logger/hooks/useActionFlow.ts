@@ -526,18 +526,36 @@ export const useActionFlow = ({
       }
       if (action === "Corner") {
         if (selectedPlayer && currentTeam) {
-          const sent = dispatchEvent(action, "Complete", null, {
-            location: selectedPlayerLocation ?? undefined,
-          });
-          if (sent) {
+          const awardedCornerTeamId =
+            resolveOpponentTeamId(currentTeam.id) || currentTeam.id;
+          const payload = buildEventPayload(
+            action,
+            "Complete",
+            null,
+            currentTeam,
+            selectedPlayer,
+            globalClock,
+            operatorPeriod,
+            selectedPlayerLocation ?? undefined,
+            undefined,
+            {
+              source_team_id: currentTeam.id,
+              source_player_id: selectedPlayer.id,
+            },
+            selectedZoneId,
+          );
+          payload.team_id = awardedCornerTeamId;
+          sendEvent(payload);
+
+          if (onIneffectiveTrigger) {
             onIneffectiveTrigger?.({
               note: "Corner kick",
-              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              teamId: awardedCornerTeamId,
               playerId: selectedPlayer.id,
               actionType: "OutOfBounds",
             });
-            resetFlow();
           }
+          resetFlow();
         }
         return;
       }
@@ -583,12 +601,16 @@ export const useActionFlow = ({
     },
     [
       currentTeam,
+      globalClock,
       dispatchEvent,
       onIneffectiveTrigger,
+      operatorPeriod,
       resetFlow,
       resolveOpponentTeamId,
+      selectedZoneId,
       selectedPlayer,
       selectedPlayerLocation,
+      sendEvent,
     ],
   );
 
