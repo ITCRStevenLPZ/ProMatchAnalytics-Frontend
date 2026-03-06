@@ -625,7 +625,15 @@ export default function MatchesManager() {
       await apiClient.delete(`/matches/${identifier}`);
       await fetchMatches();
     } catch (err: any) {
-      setPageError(err.response?.data?.detail || t("errorDeletingData"));
+      const detail = err?.response?.data?.detail;
+      if (
+        typeof detail === "string" &&
+        /Can only delete Pending(?: or Completed)? matches/i.test(detail)
+      ) {
+        setPageError(t("deleteGuards.matchStatuses"));
+        return;
+      }
+      setPageError(detail || t("errorDeletingData"));
     }
   };
 

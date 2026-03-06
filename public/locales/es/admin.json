@@ -191,7 +191,8 @@
     "competitionMatches": "Eliminación bloqueada: esta competición está vinculada a {{count}} partido(s). Elimina o reasigna esos partidos antes de borrarla.",
     "playerAssignments": "Eliminación bloqueada: este jugador está vinculado a {{count}} asignación(es) de equipo. Quita al jugador de esos equipos antes de eliminarlo.",
     "teamMatches": "Eliminación bloqueada: este equipo está vinculado a {{count}} partido(s). Elimina o reasigna esos partidos antes de borrarlo.",
-    "venueMatches": "Eliminación bloqueada: este estadio está vinculado a {{count}} partido(s). Actualiza o elimina esos partidos antes de borrarlo."
+    "venueMatches": "Eliminación bloqueada: este estadio está vinculado a {{count}} partido(s). Actualiza o elimina esos partidos antes de borrarlo.",
+    "matchStatuses": "Eliminación bloqueada: solo se pueden eliminar partidos en estado Pendiente o Completado."
   },
   "technicalStaff": "Cuerpo Técnico",
   "addStaff": "Agregar Personal",

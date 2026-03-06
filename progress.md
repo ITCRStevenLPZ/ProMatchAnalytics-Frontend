@@ -12,6 +12,7 @@
 - [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
 - [x] Attribute Corner to opponent team and deduplicate analytics team-time rows
+- [x] Allow match deletion for Pending/Completed and localize delete guard (EN/ES)
 
 ## Status
 
@@ -19,6 +20,23 @@
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Match Deletion Rule + Localized Alerts
+
+1. **Localized match-delete guard handling** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - Added status-guard mapping for backend delete errors.
+   - When backend returns match-status delete guard detail, UI now shows translated message via `t("deleteGuards.matchStatuses")`.
+
+2. **EN/ES locale coverage** — [en/admin.json](public/locales/en/admin.json), [es/admin.json](public/locales/es/admin.json)
+
+   - Added `deleteGuards.matchStatuses` messages in both languages.
+
+3. **E2E deletion-rule coverage** — [admin-matches-crud.spec.ts](e2e/admin-matches-crud.spec.ts)
+
+   - Added assertions that:
+     - Fulltime (finished/completed) matches are deletable.
+     - Live matches are blocked with the updated delete guard detail.
 
 ### Corner Attribution + Analytics Dedup
 
