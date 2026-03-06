@@ -155,6 +155,7 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
   flipSides = false,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
+  const lastTouchDestinationAt = useRef(0);
 
   const fieldBounds = useMemo(
     () => ({ left: 4, right: 96, top: 4, bottom: 96 }),
@@ -250,15 +251,35 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
     };
   };
 
-  const handleFieldClick = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
+  const submitDestinationAtPoint = useCallback(
+    (clientX: number, clientY: number) => {
       if (!onDestinationClick || !fieldRef.current) return;
       const rect = fieldRef.current.getBoundingClientRect();
-      const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
-      const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
+      const xPercent = ((clientX - rect.left) / rect.width) * 100;
+      const yPercent = ((clientY - rect.top) / rect.height) * 100;
       onDestinationClick(buildCoordinate(xPercent, yPercent));
     },
     [onDestinationClick],
+  );
+
+  const handleFieldClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      // Touch taps can emit both pointer and click; suppress duplicate click.
+      if (Date.now() - lastTouchDestinationAt.current < 700) {
+        return;
+      }
+      submitDestinationAtPoint(event.clientX, event.clientY);
+    },
+    [submitDestinationAtPoint],
+  );
+
+  const handleFieldPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") return;
+      lastTouchDestinationAt.current = Date.now();
+      submitDestinationAtPoint(event.clientX, event.clientY);
+    },
+    [submitDestinationAtPoint],
   );
 
   const renderPlayerListItem = (
@@ -364,7 +385,8 @@ const SoccerField: React.FC<SoccerFieldProps> = ({
           ref={fieldRef}
           data-testid="soccer-field"
           onClick={handleFieldClick}
-          className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner"
+          onPointerUp={handleFieldPointerUp}
+          className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner touch-manipulation"
         >
           {/* Field Markings */}
           <div className="absolute inset-0 border-2 border-white opacity-50 m-4"></div>

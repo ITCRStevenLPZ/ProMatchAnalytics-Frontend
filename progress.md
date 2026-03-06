@@ -8,6 +8,7 @@
 
 ## Current Objective
 
+- [x] Make logger field interactions touch-safe on iPad/touch devices (destination + undo)
 - [x] Field-based Shot/Pass destination flow (replaces outcome panel)
 - [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
@@ -20,6 +21,30 @@
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Touchscreen Compatibility (iPad/Touch)
+
+1. **Touch-safe destination tapping on field** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx), [SoccerField.tsx](src/components/SoccerField.tsx)
+
+   - Added touch-pointer destination submission via `onPointerUp`.
+   - Added duplicate-guard so touch `pointerup` + synthetic `click` does not submit destination twice.
+   - Added `touch-manipulation` class on field surface for better tap behavior on touch devices.
+
+2. **Touch-safe undo button handling** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+
+   - Added touch-pointer undo handler (`onPointerUp`) and synthetic-click dedup guard.
+   - Preserved existing mouse and keyboard activation behavior.
+
+3. **Touch fallback for player node taps** — [TacticalPlayerNode.tsx](src/pages/logger/components/molecules/TacticalPlayerNode.tsx)
+
+   - Added explicit `onTouchStart` / `onTouchMove` / `onTouchEnd` fallback so tap-to-select works when pointer events are not emitted consistently.
+
+4. **Touch regression tests added**
+
+   - E2E: [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts)
+     - Validates touch tap flow for: player select -> pass destination on field -> undo.
+   - Unit: [TeamSelector.test.tsx](src/pages/logger/components/molecules/TeamSelector.test.tsx)
+     - Validates touch pointer-up + synthetic click only triggers undo once.
 
 ### Match Deletion Rule + Localized Alerts
 
@@ -109,6 +134,8 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `logger-touch-interactions.spec.ts` -> PASS
+- [x] Unit: `TeamSelector.test.tsx` -> PASS
 - [x] E2E: Full suite — 260 passed, 0 hard failures, 3 flaky (pre-existing under load)
 - [x] Unit: vitest — 118/118 PASS
 - [x] Backend: pytest — 122/122 PASS

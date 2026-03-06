@@ -59,6 +59,8 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
   const startPercent = useRef({ x: 0, y: 0 });
   const fieldRect = useRef<DOMRect | null>(null);
   const hasMoved = useRef(false);
+  const touchStart = useRef({ x: 0, y: 0 });
+  const touchMoved = useRef(false);
   // Store stable refs for callbacks used in window event handlers
   const onDragMoveRef = useRef(onDragMove);
   const onDragEndRef = useRef(onDragEnd);
@@ -168,6 +170,39 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
 
   const displayName = fullName;
 
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (isExpelled) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+      touchStart.current = { x: touch.clientX, y: touch.clientY };
+      touchMoved.current = false;
+    },
+    [isExpelled],
+  );
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - touchStart.current.x;
+    const dy = touch.clientY - touchStart.current.y;
+    if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+      touchMoved.current = true;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (isExpelled) return;
+      e.stopPropagation();
+      if (!touchMoved.current) {
+        onClickRef.current?.();
+      }
+      touchMoved.current = false;
+    },
+    [isExpelled],
+  );
+
   return (
     <div
       data-testid={`field-player-${playerId}`}
@@ -195,6 +230,9 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
         transform: "translate(-50%, -50%)",
       }}
       onPointerDown={handlePointerDown}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onClick={(e: React.MouseEvent) => {
         // Prevent the native click from bubbling up to TacticalField's
         // handleFieldClick (which fires onDestinationClick). The actual
