@@ -12,6 +12,7 @@
 - [x] Add dedicated referee neutral-action bar outside the field
 - [x] Verify each client requirement with targeted automated tests (English checklist)
 - [x] Make logger field interactions touch-safe on iPad/touch devices (destination + undo)
+- [x] Fix zone selector auto-selecting on touch (two-tap preview/confirm)
 - [x] Field-based Shot/Pass destination flow (replaces outcome panel)
 - [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
@@ -25,7 +26,23 @@
 
 ## What Was Completed (Latest Session)
 
-### Running Clocks in Analytics View
+### Touch-Safe Zone Selector (Two-Tap Preview/Confirm)
+
+1. **Fixed zone auto-selection on touch/tablet devices** — [FieldZoneSelector.tsx](src/pages/logger/components/molecules/FieldZoneSelector.tsx)
+
+   - **Root cause**: The zone selector used `onMouseEnter` for hover preview and `onClick` for selection. On touch devices, there's no hover — the first tap immediately fires `click`, selecting a zone without any visual feedback. Users couldn't preview which zone they were about to select.
+   - **Fix**: Added two-step touch interaction: first tap highlights the zone (blue preview + "Tap to confirm" label), second tap on the same zone confirms selection. Tapping a different zone moves the highlight. Mouse behavior (hover to preview, click to select) is unchanged.
+   - Implementation: `onTouchEnd` manages the `touchedZone` state; `onClick` suppresses synthetic clicks from touch events using a 700ms debounce ref.
+
+2. **EN/ES locale strings** — [logger.json](public/locales/en/logger.json), [logger.json](public/locales/es/logger.json)
+
+   - Added `tapToConfirm` / `Toca para confirmar`.
+
+3. **E2E touch zone selection tests** — [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts)
+   - "two taps — first highlights, second confirms": Verifies first tap sets `data-zone-touched="true"` and does NOT dismiss zone selector; second tap confirms and shows quick actions.
+   - "tap on a different zone switches the highlight": Verifies highlight moves between zones and old zone loses `data-zone-touched`.
+
+### Previous Session
 
 1. **Added running ineffective/VAR/timeout clocks to Analytics header** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
 
@@ -240,16 +257,11 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
-- [x] E2E: Full suite — 208 passed, 1 transient (logger-undo, passes in isolation), 3 interrupted -> PASS
-- [x] Unit: vitest — 123/123 PASS (including 3 new utils.test.ts)
-- [x] Backend: pytest — 125/125 PASS
+- [x] E2E: Full suite — 94 passed, 1 transient (ANL-12, passes in isolation), 3 interrupted -> PASS
+- [x] E2E: `logger-touch-interactions.spec.ts` (3 tests: destination+undo, two-tap zone, zone switch) -> PASS
+- [x] E2E: `logger-zone-selector.spec.ts` (19 tests, mouse behavior unchanged) -> PASS
+- [x] Unit: vitest — 123/123 PASS
 - [x] TypeScript: 0 errors
-- [x] ESLint: 0 errors
-- [x] E2E: `logger-analytics-matrix.spec.ts` (30 analytics tests including ANL-28 live ineffective clock) -> PASS
-- [x] E2E: `logger-event-taxonomy.spec.ts` (Throw-in quick action — was regressed, now fixed) -> PASS
-- [x] E2E: `logger-referee-actions.spec.ts` -> PASS
-- [x] E2E: `admin-matches-team-pagination.spec.ts` -> PASS
-- [x] Unit: `utils.test.ts` (3 tests: neutral stoppages, active tail, timezone-naive) -> PASS
 
 ## Implementation Notes
 

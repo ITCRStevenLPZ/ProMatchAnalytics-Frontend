@@ -473,6 +473,7 @@
   "zoneSelectTitle": "Select where {{playerName}}'s action occurred",
   "zoneSelectTitleGeneric": "Select the action zone",
   "zoneSelectHint": "Tap the area of the field where the action took place",
+  "tapToConfirm": "Tap to confirm",
   "positionManual": "Manual",
   "positionAuto": "Auto"
 }
