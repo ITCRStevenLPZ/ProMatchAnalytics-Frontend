@@ -67,8 +67,27 @@ const normalizeIneffectiveAction = (raw?: string | null): IneffectiveAction => {
   if (normalized.includes("injury")) return "Injury";
   if (normalized.includes("var")) return "VAR";
   if (normalized.includes("referee") || normalized.includes("ref"))
-    return "Referee";
+    return "Other";
   return "Other";
+};
+
+/**
+ * Parse an ISO timestamp as UTC even if the string lacks a timezone suffix.
+ * Servers may return timezone-naive ISO strings (e.g. "2026-03-13T16:34:02.772000")
+ * which browsers parse as local time; appending "Z" forces UTC interpretation.
+ */
+const parseTimestampAsUtcMs = (ts?: string | null): number => {
+  if (!ts) return NaN;
+  const s = String(ts).trim();
+  // Already has timezone info ("Z" or "+HH:MM" / "-HH:MM")
+  if (/[Zz]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
+    return new Date(s).getTime();
+  }
+  // Looks like an ISO timestamp without timezone → treat as UTC
+  if (s.includes("T")) {
+    return new Date(s + "Z").getTime();
+  }
+  return new Date(s).getTime();
 };
 
 const parseClockToMs = (clock?: string | null): number | null => {
@@ -111,6 +130,7 @@ const resolveTeamKey = (
   const triggerTeamRaw =
     event.data?.trigger_team_id || event.team_id || "NEUTRAL";
   const triggerTeam = String(triggerTeamRaw || "").toLowerCase();
+  if (triggerTeam === "neutral") return "neutral";
   if (triggerTeam === "home") return "home";
   if (triggerTeam === "away") return "away";
   const homeSet = new Set(
@@ -179,7 +199,7 @@ export const computeIneffectiveBreakdown = (
   stoppages.forEach((event) => {
     const stoppageType = String(event.data?.stoppage_type || "");
     const timestampMs = (() => {
-      const parsedTimestamp = new Date(event.timestamp).getTime();
+      const parsedTimestamp = parseTimestampAsUtcMs(event.timestamp);
       if (Number.isFinite(parsedTimestamp)) return parsedTimestamp;
       const fromClock = parseClockToMs(event.match_clock);
       if (fromClock !== null) return fromClock;
@@ -285,7 +305,8 @@ export const computeIneffectiveBreakdown = (
   });
 
   if (activeTeamKey && activeAction && activeStartMs !== null) {
-    addDuration(activeTeamKey, activeAction, (nowMs - activeStartMs) / 1000);
+    const activeDelta = (nowMs - activeStartMs) / 1000;
+    addDuration(activeTeamKey, activeAction, activeDelta);
   }
 
   if (varStartMs !== null) {

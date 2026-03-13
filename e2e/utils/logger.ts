@@ -1,4 +1,5 @@
 import { expect, Page } from "@playwright/test";
+import type { GameStoppageSummary } from "../../src/pages/logger/types";
 
 interface HarnessApi {
   resetFlow?: () => void;
@@ -12,6 +13,8 @@ interface HarnessApi {
   getMatchContext?: () => HarnessMatchContext;
   undoLastEvent?: () => Promise<void> | void;
   getQueueSnapshot?: () => QueueSnapshot;
+  getLiveEventSummary?: () => LiveEventSummary;
+  getRecentGameStoppages?: () => GameStoppageSummary[];
   getCurrentStep?: () => string | null;
   getDriftSnapshot?: () => {
     computed: number;
@@ -43,6 +46,11 @@ export interface QueueSnapshot {
   currentMatchId: string | null;
   queuedEvents: QueuedEventSummary[];
   queuedEventsByMatch: Record<string, QueuedEventSummary[]>;
+}
+
+export interface LiveEventSummary {
+  liveCount: number;
+  gameStoppageCount: number;
 }
 
 export const MATCH_ID = "E2E-MATCH";
@@ -247,6 +255,30 @@ export const getQueueSnapshot = async (
       window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
     ).__PROMATCH_LOGGER_HARNESS__;
     return harness?.getQueueSnapshot ? harness.getQueueSnapshot() : null;
+  });
+};
+
+export const getLiveEventSummary = async (
+  page: Page,
+): Promise<LiveEventSummary | null> => {
+  return page.evaluate(() => {
+    const harness = (
+      window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+    ).__PROMATCH_LOGGER_HARNESS__;
+    return harness?.getLiveEventSummary ? harness.getLiveEventSummary() : null;
+  });
+};
+
+export const getRecentGameStoppages = async (
+  page: Page,
+): Promise<GameStoppageSummary[]> => {
+  return page.evaluate(() => {
+    const harness = (
+      window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+    ).__PROMATCH_LOGGER_HARNESS__;
+    return harness?.getRecentGameStoppages
+      ? harness.getRecentGameStoppages()
+      : [];
   });
 };
 

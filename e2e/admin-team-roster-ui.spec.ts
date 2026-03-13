@@ -325,6 +325,47 @@ test.describe("Admin team roster UI", () => {
     }
   });
 
+  test("roster modal uses expanded desktop width for add-player workflow", async ({
+    page,
+  }) => {
+    const seededTeam = await seedTeam(api, {
+      name: `Roster Size ${uniqueId("TEAM")}`,
+    });
+
+    try {
+      await page.goto("/teams");
+      const searchInput = page.getByPlaceholder(/Search|Buscar/i).first();
+      await searchInput.fill(seededTeam.name);
+
+      const teamRow = page.locator("tr", { hasText: seededTeam.name }).first();
+      await expect(teamRow).toBeVisible({ timeout: 15000 });
+
+      await teamRow
+        .locator('button[title="Roster"], button[title="Plantel"]')
+        .first()
+        .click();
+
+      const rosterPanel = page.getByTestId("roster-modal-panel");
+      await expect(rosterPanel).toBeVisible({ timeout: 10000 });
+
+      const width = await rosterPanel.evaluate(
+        (element) => element.getBoundingClientRect().width,
+      );
+      expect(width).toBeGreaterThan(1100);
+    } finally {
+      for (const rosterEntry of seededTeam.roster) {
+        await cleanupResource(
+          api,
+          `teams/${seededTeam.team_id}/players/${rosterEntry.player_id}`,
+        ).catch(() => {});
+        await cleanupResource(api, `players/${rosterEntry.player_id}`).catch(
+          () => {},
+        );
+      }
+      await cleanupResource(api, `teams/${seededTeam.team_id}`).catch(() => {});
+    }
+  });
+
   test("shows teams pagination loading when switching pages", async ({
     page,
   }) => {

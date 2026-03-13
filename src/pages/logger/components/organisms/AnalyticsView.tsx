@@ -12,10 +12,16 @@ interface AnalyticsViewProps {
   queuedEvents: MatchEvent[];
   effectiveClock: string;
   globalClock: string;
+  ineffectiveClock: string;
+  varClock: string;
+  timeoutClock: string;
   effectiveTime: number;
   varTimeSeconds: number;
   timeoutTimeSeconds: number;
   ineffectiveBreakdown: any;
+  clockMode: "EFFECTIVE" | "INEFFECTIVE";
+  isVarActive: boolean;
+  isTimeoutActive: boolean;
   t: any;
 }
 
@@ -25,10 +31,16 @@ export default function AnalyticsView({
   queuedEvents,
   effectiveClock,
   globalClock,
+  ineffectiveClock,
+  varClock,
+  timeoutClock,
   effectiveTime,
   varTimeSeconds,
   timeoutTimeSeconds,
   ineffectiveBreakdown,
+  clockMode,
+  isVarActive,
+  isTimeoutActive,
   t,
 }: AnalyticsViewProps) {
   const allEvents = useMemo(
@@ -45,12 +57,49 @@ export default function AnalyticsView({
             {t("effectiveTime", "Effective Time")}
           </span>
           <span
-            className="font-mono font-semibold"
+            className="font-mono font-semibold text-emerald-400"
             data-testid="effective-clock-value"
           >
             {effectiveClock}
           </span>
         </div>
+        <div
+          className={`flex items-center gap-2 text-sm ${
+            clockMode === "INEFFECTIVE" ? "text-rose-300" : "text-slate-200"
+          }`}
+        >
+          <span className="text-xs uppercase tracking-wide text-slate-400">
+            {t("ineffectiveTime", "Ineffective")}
+          </span>
+          <span
+            className={`font-mono font-semibold ${
+              clockMode === "INEFFECTIVE" ? "text-rose-400 animate-pulse" : ""
+            }`}
+            data-testid="analytics-ineffective-clock"
+          >
+            {ineffectiveClock}
+          </span>
+        </div>
+        {isVarActive && (
+          <div className="flex items-center gap-2 text-amber-300 text-sm">
+            <span className="text-xs uppercase tracking-wide text-amber-400">
+              {t("varTime", "VAR")}
+            </span>
+            <span className="font-mono font-semibold animate-pulse">
+              {varClock}
+            </span>
+          </div>
+        )}
+        {isTimeoutActive && (
+          <div className="flex items-center gap-2 text-sky-300 text-sm">
+            <span className="text-xs uppercase tracking-wide text-sky-400">
+              {t("timeout", "Timeout")}
+            </span>
+            <span className="font-mono font-semibold animate-pulse">
+              {timeoutClock}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-2 text-slate-200 text-sm">
           <span className="text-xs uppercase tracking-wide text-slate-400">
             {t("globalClock", "Global Clock")}

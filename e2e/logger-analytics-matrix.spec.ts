@@ -11,6 +11,7 @@ import path from "node:path";
 
 import {
   BACKEND_BASE_URL,
+  ensureClockRunning,
   getHarnessMatchContext,
   gotoLoggerPage,
   sendRawEventThroughHarness,
@@ -1166,5 +1167,53 @@ test.describe("Logger analytics matrix", () => {
     expect(awayPercent).toBeGreaterThan(0);
     expect(homePercent).toBeLessThanOrEqual(100);
     expect(awayPercent).toBeLessThanOrEqual(100);
+  });
+
+  test("ANL-28: ineffective clock ticks in analytics view during active stoppage", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+    await ensureClockRunning(page);
+
+    // Start ineffective time through the UI (changes clockMode to INEFFECTIVE)
+    const ineffectiveBtn = page.getByTestId("btn-ineffective-event");
+    await expect(ineffectiveBtn).toBeEnabled({ timeout: 10000 });
+    await ineffectiveBtn.click();
+
+    const modal = page.getByTestId("ineffective-note-modal");
+    await expect(modal).toBeVisible({ timeout: 10000 });
+
+    // Select an action
+    await page.getByTestId("ineffective-note-action").click();
+    await expect(
+      page.getByTestId("ineffective-note-action-menu"),
+    ).toBeVisible();
+    await page.getByTestId("ineffective-note-action-option-Foul").click();
+
+    // Select home team
+    await page.getByTestId("ineffective-note-team").click();
+    await expect(page.getByTestId("ineffective-note-team-menu")).toBeVisible();
+    await page.getByTestId("ineffective-note-team-option-home").click();
+    await page.getByTestId("ineffective-note-save").click();
+
+    await page.waitForTimeout(500);
+
+    // Switch to analytics view
+    await openAnalytics(page);
+
+    // The analytics-ineffective-clock element should be visible
+    const clockEl = page.getByTestId("analytics-ineffective-clock");
+    await expect(clockEl).toBeVisible({ timeout: 10000 });
+
+    // Read the clock value, wait ~2s, then verify it increased
+    const firstReading = await clockEl.textContent();
+    await page.waitForTimeout(2000);
+    const secondReading = await clockEl.textContent();
+
+    expect(firstReading).toBeTruthy();
+    expect(secondReading).toBeTruthy();
+    expect(secondReading).not.toBe(firstReading);
   });
 });
