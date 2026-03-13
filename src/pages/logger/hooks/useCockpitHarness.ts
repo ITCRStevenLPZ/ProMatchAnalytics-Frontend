@@ -3,6 +3,7 @@ import type { MatchEvent } from "../../../store/useMatchLogStore";
 import { useMatchLogStore } from "../../../store/useMatchLogStore";
 import type {
   ActionStep,
+  GameStoppageSummary,
   LoggerHarness,
   Match,
   QueuedEventSummary,
@@ -74,6 +75,38 @@ export const useCockpitHarness = ({
             ),
           ),
         };
+      },
+      getLiveEventSummary: () => {
+        const state = useMatchLogStore.getState();
+        return {
+          liveCount: state.liveEvents.length,
+          gameStoppageCount: state.liveEvents.filter(
+            (event) => event.type === "GameStoppage",
+          ).length,
+        };
+      },
+      getRecentGameStoppages: () => {
+        const summarize = (event: MatchEvent): GameStoppageSummary => ({
+          team_id: event.team_id,
+          match_clock: event.match_clock,
+          notes: event.notes,
+          stoppage_type: String(event.data?.stoppage_type || ""),
+          reason:
+            typeof event.data?.reason === "string" ? event.data.reason : null,
+          trigger_action:
+            typeof event.data?.trigger_action === "string"
+              ? event.data.trigger_action
+              : null,
+          trigger_team_id:
+            typeof event.data?.trigger_team_id === "string"
+              ? event.data.trigger_team_id
+              : null,
+        });
+        const state = useMatchLogStore.getState();
+        return state.liveEvents
+          .filter((event) => event.type === "GameStoppage")
+          .slice(-6)
+          .map(summarize);
       },
       clearQueue: () => {
         useMatchLogStore.getState().clearQueuedEvents();

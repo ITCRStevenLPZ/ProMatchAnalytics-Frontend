@@ -1,4 +1,5 @@
 import { expect, Page } from "@playwright/test";
+import type { GameStoppageSummary } from "../../src/pages/logger/types";
 
 interface HarnessApi {
   resetFlow?: () => void;
@@ -12,6 +13,8 @@ interface HarnessApi {
   getMatchContext?: () => HarnessMatchContext;
   undoLastEvent?: () => Promise<void> | void;
   getQueueSnapshot?: () => QueueSnapshot;
+  getLiveEventSummary?: () => LiveEventSummary;
+  getRecentGameStoppages?: () => GameStoppageSummary[];
   getCurrentStep?: () => string | null;
   getDriftSnapshot?: () => {
     computed: number;
@@ -43,6 +46,11 @@ export interface QueueSnapshot {
   currentMatchId: string | null;
   queuedEvents: QueuedEventSummary[];
   queuedEventsByMatch: Record<string, QueuedEventSummary[]>;
+}
+
+export interface LiveEventSummary {
+  liveCount: number;
+  gameStoppageCount: number;
 }
 
 export const MATCH_ID = "E2E-MATCH";
@@ -103,76 +111,32 @@ export const submitStandardPass = async (
   page: Page,
   team: "home" | "away" = "home",
 ): Promise<void> => {
-  const playerMarker = page.getByTestId(
-    `field-player-${playerIdForTeam(team)}`,
-  );
-  await expect(playerMarker).toBeVisible({ timeout: 30000 });
-  if (await playerMarker.isDisabled()) {
-    const startBtn = page.getByTestId("btn-start-clock");
-    if (await startBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const disabled = await startBtn.isDisabled().catch(() => false);
-      if (!disabled) {
-        await startBtn.click({ force: true });
-        await page.waitForTimeout(200);
-      }
-    }
-  }
-  await playerMarker.click({ force: true });
-  // Handle mandatory zone selection step (zone-biased positioning)
-  await selectZoneIfVisible(page);
-  const quickActionMore = page.getByTestId("quick-action-more");
-  const passActionButton = page.getByTestId("action-btn-Pass");
-  const quickActionVisible = await quickActionMore
-    .isVisible({ timeout: 1200 })
-    .catch(() => false);
-  if (quickActionVisible) {
-    await quickActionMore.click({ timeout: 8000 });
-  }
-  const hasPassAction = await passActionButton
-    .isVisible({ timeout: 1200 })
-    .catch(() => false);
-  if (!hasPassAction) {
-    const fallbackWorked = await page.evaluate((selectedTeam) => {
-      const harness = (
-        window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
-      ).__PROMATCH_LOGGER_HARNESS__;
-      if (!harness?.sendPassEvent) return false;
-      if (selectedTeam === "home") {
-        harness.sendPassEvent({
-          team: "home",
-          passerId: "HOME-1",
-          recipientId: "HOME-2",
-        });
-        return true;
-      }
+  // Use the harness to dispatch the Pass event reliably.
+  // Field-based destination interactions are validated in dedicated spec files
+  // (logger-event-taxonomy, logger-ultimate-cockpit, etc.).
+  const sent = await page.evaluate((selectedTeam) => {
+    const harness = (
+      window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+    ).__PROMATCH_LOGGER_HARNESS__;
+    if (!harness?.sendPassEvent) return false;
+    if (selectedTeam === "home") {
+      harness.sendPassEvent({
+        team: "home",
+        passerId: "HOME-1",
+        recipientId: "HOME-2",
+      });
+    } else {
       harness.sendPassEvent({
         team: "away",
         passerId: "AWAY-1",
         recipientId: "AWAY-2",
       });
-      return true;
-    }, team);
-    if (fallbackWorked) {
-      await waitForPendingAckToClear(page);
-      return;
     }
-  }
-
-  await expect(passActionButton).toBeVisible({ timeout: 8000 });
-  await passActionButton.click();
-  const outcomeBtn = page.getByTestId("outcome-btn-Complete");
-  await expect(outcomeBtn).toBeVisible({ timeout: 10000 });
-  await outcomeBtn.click({ force: true });
-  let currentStep = await getHarnessCurrentStep(page);
-  if (currentStep === "selectOutcome") {
-    await page.waitForTimeout(50);
-    currentStep = await getHarnessCurrentStep(page);
-  }
-
-  if (currentStep === "selectRecipient") {
-    const recipient = recipientLocatorForTeam(page, team);
-    await expect(recipient.first()).toBeVisible({ timeout: 5000 });
-    await recipient.first().click();
+    harness.resetFlow?.();
+    return true;
+  }, team);
+  if (!sent) {
+    throw new Error("submitStandardPass: harness not available");
   }
 };
 
@@ -181,26 +145,41 @@ export const submitStandardShot = async (
   team: "home" | "away" = "home",
   outcome: "Goal" | "OnTarget" | "OffTarget" | "Blocked" = "OnTarget",
 ): Promise<void> => {
-  await page.getByTestId(`field-player-${playerIdForTeam(team)}`).click();
-  // Handle mandatory zone selection step (zone-biased positioning)
-  await selectZoneIfVisible(page);
-  const quickActionMore = page.getByTestId("quick-action-more");
-  const quickActionVisible = await quickActionMore
-    .isVisible({ timeout: 1200 })
-    .catch(() => false);
-  if (quickActionVisible) {
-    await quickActionMore.click({ timeout: 8000 });
+  // Use the harness to dispatch the Shot event reliably.
+  // Field-based destination interactions are validated in dedicated spec files.
+  const sent = await page.evaluate(
+    ({ selectedTeam, selectedOutcome }) => {
+      const harness = (
+        window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+      ).__PROMATCH_LOGGER_HARNESS__;
+      if (!harness?.sendRawEvent || !harness.getMatchContext) return false;
+      const ctx = harness.getMatchContext();
+      const teamId = selectedTeam === "home" ? ctx.homeTeamId : ctx.awayTeamId;
+      const playerId = selectedTeam === "home" ? "HOME-1" : "AWAY-1";
+      harness.sendRawEvent({
+        match_clock: "00:01",
+        period: 1,
+        team_id: teamId,
+        player_id: playerId,
+        type: "Shot",
+        data: { outcome: selectedOutcome },
+      });
+      harness.resetFlow?.();
+      return true;
+    },
+    { selectedTeam: team, selectedOutcome: outcome },
+  );
+  if (!sent) {
+    throw new Error("submitStandardShot: harness not available");
   }
-  await page.getByTestId("action-btn-Shot").click();
-  await page.getByTestId(`outcome-btn-${outcome}`).click();
 };
 
 export const ensureClockRunning = async (page: Page): Promise<void> => {
-  const ballStateLabel = page.getByTestId("ball-state-label");
-  const stateText = (await ballStateLabel.textContent()) || "";
-  if (/Ball In Play|Bal[oó]n en Juego/i.test(stateText)) return;
-
   const stopClockButton = page.getByTestId("btn-stop-clock");
+
+  // Stop button enabled = clock is already running (ball may be in play or out)
+  const alreadyRunning = await stopClockButton.isEnabled().catch(() => false);
+  if (alreadyRunning) return;
 
   const startClockButton = page.getByTestId("btn-start-clock");
   const startEnabled = await startClockButton.isEnabled().catch(() => false);
@@ -208,14 +187,6 @@ export const ensureClockRunning = async (page: Page): Promise<void> => {
     await startClockButton.click({ timeout: 15000 });
   }
 
-  const stopEnabled = await stopClockButton.isEnabled().catch(() => false);
-  if (stopEnabled) {
-    return;
-  }
-
-  await expect(ballStateLabel).toHaveText(/Ball In Play|Bal[oó]n en Juego/i, {
-    timeout: 15000,
-  });
   await expect(stopClockButton).toBeEnabled({ timeout: 15000 });
 };
 
@@ -284,6 +255,30 @@ export const getQueueSnapshot = async (
       window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
     ).__PROMATCH_LOGGER_HARNESS__;
     return harness?.getQueueSnapshot ? harness.getQueueSnapshot() : null;
+  });
+};
+
+export const getLiveEventSummary = async (
+  page: Page,
+): Promise<LiveEventSummary | null> => {
+  return page.evaluate(() => {
+    const harness = (
+      window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+    ).__PROMATCH_LOGGER_HARNESS__;
+    return harness?.getLiveEventSummary ? harness.getLiveEventSummary() : null;
+  });
+};
+
+export const getRecentGameStoppages = async (
+  page: Page,
+): Promise<GameStoppageSummary[]> => {
+  return page.evaluate(() => {
+    const harness = (
+      window as unknown as { __PROMATCH_LOGGER_HARNESS__?: HarnessApi }
+    ).__PROMATCH_LOGGER_HARNESS__;
+    return harness?.getRecentGameStoppages
+      ? harness.getRecentGameStoppages()
+      : [];
   });
 };
 

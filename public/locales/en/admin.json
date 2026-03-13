@@ -191,7 +191,8 @@
     "competitionMatches": "Delete blocked: this competition is linked to {{count}} match(es). Remove or reassign those matches before deleting.",
     "playerAssignments": "Delete blocked: this player is linked to {{count}} team assignment(s). Remove the player from those teams before deleting.",
     "teamMatches": "Delete blocked: this team is linked to {{count}} match(es). Remove or reassign those matches before deleting.",
-    "venueMatches": "Delete blocked: this venue is linked to {{count}} match(es). Update or remove those matches before deleting."
+    "venueMatches": "Delete blocked: this venue is linked to {{count}} match(es). Update or remove those matches before deleting.",
+    "matchStatuses": "Delete blocked: only Pending or Completed matches can be deleted."
   },
   "technicalStaff": "Technical Staff",
   "addStaff": "Add Staff",

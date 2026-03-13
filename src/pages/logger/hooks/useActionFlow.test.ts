@@ -73,7 +73,11 @@ describe("useActionFlow", () => {
   };
 
   it("should transition to selectRecipient when action requires recipient", () => {
-    const { result } = renderHook(() => useActionFlow(defaultProps));
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+    };
+    const { result } = renderHook(() => useActionFlow(props));
 
     // 1. Select Player
     act(() => {
@@ -89,23 +93,32 @@ describe("useActionFlow", () => {
     expect(result.current.currentStep).toBe("selectAction");
 
     // 2. Select Action that requires recipient (e.g., 'Pass')
-    // Note: In the actual code, handleActionClick just sets action, flow waits for outcome
+    // Pass now goes to selectDestination — field-based flow
     act(() => {
       result.current.handleActionClick("Pass");
     });
-    expect(result.current.currentStep).toBe("selectOutcome");
+    expect(result.current.currentStep).toBe("selectDestination");
     expect(result.current.selectedAction).toBe("Pass");
 
-    // 3. Select Outcome
+    // 3. Click a teammate on the field → outcome = Complete → selectRecipient
     act(() => {
-      result.current.handleOutcomeClick("Complete");
+      result.current.handleDestinationClick({
+        destination: {
+          xPercent: 60,
+          yPercent: 40,
+          statsbomb: [72, 40],
+          isOutOfBounds: false,
+        },
+        targetPlayer: mockPlayer2,
+      });
     });
 
-    // BEFORE FIX: This might fail if it auto-resolves to mockPlayer2
-    expect(result.current.currentStep).toBe("selectRecipient");
-
-    // Ensure no event was sent yet
-    expect(defaultProps.sendEvent).not.toHaveBeenCalled();
+    // Pass to teammate dispatches immediately
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("Pass");
+    expect(payload.data.outcome).toBe("Complete");
+    expect(result.current.currentStep).toBe("selectPlayer");
   });
 
   it('should use globalClock when operatorClock is default "00:00.000"', () => {
@@ -145,7 +158,7 @@ describe("useActionFlow", () => {
     expect(lastCall.match_clock).toBe("12:34.000");
   });
 
-  it("should route quick Shot to destination and resolve keeper/defender outcomes", () => {
+  it("should route quick Shot to destination selection and dispatch via field click", () => {
     const props = {
       ...defaultProps,
       sendEvent: vi.fn(),
@@ -173,26 +186,22 @@ describe("useActionFlow", () => {
     expect(props.sendEvent).toHaveBeenCalledTimes(0);
     expect(result.current.currentStep).toBe("selectDestination");
 
-    let destinationResult: any;
+    // Click empty field area — Shot resolves to OffTarget
     act(() => {
-      destinationResult = result.current.handleDestinationClick({
+      result.current.handleDestinationClick({
         destination: {
-          xPercent: 90,
+          xPercent: 80,
           yPercent: 50,
-          statsbomb: [108, 40],
+          statsbomb: [96, 50],
           isOutOfBounds: false,
-          outOfBoundsEdge: null,
         },
-        targetPlayer: mockAwayKeeper,
       });
     });
 
     expect(props.sendEvent).toHaveBeenCalledTimes(1);
     const payload = (props.sendEvent as any).mock.calls[0][0];
     expect(payload.type).toBe("Shot");
-    expect(payload.data.outcome).toBe("Saved");
-    expect(payload.data.shot_type).toBe("Standard");
-    expect(destinationResult?.triggerContext).toBeNull();
+    expect(payload.data.outcome).toBe("OffTarget");
     expect(result.current.currentStep).toBe("selectPlayer");
   });
 
@@ -229,7 +238,7 @@ describe("useActionFlow", () => {
     expect(result.current.currentStep).toBe("selectPlayer");
   });
 
-  it("should keep pass complete and avoid corner when targeted to same-side keeper", () => {
+  it("should route quick Pass to destination and complete via teammate click", () => {
     const props = {
       ...defaultProps,
       sendEvent: vi.fn(),
@@ -255,35 +264,32 @@ describe("useActionFlow", () => {
     });
     expect(result.current.currentStep).toBe("selectDestination");
 
-    let destinationResult: any;
+    // Click a teammate → Complete pass
     act(() => {
-      destinationResult = result.current.handleDestinationClick({
+      result.current.handleDestinationClick({
         destination: {
-          xPercent: 6,
-          yPercent: 50,
-          statsbomb: [7, 40],
+          xPercent: 60,
+          yPercent: 40,
+          statsbomb: [72, 40],
           isOutOfBounds: false,
-          outOfBoundsEdge: null,
         },
         targetPlayer: mockPlayer2,
       });
     });
 
-    expect(destinationResult?.sent).toBe(true);
-    expect(destinationResult?.triggerContext).toBeNull();
     expect(props.sendEvent).toHaveBeenCalledTimes(1);
-
-    const primaryPayload = (props.sendEvent as any).mock.calls[0][0];
-    expect(primaryPayload.type).toBe("Pass");
-    expect(primaryPayload.data.outcome).toBe("Complete");
-    expect(primaryPayload.data.corner_awarded).toBeUndefined();
-    expect(primaryPayload.data.receiver_id).toBe("p2");
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("Pass");
+    expect(payload.data.outcome).toBe("Complete");
+    expect(payload.data.receiver_id).toBe("p2");
   });
 
-  it("should auto-award corner when pass goes behind own goalkeeper line", () => {
+  it("should dispatch Pass Out from quick action destination and trigger ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
     const props = {
       ...defaultProps,
       sendEvent: vi.fn(),
+      onIneffectiveTrigger,
     };
 
     const { result } = renderHook(() => useActionFlow(props));
@@ -304,36 +310,28 @@ describe("useActionFlow", () => {
     });
     expect(result.current.currentStep).toBe("selectDestination");
 
-    let destinationResult: any;
+    // Click out-of-bounds border zone
     act(() => {
-      destinationResult = result.current.handleDestinationClick({
+      result.current.handleDestinationClick({
         destination: {
-          xPercent: 0,
-          yPercent: 48,
-          statsbomb: [0, 38],
+          xPercent: 100,
+          yPercent: 50,
+          statsbomb: [120, 50],
           isOutOfBounds: true,
-          outOfBoundsEdge: "left",
+          outOfBoundsEdge: "right",
         },
       });
     });
 
-    expect(destinationResult?.sent).toBe(true);
-    expect(destinationResult?.outOfBounds).toBe(true);
-    expect(destinationResult?.triggerContext?.actionType).toBe("OutOfBounds");
-    expect(props.sendEvent).toHaveBeenCalledTimes(2);
-
-    const primaryPayload = (props.sendEvent as any).mock.calls[0][0];
-    expect(primaryPayload.type).toBe("Pass");
-    expect(primaryPayload.data.outcome).toBe("Out");
-    expect(primaryPayload.data.corner_reason).toBe("behind_own_goal_line");
-
-    const cornerPayload = (props.sendEvent as any).mock.calls[1][0];
-    expect(cornerPayload.type).toBe("SetPiece");
-    expect(cornerPayload.team_id).toBe("t2");
-    expect(cornerPayload.data.set_piece_type).toBe("Corner");
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("Pass");
+    expect(payload.data.outcome).toBe("Out");
+    expect(payload.data.out_of_bounds).toBe(true);
+    expect(result.current.currentStep).toBe("selectPlayer");
   });
 
-  it("should log Pass Out immediately and trigger ineffective without recipient step", () => {
+  it("should log Pass Out via destination click and trigger ineffective without recipient step", () => {
     const onIneffectiveTrigger = vi.fn();
     const props = {
       ...defaultProps,
@@ -356,10 +354,19 @@ describe("useActionFlow", () => {
     act(() => {
       result.current.handleActionClick("Pass");
     });
-    expect(result.current.currentStep).toBe("selectOutcome");
+    expect(result.current.currentStep).toBe("selectDestination");
 
+    // Click out-of-bounds border zone
     act(() => {
-      result.current.handleOutcomeClick("Out");
+      result.current.handleDestinationClick({
+        destination: {
+          xPercent: 0,
+          yPercent: 50,
+          statsbomb: [0, 50],
+          isOutOfBounds: true,
+          outOfBoundsEdge: "top",
+        },
+      });
     });
 
     expect(props.sendEvent).toHaveBeenCalledTimes(1);
@@ -367,14 +374,6 @@ describe("useActionFlow", () => {
     expect(payload.type).toBe("Pass");
     expect(payload.data.outcome).toBe("Out");
     expect(payload.data.out_of_bounds).toBe(true);
-
-    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
-    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actionType: "OutOfBounds",
-        teamId: "t2",
-      }),
-    );
     expect(result.current.currentStep).toBe("selectPlayer");
   });
 
@@ -416,6 +415,137 @@ describe("useActionFlow", () => {
     expect(onIneffectiveTrigger).toHaveBeenCalledWith(
       expect.objectContaining({
         actionType: "Offside",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
+  it("should dispatch Corner quick action and trigger OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Corner");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("SetPiece");
+    expect(payload.team_id).toBe("t2");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        set_piece_type: "Corner",
+        outcome: "Complete",
+        source_team_id: "t1",
+        source_player_id: "p1",
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
+  it("should dispatch Throw-in quick action and trigger OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Throw-in");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("SetPiece");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        set_piece_type: "Throw-in",
+        outcome: "Complete",
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
+        teamId: "t2",
+      }),
+    );
+    expect(result.current.currentStep).toBe("selectPlayer");
+  });
+
+  it("should dispatch Shot Out quick action as Shot OffTarget with OutOfBounds ineffective", () => {
+    const onIneffectiveTrigger = vi.fn();
+    const props = {
+      ...defaultProps,
+      sendEvent: vi.fn(),
+      onIneffectiveTrigger,
+    };
+    const { result } = renderHook(() => useActionFlow(props));
+
+    act(() => {
+      result.current.handlePlayerClick(mockPlayer1, {
+        xPercent: 40,
+        yPercent: 55,
+      });
+    });
+    act(() => {
+      result.current.handleZoneSelect(7);
+    });
+    act(() => {
+      result.current.handleQuickActionSelect("Shot Out");
+    });
+
+    expect(props.sendEvent).toHaveBeenCalledTimes(1);
+    const payload = (props.sendEvent as any).mock.calls[0][0];
+    expect(payload.type).toBe("Shot");
+    expect(payload.data).toEqual(
+      expect.objectContaining({
+        shot_type: "Standard",
+        outcome: "OffTarget",
+        destination_type: "out_of_bounds",
+        out_of_bounds: true,
+      }),
+    );
+
+    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
+    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "OutOfBounds",
         teamId: "t2",
       }),
     );
@@ -512,23 +642,24 @@ describe("useActionFlow", () => {
     act(() => {
       result.current.handleActionClick("Pass");
     });
-    expect(result.current.currentStep).toBe("selectOutcome");
+    expect(result.current.currentStep).toBe("selectDestination");
 
+    // Click out-of-bounds border zone
     act(() => {
-      result.current.handleOutcomeClick("Out");
+      result.current.handleDestinationClick({
+        destination: {
+          xPercent: 100,
+          yPercent: 50,
+          statsbomb: [120, 50],
+          isOutOfBounds: true,
+          outOfBoundsEdge: "right",
+        },
+      });
     });
 
     expect(props.sendEvent).toHaveBeenCalledTimes(1);
     const payload = (props.sendEvent as any).mock.calls[0][0];
     expect(payload.team_id).toBe("t1");
-
-    expect(onIneffectiveTrigger).toHaveBeenCalledTimes(1);
-    expect(onIneffectiveTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        teamId: "t2",
-        actionType: "OutOfBounds",
-      }),
-    );
   });
 
   it("should attribute shot out-of-bounds ineffective to opponent team", () => {

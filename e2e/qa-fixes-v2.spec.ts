@@ -145,14 +145,14 @@ test.describe("QA Fixes v2", () => {
       perTeamSection.getByTestId("stat-effective-time-percent"),
     ).toBeVisible();
 
-    // Total rows should still be in the main comparison table
+    // Time rows should only exist in the separate per-team section
     const mainTable = page.getByTestId("analytics-comparison-table");
     await expect(
       mainTable.getByTestId("stat-total-effective-time"),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       mainTable.getByTestId("stat-total-ineffective-time"),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
   test("QA-3: JPG export button exists (CSV removed)", async ({ page }) => {

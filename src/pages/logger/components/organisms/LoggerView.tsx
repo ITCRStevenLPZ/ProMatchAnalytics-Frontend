@@ -2,6 +2,7 @@ import { Play } from "../../../../components/icons";
 import { MatchEvent } from "../../../../store/useMatchLogStore";
 import { CardSelection } from "../molecules/QuickCardPanel";
 import MatchTimerDisplay from "../molecules/MatchTimerDisplay";
+import RefereeActionBar from "../molecules/RefereeActionBar";
 import TeamSelector from "../molecules/TeamSelector";
 import type { CockpitViewMode } from "../molecules/TeamSelector";
 import InstructionBanner from "../molecules/InstructionBanner";
@@ -31,9 +32,11 @@ interface LoggerViewProps {
   handleModeSwitchGuarded: (mode: "EFFECTIVE" | "INEFFECTIVE") => void;
   handleVarToggle: () => void;
   handleTimeoutToggle: () => void;
+  handleRefereeAction: (actionId: string) => void;
   isVarActive: boolean;
   isTimeoutActive: boolean;
   showFieldResume: boolean;
+  isHalftimePhase?: boolean;
   hasActiveIneffective?: boolean;
   ineffectiveTeamLabel?: string;
   onSwitchIneffectiveTeam?: () => void;
@@ -128,9 +131,11 @@ export default function LoggerView({
   handleModeSwitchGuarded,
   handleVarToggle,
   handleTimeoutToggle,
+  handleRefereeAction,
   isVarActive,
   isTimeoutActive,
   showFieldResume,
+  isHalftimePhase = false,
   hasActiveIneffective,
   ineffectiveTeamLabel,
   onSwitchIneffectiveTeam,
@@ -217,10 +222,7 @@ export default function LoggerView({
           onTimeoutToggle={handleTimeoutToggle}
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
-          hideResumeButton={showFieldResume}
-          hasActiveIneffective={hasActiveIneffective}
-          ineffectiveTeamLabel={ineffectiveTeamLabel}
-          onSwitchIneffectiveTeam={onSwitchIneffectiveTeam}
+          hideResumeButton={showFieldResume || isHalftimePhase}
           periodElapsedSeconds={periodElapsedSeconds}
           periodMinimumSeconds={periodMinimumSeconds}
           t={t}
@@ -263,6 +265,18 @@ export default function LoggerView({
                   : t("cardSelectCancel", "Cancel")
               : null
           }
+        />
+      </div>
+
+      <div className="flex-none z-10">
+        <RefereeActionBar
+          disabled={cockpitLocked || clockMode !== "EFFECTIVE"}
+          switchDisabled={cockpitLocked}
+          onActionSelect={handleRefereeAction}
+          hasActiveIneffective={hasActiveIneffective}
+          ineffectiveTeamLabel={ineffectiveTeamLabel}
+          onSwitchIneffectiveTeam={onSwitchIneffectiveTeam}
+          t={t}
         />
       </div>
 

@@ -244,6 +244,24 @@ export const useActionFlow = ({
   const [positionMode, setPositionMode] = useState<PositionMode>("manual");
   const currentStepRef = useRef<ActionStep>("selectPlayer");
 
+  /** Switch position mode; when going from auto→manual mid-flow, re-show the zone selector. */
+  const handlePositionModeChange = useCallback(
+    (mode: PositionMode) => {
+      setPositionMode(mode);
+      if (
+        mode === "manual" &&
+        selectedPlayer &&
+        currentStepRef.current !== "selectPlayer" &&
+        currentStepRef.current !== "selectZone"
+      ) {
+        setSelectedZoneId(null);
+        setSelectedPlayerLocation(null);
+        setCurrentStep("selectZone");
+      }
+    },
+    [selectedPlayer],
+  );
+
   const currentTeam = useMemo<Team | undefined>(() => {
     if (!match) return undefined;
     if (selectedPlayer) {
@@ -506,14 +524,93 @@ export const useActionFlow = ({
         }
         return;
       }
+      if (action === "Corner") {
+        if (selectedPlayer && currentTeam) {
+          const awardedCornerTeamId =
+            resolveOpponentTeamId(currentTeam.id) || currentTeam.id;
+          const payload = buildEventPayload(
+            action,
+            "Complete",
+            null,
+            currentTeam,
+            selectedPlayer,
+            globalClock,
+            operatorPeriod,
+            selectedPlayerLocation ?? undefined,
+            undefined,
+            {
+              source_team_id: currentTeam.id,
+              source_player_id: selectedPlayer.id,
+            },
+            selectedZoneId,
+          );
+          payload.team_id = awardedCornerTeamId;
+          sendEvent(payload);
+
+          if (onIneffectiveTrigger) {
+            onIneffectiveTrigger?.({
+              note: "Corner kick",
+              teamId: awardedCornerTeamId,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+          }
+          resetFlow();
+        }
+        return;
+      }
+      if (action === "Throw-in") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Complete", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Throw-in",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
+      if (action === "Shot Out") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent("Shot", "OffTarget", null, {
+            location: selectedPlayerLocation ?? undefined,
+            extraData: {
+              destination_type: "out_of_bounds",
+              out_of_bounds: true,
+            },
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Shot out of bounds",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
       setCurrentStep("selectDestination");
     },
     [
       currentTeam,
+      globalClock,
       dispatchEvent,
+      onIneffectiveTrigger,
+      operatorPeriod,
       resetFlow,
+      resolveOpponentTeamId,
+      selectedZoneId,
       selectedPlayer,
       selectedPlayerLocation,
+      sendEvent,
     ],
   );
 
@@ -524,7 +621,12 @@ export const useActionFlow = ({
   const handleActionClick = useCallback((action: string) => {
     setSelectedAction(action);
     setPendingOutcome(null);
-    setCurrentStep("selectOutcome");
+    // Shot/Pass use field-based destination selection; others use outcome panel
+    if (action === "Shot" || action === "Pass") {
+      setCurrentStep("selectDestination");
+    } else {
+      setCurrentStep("selectOutcome");
+    }
   }, []);
 
   const handleDestinationClick = useCallback(
@@ -550,7 +652,9 @@ export const useActionFlow = ({
           : false;
 
       const isPassOrShot =
-        selectedAction === "Pass" || selectedAction === "Shot";
+        selectedAction === "Pass" ||
+        selectedAction === "Shot" ||
+        selectedAction === "Header";
       const ownGoalEdge =
         selectedPlayerSide === "home"
           ? "left"
@@ -619,7 +723,8 @@ export const useActionFlow = ({
       } else if (
         selectedAction === "Shot" ||
         selectedAction === "Goal" ||
-        selectedAction === "DirectShot"
+        selectedAction === "DirectShot" ||
+        selectedAction === "Header"
       ) {
         if (shouldAwardCorner) {
           outcome = "OffTarget";
@@ -746,6 +851,21 @@ export const useActionFlow = ({
         }
         return;
       }
+      if (selectedAction === "Shot" && outcome === "Goal") {
+        const sent = dispatchEvent(selectedAction, outcome, null, {
+          location: selectedPlayerLocation ?? undefined,
+        });
+        if (sent && currentTeam && selectedPlayer) {
+          onIneffectiveTrigger?.({
+            note: "Goal scored",
+            teamId: currentTeam.id,
+            playerId: selectedPlayer.id,
+            actionType: "Goal",
+          });
+          resetFlow();
+        }
+        return;
+      }
       if (config?.needsRecipient) {
         setPendingOutcome(outcome);
         setCurrentStep("selectRecipient");
@@ -791,7 +911,7 @@ export const useActionFlow = ({
     selectedAction,
     selectedZoneId,
     positionMode,
-    setPositionMode,
+    setPositionMode: handlePositionModeChange,
     fieldAnchor,
     availableActions,
     availableOutcomes,

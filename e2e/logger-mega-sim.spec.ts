@@ -301,9 +301,12 @@ test.describe("Logger mega simulation", () => {
         return;
       }
       await passButton.click();
-      const outcome = page.getByTestId("outcome-btn-Complete");
-      await expect(outcome).toBeVisible({ timeout: 5000 });
-      await outcome.click();
+      // Pass now goes to destination — click a teammate on the field
+      const teammateId = homeRoster.find((p) => p.player_id !== playerId)
+        ?.player_id;
+      const teammate = page.getByTestId(`field-player-${teammateId}`);
+      await expect(teammate).toBeVisible({ timeout: 5000 });
+      await teammate.click();
       await waitForPendingAckToClear(page);
     };
 
@@ -330,7 +333,8 @@ test.describe("Logger mega simulation", () => {
         return;
       }
       await shotButton.click();
-      await page.getByTestId("outcome-btn-Goal").click();
+      // Shot now goes to destination — click Goal overlay
+      await page.getByTestId("field-goal-btn").click({ timeout: 5000 });
       await waitForPendingAckToClear(page);
     };
 

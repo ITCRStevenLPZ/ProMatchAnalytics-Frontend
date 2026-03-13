@@ -1432,7 +1432,10 @@ export default function TeamsManager() {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           data-testid="roster-modal"
         >
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[94vh] min-h-[min(88vh,44rem)] flex flex-col overflow-hidden"
+            data-testid="roster-modal-panel"
+          >
             <div className="flex justify-between items-center p-6 border-b">
               <h2 className="text-2xl font-bold">
                 {t("roster")} - {selectedTeam.name}
@@ -1444,10 +1447,10 @@ export default function TeamsManager() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)] gap-6 min-h-full">
                 {/* Current Roster */}
-                <div>
+                <div className="min-h-0">
                   <h3 className="text-lg font-semibold mb-4">
                     {t("starters")} ({rosterTotalItems})
                   </h3>
@@ -1593,7 +1596,7 @@ export default function TeamsManager() {
                 </div>
 
                 {/* Add Player Form */}
-                <div>
+                <div className="min-h-0 rounded-xl border border-gray-200 bg-gray-50/70 p-5">
                   <h3 className="text-lg font-semibold mb-4">
                     {t("addToRoster")}
                   </h3>

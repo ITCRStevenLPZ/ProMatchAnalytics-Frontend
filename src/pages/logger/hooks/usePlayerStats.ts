@@ -160,7 +160,9 @@ export function usePlayerStats(
         }
 
         case "SetPiece": {
-          const action = String(data.action ?? "").toLowerCase();
+          const action = String(
+            data.set_piece_type ?? data.action ?? "",
+          ).toLowerCase();
           const outcome = String(data.outcome ?? "").toLowerCase();
           if (action === "penalty") {
             author.penalties++;

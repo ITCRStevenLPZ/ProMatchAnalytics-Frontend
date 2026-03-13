@@ -8,7 +8,7 @@
  *
  * Reuses the same zone grid from heatMapZones.ts.
  */
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ZONES,
   PITCH_WIDTH,
@@ -55,12 +55,16 @@ const FieldZoneSelector: React.FC<FieldZoneSelectorProps> = ({
   t,
 }) => {
   const [hoveredZone, setHoveredZone] = useState<number | null>(null);
+  // Touch devices: first tap highlights, second tap on same zone confirms
+  const [touchedZone, setTouchedZone] = useState<number | null>(null);
+  const lastTouchAt = useRef(0);
 
   return (
     <div className="absolute inset-0" data-testid="field-zone-selector">
       {/* ─── Zone grid ─── */}
       {ZONES.map((zone) => {
-        const isHovered = hoveredZone === zone.id;
+        const isHighlighted =
+          hoveredZone === zone.id || touchedZone === zone.id;
         const leftPct = flipSides
           ? 100 - sbXToPct(zone.x0) - ZONE_W_PCT
           : sbXToPct(zone.x0);
@@ -72,11 +76,23 @@ const FieldZoneSelector: React.FC<FieldZoneSelectorProps> = ({
             type="button"
             data-testid={`zone-select-${zone.id}`}
             data-zone-id={zone.id}
+            data-zone-touched={touchedZone === zone.id ? "true" : undefined}
             title={zone.label}
             onMouseEnter={() => setHoveredZone(zone.id)}
             onMouseLeave={() => setHoveredZone(null)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              lastTouchAt.current = Date.now();
+              if (touchedZone === zone.id) {
+                onZoneSelect(zone.id);
+              } else {
+                setTouchedZone(zone.id);
+              }
+            }}
             onClick={(e) => {
               e.stopPropagation();
+              // Suppress click synthesised from a recent touch
+              if (Date.now() - lastTouchAt.current < 700) return;
               onZoneSelect(zone.id);
             }}
             className="absolute transition-colors duration-100"
@@ -85,17 +101,23 @@ const FieldZoneSelector: React.FC<FieldZoneSelectorProps> = ({
               top: `${topPct}%`,
               width: `${ZONE_W_PCT}%`,
               height: `${ZONE_H_PCT}%`,
-              backgroundColor: isHovered
+              backgroundColor: isHighlighted
                 ? "rgba(59, 130, 246, 0.35)"
                 : "rgba(255, 255, 255, 0.06)",
               border: `1px solid ${
-                isHovered
+                isHighlighted
                   ? "rgba(59, 130, 246, 0.7)"
                   : "rgba(255, 255, 255, 0.15)"
               }`,
               cursor: "pointer",
             }}
-          />
+          >
+            {touchedZone === zone.id && (
+              <span className="flex items-center justify-center h-full text-[10px] text-white font-semibold select-none">
+                {t("tapToConfirm", "Tap to confirm")}
+              </span>
+            )}
+          </button>
         );
       })}
 

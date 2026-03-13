@@ -58,26 +58,17 @@ test.describe("Logger Keyboard Shortcuts", () => {
     // 2. Select Action via Hotkey (Pass = 'P')
     await page.keyboard.press("p");
 
-    // Verify "Select Outcome" step is active by looking for outcome buttons
-    // Note: Outcome buttons might have dynamic test IDs or text.
-    // Let's check for "Complete" or "Success" outcome button.
-    // Based on previous work, it might be 'outcome-btn-Complete' or similar.
-    // But let's check for ANY outcome button or the header if we can guess it.
-    // Or better, check that action buttons are GONE.
-    // Verify "Select Outcome" step is active by looking for outcome buttons
+    // Pass now goes to destination selection (field-based), not outcome buttons
+    // Verify action buttons are gone and cancel destination button is visible
     await expect(page.getByTestId("action-btn-Pass")).not.toBeVisible();
+    await expect(page.getByTestId("field-cancel-btn")).toBeVisible({
+      timeout: 8000,
+    });
 
-    // Check for a specific outcome button to verify we are in outcome selection
-    await expect(page.getByTestId("outcome-btn-Complete")).toBeVisible();
-
-    // 3. Select Outcome (1 for Complete)
-    await page.keyboard.press("1");
-    await page.keyboard.press("Enter");
-
-    // 4. Select Recipient via jersey (use 11)
-    await page.keyboard.press("1");
-    await page.keyboard.press("1");
-    await page.keyboard.press("Enter");
+    // 3. Complete the pass by clicking a teammate on the field
+    const teammate = page.getByTestId("field-player-HOME-3");
+    await expect(teammate).toBeVisible({ timeout: 5000 });
+    await teammate.click();
 
     // Verify event logged
     const lastEvent = page.getByTestId("live-event-item").first();

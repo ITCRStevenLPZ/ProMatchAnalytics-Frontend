@@ -18,6 +18,7 @@ type IneffectiveContext = {
   teamId?: string | null;
   playerId?: string | null;
   actionType?: IneffectiveAction | null;
+  isNeutral?: boolean;
 };
 
 interface UseIneffectiveTimeParams {
@@ -122,8 +123,12 @@ export const useIneffectiveTime = ({
       context?: IneffectiveContext | null,
     ) => {
       if (!match) return;
+      const normalizedTeamId = String(context?.teamId || "").toUpperCase();
       const isNeutralAction =
-        context?.actionType === "VAR" || context?.actionType === "Referee";
+        context?.isNeutral ||
+        normalizedTeamId === "NEUTRAL" ||
+        context?.actionType === "VAR" ||
+        context?.actionType === "Referee";
       const resolvedTeamId = isNeutralAction
         ? "NEUTRAL"
         : context?.teamId || getStoppageTeamId();
@@ -220,6 +225,7 @@ export const useIneffectiveTime = ({
         teamId: explicitTeamId ?? fallbackTeamId,
         playerId: context?.playerId ?? null,
         actionType: context?.actionType ?? ineffectiveActionType,
+        isNeutral: context?.isNeutral ?? false,
       };
       if (!trimmed) {
         setIneffectiveTeamSelection(
@@ -233,6 +239,7 @@ export const useIneffectiveTime = ({
           teamId: explicitTeamId,
           playerId: resolvedContext.playerId,
           actionType: context?.actionType ?? null,
+          isNeutral: context?.isNeutral ?? false,
         });
         setIneffectiveNoteOpen(true);
         return;

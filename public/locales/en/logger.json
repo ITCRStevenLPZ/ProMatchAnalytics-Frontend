@@ -110,7 +110,14 @@
   "ineffectiveReasonSubstitution": "Substitution",
   "ineffectiveReasonInjury": "Injury",
   "ineffectiveReasonVar": "VAR",
+  "ineffectiveReasonReferee": "Referee",
   "ineffectiveReasonOther": "Other",
+  "refereeNeutralBarTitle": "Referee",
+  "refereeNeutralBarHelp": "Trigger neutral ineffective time for referee interruptions.",
+  "refereeActionInterference": "Ball hits referee / interference",
+  "refereeActionDiscussion": "Referee discussion / explanation",
+  "refereeActionInjury": "Referee injury",
+  "refereeActionEquipment": "Equipment / communication issue",
   "notesUpdateFailed": "Unable to update notes right now.",
   "operatorClock": "Operator clock",
   "manualControl": "Manual control",
@@ -466,6 +473,7 @@
   "zoneSelectTitle": "Select where {{playerName}}'s action occurred",
   "zoneSelectTitleGeneric": "Select the action zone",
   "zoneSelectHint": "Tap the area of the field where the action took place",
+  "tapToConfirm": "Tap to confirm",
   "positionManual": "Manual",
   "positionAuto": "Auto"
 }

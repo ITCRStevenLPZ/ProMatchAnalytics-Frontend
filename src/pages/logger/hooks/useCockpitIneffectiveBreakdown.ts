@@ -20,26 +20,6 @@ export const useCockpitIneffectiveBreakdown = ({
   queuedEvents,
   ineffectiveTick,
 }: UseCockpitIneffectiveBreakdownParams): IneffectiveBreakdown | null => {
-  const hasVarStoppage = useMemo(() => {
-    const combinedEvents = [...liveEvents, ...queuedEvents];
-    return combinedEvents.some(
-      (event) =>
-        event.type === "GameStoppage" &&
-        (event.data?.stoppage_type === "VARStart" ||
-          event.data?.stoppage_type === "VARStop"),
-    );
-  }, [liveEvents, queuedEvents]);
-
-  const hasTimeoutStoppage = useMemo(() => {
-    const combinedEvents = [...liveEvents, ...queuedEvents];
-    return combinedEvents.some(
-      (event) =>
-        event.type === "GameStoppage" &&
-        (event.data?.stoppage_type === "TimeoutStart" ||
-          event.data?.stoppage_type === "TimeoutStop"),
-    );
-  }, [liveEvents, queuedEvents]);
-
   return useMemo(() => {
     if (!match) return null;
     const homeTeamIds = [match.home_team.id, match.home_team.team_id].filter(
@@ -49,15 +29,21 @@ export const useCockpitIneffectiveBreakdown = ({
       Boolean,
     ) as string[];
 
-    if (hasVarStoppage || hasTimeoutStoppage) {
+    const combinedEvents = [...liveEvents, ...queuedEvents];
+
+    // Always use local event computation when events are loaded.
+    // This ensures optimistic events (e.g., team switches) are reflected
+    // immediately rather than waiting for stale server aggregates to refresh.
+    if (combinedEvents.length > 0) {
       return computeIneffectiveBreakdown(
-        [...liveEvents, ...queuedEvents],
+        combinedEvents,
         homeTeamIds,
         awayTeamIds,
         Date.now(),
       );
     }
 
+    // Fallback to server aggregates only when no local events are loaded yet
     if (match.ineffective_aggregates) {
       return buildIneffectiveBreakdownFromAggregates(
         match.ineffective_aggregates,
@@ -66,17 +52,10 @@ export const useCockpitIneffectiveBreakdown = ({
     }
 
     return computeIneffectiveBreakdown(
-      [...liveEvents, ...queuedEvents],
+      combinedEvents,
       homeTeamIds,
       awayTeamIds,
       Date.now(),
     );
-  }, [
-    match,
-    liveEvents,
-    queuedEvents,
-    ineffectiveTick,
-    hasVarStoppage,
-    hasTimeoutStoppage,
-  ]);
+  }, [match, liveEvents, queuedEvents, ineffectiveTick]);
 };

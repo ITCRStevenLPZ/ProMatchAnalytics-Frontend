@@ -583,6 +583,35 @@ export default function LoggerCockpit() {
     logNeutralTimerEvent,
   });
 
+  const handleRefereeAction = useCallback(
+    (actionId: string) => {
+      const actionLabels: Record<string, string> = {
+        interference: t(
+          "refereeActionInterference",
+          "Ball hits referee / interference",
+        ),
+        discussion: t(
+          "refereeActionDiscussion",
+          "Referee discussion / explanation",
+        ),
+        injury: t("refereeActionInjury", "Referee injury"),
+        equipment: t(
+          "refereeActionEquipment",
+          "Equipment / communication issue",
+        ),
+      };
+      const note =
+        actionLabels[actionId] || t("ineffectiveReasonOther", "Other");
+      beginIneffective(note, {
+        teamId: "NEUTRAL",
+        playerId: null,
+        actionType: "Other",
+        isNeutral: true,
+      });
+    },
+    [beginIneffective, t],
+  );
+
   useCockpitE2EPlayersSeed({
     enabled: IS_E2E_TEST_MODE,
     match,
@@ -897,10 +926,16 @@ export default function LoggerCockpit() {
                   queuedEvents={queuedEvents}
                   effectiveClock={effectiveClock}
                   globalClock={globalClock}
+                  ineffectiveClock={ineffectiveClock}
+                  varClock={varTimeClock}
+                  timeoutClock={timeoutTimeClock}
                   effectiveTime={effectiveTime}
                   varTimeSeconds={varTimeSeconds}
                   timeoutTimeSeconds={timeoutTimeSeconds}
                   ineffectiveBreakdown={ineffectiveBreakdown}
+                  clockMode={clockMode}
+                  isVarActive={isVarActive}
+                  isTimeoutActive={isTimeoutActive}
                   t={t}
                 />
               </>
@@ -967,9 +1002,14 @@ export default function LoggerCockpit() {
                 handleModeSwitchGuarded={handleModeSwitchGuarded}
                 handleVarToggle={handleVarToggle}
                 handleTimeoutToggle={handleTimeoutToggle}
+                handleRefereeAction={handleRefereeAction}
                 isVarActive={isVarActive}
                 isTimeoutActive={isTimeoutActive}
                 showFieldResume={showFieldResume}
+                isHalftimePhase={
+                  currentPhase === "HALFTIME" ||
+                  currentPhase === "EXTRA_HALFTIME"
+                }
                 hasActiveIneffective={hasActiveIneffective}
                 ineffectiveTeamLabel={
                   ineffectiveTeamSelection === "home"

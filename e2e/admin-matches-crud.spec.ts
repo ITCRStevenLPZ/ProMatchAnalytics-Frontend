@@ -524,6 +524,38 @@ test.describe("Admin matches CRUD & status transitions", () => {
     expect(stats.home_team.lineup_size).toBe(homeTeam.lineup.length);
     expect(stats.away_team.lineup_size).toBe(awayTeam.lineup.length);
 
+    // Fulltime (finished/completed) matches should be deletable.
+    const fulltimeDeleteResponse = await apiRequest.delete(
+      `matches/${matchDocId}`,
+    );
+    expect(fulltimeDeleteResponse.status()).toBe(204);
+
+    const liveBlockedPayload = buildMatchPayload({
+      matchId: uniqueId("MATCHLIVE"),
+      competitionId,
+      venueId,
+      venueName: `Venue ${venueId.slice(-4)}`,
+      refereeId,
+      refereeName: `Ref ${refereeId.slice(-4)}`,
+      home: homeTeam,
+      away: awayTeam,
+    });
+    const liveCreateResp = await apiRequest.post("matches/", {
+      data: liveBlockedPayload,
+    });
+    expect([200, 201]).toContain(liveCreateResp.status());
+    const liveMatch = await json<any>(liveCreateResp);
+
+    await expectStatusTransition(liveMatch._id, "Live_First_Half");
+    const liveDeleteResponse = await apiRequest.delete(
+      `matches/${liveMatch._id}`,
+    );
+    expect(liveDeleteResponse.status()).toBe(400);
+    const liveDeleteBody = await liveDeleteResponse.json();
+    expect(String(liveDeleteBody.detail || "")).toContain(
+      "Can only delete Pending or Completed matches",
+    );
+
     const deletablePayload = buildMatchPayload({
       matchId: uniqueId("MATCHDEL"),
       competitionId,

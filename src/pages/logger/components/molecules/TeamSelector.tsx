@@ -1,4 +1,5 @@
 import { TFunction } from "i18next";
+import { useCallback, useRef } from "react";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -51,6 +52,25 @@ const TeamSelector = ({
   awayTeamName,
   t,
 }: TeamSelectorProps) => {
+  const lastTouchUndoAt = useRef(0);
+
+  const handleUndoClick = useCallback(() => {
+    // Ignore synthetic click that follows a touch pointer interaction.
+    if (Date.now() - lastTouchUndoAt.current < 700) {
+      return;
+    }
+    onUndo();
+  }, [onUndo]);
+
+  const handleUndoPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType !== "touch" || undoDisabled) return;
+      lastTouchUndoAt.current = Date.now();
+      onUndo();
+    },
+    [onUndo, undoDisabled],
+  );
+
   // When the field is flipped, swap the formation picker positions
   const leftSide = isFlipped ? "away" : "home";
   const rightSide = isFlipped ? "home" : "away";
@@ -100,14 +120,15 @@ const TeamSelector = ({
           </button>
           <button
             type="button"
-            onClick={onUndo}
+            onClick={handleUndoClick}
+            onPointerUp={handleUndoPointerUp}
             disabled={undoDisabled}
             data-testid="undo-button"
             className={`relative flex-1 max-w-[200px] inline-flex items-center justify-center gap-2.5 py-3.5 rounded-lg text-base font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               undoDisabled
                 ? "text-slate-600 border border-slate-700"
                 : "text-rose-300 border border-rose-500/40 bg-rose-900/20 hover:bg-rose-900/40"
-            }`}
+            } touch-manipulation`}
           >
             <CornerUpLeft size={20} />
             {t("undoLast", "Undo last")}

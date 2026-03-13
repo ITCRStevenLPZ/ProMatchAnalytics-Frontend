@@ -159,6 +159,8 @@ export interface LoggerHarness {
   };
   undoLastEvent: () => Promise<void> | void;
   getQueueSnapshot: () => QueueSnapshot;
+  getLiveEventSummary: () => LiveEventSummary;
+  getRecentGameStoppages: () => GameStoppageSummary[];
   clearQueue: () => void;
   getDriftSnapshot: () => {
     computed: number;
@@ -179,6 +181,21 @@ export interface QueueSnapshot {
   currentMatchId: string | null;
   queuedEvents: QueuedEventSummary[];
   queuedEventsByMatch: Record<string, QueuedEventSummary[]>;
+}
+
+export interface LiveEventSummary {
+  liveCount: number;
+  gameStoppageCount: number;
+}
+
+export interface GameStoppageSummary {
+  team_id: string;
+  match_clock: string;
+  notes?: string | null;
+  stoppage_type: string;
+  reason?: string | null;
+  trigger_action?: string | null;
+  trigger_team_id?: string | null;
 }
 
 export interface DuplicateMetadata {

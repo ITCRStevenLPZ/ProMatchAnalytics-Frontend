@@ -219,6 +219,36 @@ export default function ActionStage({
                   </div>
                 )}
               </>
+            ) : currentStep === "selectDestination" &&
+              selectedPlayer &&
+              (selectedAction === "Shot" || selectedAction === "Pass") ? (
+              <div className="absolute inset-0 pointer-events-none z-30 flex flex-col items-center justify-center gap-2">
+                <div className="pointer-events-auto flex items-center gap-2">
+                  {selectedAction === "Shot" && (
+                    <button
+                      type="button"
+                      data-testid="field-goal-btn"
+                      onClick={() => handleOutcomeSelect("Goal")}
+                      className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold uppercase tracking-wider shadow-lg shadow-emerald-900/40 border border-emerald-400/50 transition-colors"
+                    >
+                      {t("actionGoal", "Goal")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    data-testid="field-cancel-btn"
+                    onClick={resetFlow}
+                    className="px-4 py-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-sm font-semibold shadow-lg border border-slate-600/50 transition-colors"
+                  >
+                    {t("quickActionCancel", "Cancel")}
+                  </button>
+                </div>
+                <span className="pointer-events-none text-xs text-slate-400/80 font-medium uppercase tracking-wider bg-slate-900/70 px-3 py-1 rounded-full">
+                  {selectedAction === "Shot"
+                    ? t("shotFieldHint", "Click player or field area")
+                    : t("passFieldHint", "Click player or field area")}
+                </span>
+              </div>
             ) : showFieldResume ? (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <button

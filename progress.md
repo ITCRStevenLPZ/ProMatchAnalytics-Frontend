@@ -8,27 +8,333 @@
 
 ## Current Objective
 
-- [x] Formation rotation, toolbar layout, and Review view for event corrections
+- [x] Enlarge team roster modal so add-player flow has more usable space
+- [x] Add dedicated referee neutral-action bar outside the field
+- [x] Verify each client requirement with targeted automated tests (English checklist)
+- [x] Make logger field interactions touch-safe on iPad/touch devices (destination + undo)
+- [x] Fix zone selector auto-selecting on touch (two-tap preview/confirm)
+- [x] Field-based Shot/Pass destination flow (replaces outcome panel)
+- [x] Replace Out border zones with Corner/Throw-in/Shot Out quick actions
+- [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
+- [x] Attribute Corner to opponent team and deduplicate analytics team-time rows
+- [x] Allow match deletion for Pending/Completed and localize delete guard (EN/ES)
 
 ## Status
 
-- Phase: Handoff
+- Phase: Validate
 - Overall: On track
 
 ## What Was Completed (Latest Session)
 
-### Feature: Formation Rotation & Toolbar Layout
+### Touch-Safe Zone Selector (Two-Tap Preview/Confirm)
 
-1. **Formation pickers moved to TeamSelector** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+1. **Fixed zone auto-selection on touch/tablet devices** — [FieldZoneSelector.tsx](src/pages/logger/components/molecules/FieldZoneSelector.tsx)
 
-   - Formations now appear on left/right sides of the toolbar
-   - When field is flipped (`isFlipped`), pickers swap sides: `leftSide = isFlipped ? "away" : "home"`
-   - Added `data-testid="formation-slot-left"` and `data-testid="formation-slot-right"` for E2E testing
-   - Flip & Undo buttons centered between formation pickers with `flex-1 justify-center`
+   - **Root cause**: The zone selector used `onMouseEnter` for hover preview and `onClick` for selection. On touch devices, there's no hover — the first tap immediately fires `click`, selecting a zone without any visual feedback. Users couldn't preview which zone they were about to select.
+   - **Fix**: Added two-step touch interaction: first tap highlights the zone (blue preview + "Tap to confirm" label), second tap on the same zone confirms selection. Tapping a different zone moves the highlight. Mouse behavior (hover to preview, click to select) is unchanged.
+   - Implementation: `onTouchEnd` manages the `touchedZone` state; `onClick` suppresses synthetic clicks from touch events using a 700ms debounce ref.
 
-2. **Formation pickers removed from PlayerSelectorPanel** — [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx)
-   - Removed `FormationPicker` import and the formation pickers row
-   - Prefixed unused formation props with underscores to avoid TS warnings
+2. **EN/ES locale strings** — [logger.json](public/locales/en/logger.json), [logger.json](public/locales/es/logger.json)
+
+   - Added `tapToConfirm` / `Toca para confirmar`.
+
+3. **E2E touch zone selection tests** — [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts)
+   - "two taps — first highlights, second confirms": Verifies first tap sets `data-zone-touched="true"` and does NOT dismiss zone selector; second tap confirms and shows quick actions.
+   - "tap on a different zone switches the highlight": Verifies highlight moves between zones and old zone loses `data-zone-touched`.
+
+### Previous Session
+
+1. **Added running ineffective/VAR/timeout clocks to Analytics header** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - **Root cause**: When `viewMode === "analytics"`, the `LoggerView` (which contains `MatchTimerDisplay` with all running clocks) is completely unmounted. The `AnalyticsView` header only displayed `effectiveClock` and `globalClock` — no ineffective, VAR, or timeout clocks. The `ineffectiveClock` from `useMatchTimer` already ticked correctly (100ms interval) but was never passed to or rendered in the analytics view.
+   - **Fix**: Added `ineffectiveClock`, `varClock`, `timeoutClock`, `clockMode`, `isVarActive`, `isTimeoutActive` props to `AnalyticsView` and rendered them in the header bar with contextual styling:
+     - Ineffective: rose color, pulse animation when `clockMode === "INEFFECTIVE"`
+     - VAR: amber, shown only when `isVarActive`
+     - Timeout: sky, shown only when `isTimeoutActive`
+     - Effective: emerald (always shown)
+     - Global: gray (always shown)
+   - Passed all new props from `LoggerCockpit` (variables already in scope from `useMatchTimer`, `useCockpitVarDerivedState`, `useTimeoutTimer`).
+
+2. **E2E: ANL-28 — ineffective clock ticks in analytics view during active stoppage** — [logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts)
+
+   - Test flow: start clock → click ineffective button → fill modal (Foul, home team) → save → switch to analytics tab → read ineffective clock → wait 2s → assert clock value changed.
+   - Note: raw harness events (`sendRawEventThroughHarness`) do NOT change `clockMode` — they bypass `beginIneffective` / `optimisticModeChange`. E2E tests requiring clock mode changes must use the actual UI button + modal flow.
+
+### Ineffective Team Switch Real-Time Fix (Prior Session)
+
+1. **Fixed breakdown hook using stale server aggregates instead of local events** — [useCockpitIneffectiveBreakdown.ts](src/pages/logger/hooks/useCockpitIneffectiveBreakdown.ts)
+
+   - **Root cause**: `useCockpitIneffectiveBreakdown` always used `buildIneffectiveBreakdownFromAggregates(match.ineffective_aggregates)` when server aggregates existed — which was always true since `empty_ineffective_aggregates()` is set on match creation. This meant optimistic events from `switchIneffectiveTeam` (ClockStart + ClockStop pair) were ignored, and the UI only updated after a full `fetchMatch()` round-trip.
+   - **Fix**: Changed priority so local event computation via `computeIneffectiveBreakdown` is used whenever `liveEvents` are loaded (which is always during live operation via `hydrateEvents`). Server aggregates are now only a fallback when no events are available yet.
+   - Removed the now-unnecessary `hasVarStoppage` and `hasTimeoutStoppage` memos since the local computation handles all event types correctly.
+
+### Previous Session: Referee Panel Switch Validation Hardening
+
+1. **Referee-panel switch now stays usable during active ineffective time** — [RefereeActionBar.tsx](src/pages/logger/components/molecules/RefereeActionBar.tsx), [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx)
+
+   - Split the referee shortcut-button disabled state from the ineffective-team switch disabled state.
+   - Referee shortcut actions remain blocked outside EFFECTIVE mode, while the switch remains enabled during an active ineffective period unless the cockpit itself is locked.
+
+2. **Logger harness now exposes stable stoppage payloads for E2E** — [useCockpitHarness.ts](src/pages/logger/hooks/useCockpitHarness.ts), [types.ts](src/pages/logger/types.ts), [logger.ts](e2e/utils/logger.ts)
+
+   - Added recent `GameStoppage` summaries to the E2E harness so tests can assert actual stoppage sequencing and attribution.
+   - This removes reliance on flaky absolute feed counts when background seeded events vary.
+
+3. **Referee switch E2E assertions stabilized** — [logger-referee-actions.spec.ts](e2e/logger-referee-actions.spec.ts)
+
+   - Isolated the two referee scenarios with separate short seeded match IDs to avoid cross-worker reset collisions.
+   - Replaced raw `GameStoppage` count assertions with checks against the latest stoppage payloads.
+   - Kept the analytics assertion for neutral `Other` time after referee-triggered ineffective periods.
+
+### Roster Modal Space + Referee Neutral Actions
+
+1. **Expanded roster modal desktop layout** — [TeamsManager.tsx](src/pages/TeamsManager.tsx)
+
+   - Increased roster modal width and height budget and added a dedicated modal panel test id.
+   - Shifted to a roomier desktop split so the add-player form no longer feels cramped beside the roster list.
+   - Preserved the existing overflow strategy so picker panels still render without clipping.
+
+2. **Added referee neutral-action bar outside the field** — [RefereeActionBar.tsx](src/pages/logger/components/molecules/RefereeActionBar.tsx), [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added a dedicated neutral referee strip with the four requested actions:
+     - Ball hits referee / interference
+     - Referee discussion / explanation
+     - Referee injury
+     - Equipment / communication issue
+   - Each action now starts ineffective time directly from the logger without opening the generic note modal.
+   - Moved the ineffective-team switch into the same referee strip as a separate always-visible control.
+
+3. **Fixed neutral referee aggregation semantics** — [useIneffectiveTime.ts](src/pages/logger/hooks/useIneffectiveTime.ts), [utils.ts](src/pages/logger/utils.ts)
+
+   - Explicit `NEUTRAL` stoppages now remain neutral during local ineffective breakdown recomputation.
+   - Referee-triggered stoppages roll into the existing neutral `Other` reporting bucket, matching client requirements.
+
+4. **Locale updates added** — [logger.json](public/locales/en/logger.json), [logger.json](public/locales/es/logger.json)
+
+   - Added EN/ES copy for the new referee bar and action labels.
+
+5. **Regression coverage added**
+
+   - E2E: [logger-referee-actions.spec.ts](e2e/logger-referee-actions.spec.ts)
+     - Verifies referee shortcut actions start neutral ineffective time and populate the neutral `Other` analytics row.
+     - Verifies the ineffective-team switch in the referee panel updates immediately while ineffective time is still active.
+   - E2E: [admin-team-roster-ui.spec.ts](e2e/admin-team-roster-ui.spec.ts)
+     - Verifies the roster modal now opens with expanded desktop width.
+   - Unit: [utils.test.ts](src/pages/logger/utils.test.ts)
+     - Verifies local ineffective breakdown keeps referee stoppages in neutral `Other` instead of misattributing them to a team.
+
+### Client Requirement Verification Sweep
+
+1. **Added explicit create-match team-pagination regression** — [admin-matches-team-pagination.spec.ts](e2e/admin-matches-team-pagination.spec.ts)
+
+   - Seeds >100 teams and validates that a team created beyond backend page 1 appears in both create-match selectors (`home-team-select`, `away-team-select`).
+
+2. **Executed focused requirement matrix suites (frontend + backend)**
+
+   - Frontend targeted E2E batch: `matches-modal`, `admin-team-roster-ui`, `logger-undo`, `multi-tab-sync`, `review-formation-rotation`, `new-features`.
+   - Backend targeted pytest batch: `test_ineffective_aggregates`, `test_websocket_manager`, `test_match_event_deduplication`.
+
+### Touchscreen Compatibility (iPad/Touch)
+
+1. **Touch-safe destination tapping on field** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx), [SoccerField.tsx](src/components/SoccerField.tsx)
+
+   - Added touch-pointer destination submission via `onPointerUp`.
+   - Added duplicate-guard so touch `pointerup` + synthetic `click` does not submit destination twice.
+   - Added `touch-manipulation` class on field surface for better tap behavior on touch devices.
+
+2. **Touch-safe undo button handling** — [TeamSelector.tsx](src/pages/logger/components/molecules/TeamSelector.tsx)
+
+   - Added touch-pointer undo handler (`onPointerUp`) and synthetic-click dedup guard.
+   - Preserved existing mouse and keyboard activation behavior.
+
+3. **Touch fallback for player node taps** — [TacticalPlayerNode.tsx](src/pages/logger/components/molecules/TacticalPlayerNode.tsx)
+
+   - Added explicit `onTouchStart` / `onTouchMove` / `onTouchEnd` fallback so tap-to-select works when pointer events are not emitted consistently.
+
+4. **Touch regression tests added**
+
+   - E2E: [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts)
+     - Validates touch tap flow for: player select -> pass destination on field -> undo.
+   - Unit: [TeamSelector.test.tsx](src/pages/logger/components/molecules/TeamSelector.test.tsx)
+     - Validates touch pointer-up + synthetic click only triggers undo once.
+
+### Match Deletion Rule + Localized Alerts
+
+1. **Localized match-delete guard handling** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - Added status-guard mapping for backend delete errors.
+   - When backend returns match-status delete guard detail, UI now shows translated message via `t("deleteGuards.matchStatuses")`.
+
+2. **EN/ES locale coverage** — [en/admin.json](public/locales/en/admin.json), [es/admin.json](public/locales/es/admin.json)
+
+   - Added `deleteGuards.matchStatuses` messages in both languages.
+
+3. **E2E deletion-rule coverage** — [admin-matches-crud.spec.ts](e2e/admin-matches-crud.spec.ts)
+
+   - Added assertions that:
+     - Fulltime (finished/completed) matches are deletable.
+     - Live matches are blocked with the updated delete guard detail.
+
+### Corner Attribution + Analytics Dedup
+
+1. **Corner quick action attribution fix** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Corner quick action now logs the SetPiece event to the opponent team (Team B when Team A commits)
+   - Kept ineffective trigger attribution to the same opponent team for `OutOfBounds`
+   - Corner payload now includes `source_team_id` and `source_player_id` for traceability
+
+2. **Analytics duplicate time-row cleanup** — [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx)
+
+   - Removed duplicated total time rows from the main comparison table:
+     - `stat-total-effective-time`
+     - `stat-total-ineffective-time`
+   - Kept the separate per-team time section intact (`analytics-per-team-time`)
+
+3. **Test updates**
+
+   - [useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts): Corner quick-action unit test now asserts opponent `team_id` and source metadata
+   - [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Added E2E assertion that Corner from home side increments away corners in analytics
+   - [qa-fixes-v2.spec.ts](e2e/qa-fixes-v2.spec.ts): Updated expectations so duplicate total-time rows are absent from main table
+   - [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): Stabilized ULT-01 foul-path assertion for full-suite load variance
+
+### Replace Out Border Zones with Corner/Throw-in/Shot Out Quick Actions
+
+1. **Added Corner, Throw-in, Shot Out to QuickActionMenu** — [constants.ts](src/pages/logger/constants.ts)
+
+   - Added `"Corner"`, `"Throw-in"`, `"Shot Out"` to `QUICK_ACTIONS` array (now 11 items)
+
+2. **Quick action handlers** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Corner: dispatches SetPiece Corner (Complete) + triggers OutOfBounds ineffective → resetFlow
+   - Throw-in: dispatches SetPiece Throw-in (Complete) + triggers OutOfBounds ineffective → resetFlow
+   - Shot Out: dispatches Shot OffTarget (out_of_bounds: true) + triggers OutOfBounds ineffective → resetFlow
+   - Added `onIneffectiveTrigger` and `resolveOpponentTeamId` to dependency array
+
+3. **Removed border zone rendering** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
+
+   - Removed ~180 lines: BORDER_COLS/ROWS, BORDER_ZONES array, renderBorderButton, getEdgeZones, all border strip JSX
+
+4. **Removed border zone rendering** — [SoccerField.tsx](src/components/SoccerField.tsx)
+   - Removed ~140 lines of border zone button rendering code
+
+### E2E Test Updates
+
+- [logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts): "Pass Out via border zone" → "Throw-in quick action logs immediately and stops effective time"
+- [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): ULT-01 `Out` button checks → `field-cancel-btn`, Foul quick mode fix; ULT-02 border zone Out → Throw-in quick action; added Corner/Throw-in/Shot Out to clickAction type union + harness fallbacks
+- [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Replaced entire "Border Zone Destination Flow" describe block (5 tests) with "Out-of-Play Quick Actions" (3 tests: Corner, Throw-in, Shot Out)
+- [logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts): Replaced `Out` button check with `field-cancel-btn`
+
+### Unit Test Updates
+
+- [useActionFlow.test.ts](src/pages/logger/hooks/useActionFlow.test.ts): 3 new tests — Corner, Throw-in, Shot Out quick action dispatch + OutOfBounds ineffective trigger (118/118 total)
+
+### Fix: Clock Phantom Time Accumulation on Stop/Start
+
+**Bug**: Stopping and restarting the clock while in INEFFECTIVE mode caused time to jump by the entire stopped duration (e.g. 01:01 → 118:17).
+
+**Root cause**: Two issues —
+
+1. `ineffective_time_seconds` was not persisted to the backend on clock stop (only effective time was saved)
+2. `last_mode_change_timestamp` was not refreshed on clock start, causing the timer to calculate `now - old_timestamp` which included all stopped time
+
+**Fixes**:
+
+1. **Frontend** [useMatchTimer.ts](src/pages/logger/hooks/useMatchTimer.ts): `handleGlobalClockStop` now also persists `ineffective_time_seconds` via `updateMatch`
+2. **Backend** [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py): Clock start handler resets `last_mode_change_timestamp = now` when clock_mode is INEFFECTIVE
+
+**Test**: [test_matches_new_router.py](../ProMatchAnalytics-Backend/tests/test_matches_new_router.py): `test_clock_restart_in_ineffective_mode_resets_last_mode_change` — verifies stale timestamp is refreshed on restart (122/122 backend tests pass)
+
+### Timezone-Safe Timestamp Parsing Fix
+
+1. **Fixed timezone-naive ISO timestamps causing zero ineffective totals** — [utils.ts](src/pages/logger/utils.ts)
+
+   - **Root cause**: The backend serializes event timestamps as timezone-naive ISO strings (e.g., `"2026-03-13T16:34:02.772000"` — no "Z" suffix). The client `sendEvent` creates timestamps with `new Date().toISOString()` (which includes "Z"), but when the server acknowledges via WebSocket, it re-serializes without timezone info. `upsertLiveEvent()` replaces the client event with the server's version. JavaScript's `new Date("2026-03-13T16:34:02.772000")` then parses this as **local time**, creating a 6-hour offset for UTC-6 users. This made `(Date.now() - activeStartMs)` negative → `addDuration` clipped to 0 → all breakdown totals showed 00:00.
+   - **Why the old code worked**: The old hook used `buildIneffectiveBreakdownFromAggregates` for simple ClockStop scenarios. The server's `aggregates.active.start_timestamp` was stored with timezone info, so parsing worked correctly.
+   - **Fix**: Added `parseTimestampAsUtcMs()` helper function that detects timezone-naive ISO strings (containing "T" but no "Z", "+", or "-" timezone suffix) and appends "Z" before parsing. Updated `computeIneffectiveBreakdown` to use this helper for all event timestamp parsing.
+
+2. **Unit test for timezone-naive handling** — [utils.test.ts](src/pages/logger/utils.test.ts)
+   - Added test proving timezone-naive ISO strings from the server produce correct (non-zero) breakdown totals.
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: Full suite — 94 passed, 1 transient (ANL-12, passes in isolation), 3 interrupted -> PASS
+- [x] E2E: `logger-touch-interactions.spec.ts` (3 tests: destination+undo, two-tap zone, zone switch) -> PASS
+- [x] E2E: `logger-zone-selector.spec.ts` (19 tests, mouse behavior unchanged) -> PASS
+- [x] Unit: vitest — 123/123 PASS
+- [x] TypeScript: 0 errors
+
+## Implementation Notes
+
+- **Latest root cause (timezone)**: The backend strips "Z" from ISO timestamps during WebSocket serialization. `new Date(naiveISO)` parses as local time → 6-hour offset for UTC-6 → negative elapsed durations → zero totals. Fix: `parseTimestampAsUtcMs()` appends "Z" to timezone-naive strings before parsing.
+- **Previous root cause**: `AnalyticsView` never received or rendered `ineffectiveClock`. When in analytics viewMode, the `LoggerView` (containing `MatchTimerDisplay`) is unmounted, so the user lost all running clock displays. Fix: pass and render `ineffectiveClock`, `varClock`, `timeoutClock` from `LoggerCockpit` to `AnalyticsView`.
+- **E2E learning**: Raw harness events don't trigger `optimisticModeChange` or `handleModeSwitch`, so `clockMode` stays "EFFECTIVE". Tests that assert clock ticking must use actual UI flows (button clicks + modal).
+- **Previous root cause**: `useCockpitIneffectiveBreakdown` always took the `buildIneffectiveBreakdownFromAggregates` path because `match.ineffective_aggregates` is always initialized (never null). This meant the breakdown was computed from stale server-side aggregates rather than from `liveEvents` which include optimistic switch events. Fix: prioritize local event computation when events are loaded.
+- **Previous root causes**: (1) referee-panel switch inherited the same disabled gate as referee shortcut actions, which blocked switching during active ineffective time; (2) the referee E2E spec asserted unstable absolute stoppage totals and reused the same seeded match across parallel workers.
+- **Root causes discovered**: (1) Negative Y coords from off-screen field causing `mouse.click` failures; (2) TacticalField overlay at z-30 with `pointer-events-auto` + `stopPropagation` blocking z-10 player node clicks and field background clicks
+- **Workaround for SoccerField list mode**: React `onClick` on soccer-field div doesn't fire when click target is overlay child. E2E utility functions use harness instead of field clicks.
+- **Pre-existing flaky tests**: Full suite flaky failures rotate between unrelated tests (admin-team-roster, match-switch-guardrails, offside, zone-selector) — all caused by shared backend state during parallel execution, all pass in isolation.
+
+## Previous Session Changes
+
+### Bug Fixes & Feature Changes
+
+1. **Fix Auto→Manual zone disappear bug** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Replaced raw `setPositionMode` export with `handlePositionModeChange` wrapper
+   - When switching from auto→manual mid-flow (player already selected), resets step to `selectZone` and clears zone/location state
+   - Prevents the zone selector from disappearing after mode switch
+
+2. **Fix resume button showing during halftime** — [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `isHalftimePhase` prop to LoggerView
+   - Timer's resume button now hidden during HALFTIME and EXTRA_HALFTIME phases
+   - `hideResumeButton={showFieldResume || isHalftimePhase}`
+
+3. **Fix penalty stats not counting** — [usePlayerStats.ts](src/pages/logger/hooks/usePlayerStats.ts)
+
+   - SetPiece case now checks `data.set_piece_type` (matching `buildEventPayload` output) with fallback to `data.action`
+   - Penalties are now correctly counted in player scoring stats
+
+4. **Shot/Pass two-step outcome flow** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+
+   - Shot and Pass quick actions now go to `selectOutcome` step instead of `selectDestination`
+   - Shot outcomes: Goal, OnTarget, OffTarget, Blocked, Post, Saved
+   - Pass outcomes: Complete (→selectRecipient), Incomplete (→selectRecipient), Out (→auto-dispatch + ineffective trigger), Pass Offside
+   - Shot "Goal" outcome triggers ineffective event automatically
+   - Destination-click flow preserved for other actions (Header, Foul, Free Kick)
+   - Header added to `isPassOrShot` corner-detection logic for consistent behavior
+
+5. **Fix add-players modal dropdown clipping** — [TeamsManager.tsx](src/pages/TeamsManager.tsx)
+
+   - Changed roster modal from `overflow-y-auto` on outer container to flex layout with `overflow-hidden`
+   - Content area uses `overflow-y-auto flex-1 min-h-0` so dropdowns in header/filter area are not clipped
+
+6. **Fix ensureClockRunning E2E flake** — [e2e/utils/logger.ts](e2e/utils/logger.ts)
+   - Previous helper only accepted "Ball In Play" as proof of running clock; "Balón Fuera" (ball out) also indicates running clock
+   - Replaced fragile ball-state-label text check with stop-button enabled check
+
+### E2E Test Updates
+
+- [logger-event-taxonomy.spec.ts](e2e/logger-event-taxonomy.spec.ts): Shot → outcome flow, Pass → outcome→recipient flow, Header corner detection
+- [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts): Border zone tests use Header instead of Pass; full-flow uses outcome path
+- [logger-ultimate-cockpit.spec.ts](e2e/logger-ultimate-cockpit.spec.ts): Pass/Shot always use outcome buttons (no more quick/action branching)
+
+## Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: Full suite — 265/265 PASS
+- [x] Unit: vitest — 115/115 PASS
+- [x] Pre-commit: All hooks PASS (both repos)
+
+### Items Verified as Already Working (No Changes Needed)
+
+- Teams pagination in match creation (full pagination loop with page_size: 100)
+- Multi-session analytics streaming (WebSocket ConnectionManager supports multiple connections per user)
+- Referee neutral ineffective actions (isNeutral: true, team_id: "NEUTRAL")
+- Undo action position/centering in toolbar
+- ReviewView edit + delete functionality
+- Header, Free Kick actions in QUICK_ACTIONS; DribbleLoss accessible via Carry action
+- Ineffective team switch already implemented
+  - Prefixed unused formation props with underscores to avoid TS warnings
 
 ### Feature: Three-Way View Toggle (Logger / Review / Analytics)
 

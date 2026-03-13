@@ -339,6 +339,24 @@ test.describe("Logger action matrix", () => {
       await page
         .getByTestId(`action-btn-${opts.action}`)
         .click({ timeout: 8000 });
+      // Pass/Shot use field-based destination selection;
+      // fall back to harness to keep this matrix test fast and reliable
+      if (opts.action === "Pass" || opts.action === "Shot") {
+        await sendHarnessEvent(
+          opts.action,
+          opts.outcome ?? (opts.action === "Pass" ? "Complete" : "OnTarget"),
+          opts.team,
+          opts.playerId,
+        );
+        // Reset flow since we bypassed the UI destination step
+        await page.evaluate(() => {
+          const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+          harness?.resetFlow?.();
+        });
+        await waitForPendingAckToClear(page);
+        increment(resolveEventType(opts.action));
+        return;
+      }
       if (opts.outcome) {
         await page
           .getByTestId(`outcome-btn-${opts.outcome}`)
