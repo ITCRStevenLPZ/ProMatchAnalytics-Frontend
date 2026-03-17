@@ -538,36 +538,10 @@ export default function MatchesManager() {
     if (matchData.home_team_id) {
       const roster = await fetchTeamRoster(matchData.home_team_id);
       setHomeRoster(roster);
-      if (matchData.home_lineup.length === 0) {
-        const starters = roster.filter((p) => p.is_starter).slice(0, 11);
-        setMatchData((prev) => ({
-          ...prev,
-          home_lineup: starters.map((p) => ({
-            player_id: p.player_id,
-            player_name: formatPlayerName(p.player_name || p.player_id),
-            position: p.position,
-            jersey_number: p.jersey_number,
-            is_starter: true,
-          })),
-        }));
-      }
     }
     if (matchData.away_team_id) {
       const roster = await fetchTeamRoster(matchData.away_team_id);
       setAwayRoster(roster);
-      if (matchData.away_lineup.length === 0) {
-        const starters = roster.filter((p) => p.is_starter).slice(0, 11);
-        setMatchData((prev) => ({
-          ...prev,
-          away_lineup: starters.map((p) => ({
-            player_id: p.player_id,
-            player_name: formatPlayerName(p.player_name || p.player_id),
-            position: p.position,
-            jersey_number: p.jersey_number,
-            is_starter: true,
-          })),
-        }));
-      }
     }
     setRosterLoading(false);
   };

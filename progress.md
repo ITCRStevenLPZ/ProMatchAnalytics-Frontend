@@ -26,6 +26,16 @@
 
 ## What Was Completed (Latest Session)
 
+### Create-Match Lineup Defaults (No Prechecked Players)
+
+1. **Removed default preselected lineup checkboxes in match wizard** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - **Root cause**: `handleTeamSelection()` auto-filled `home_lineup` / `away_lineup` from roster players marked as starter, which prechecked boxes as soon as step 2/3 opened.
+   - **Fix**: Stopped auto-populating lineups on team selection. Home/Away starter/substitute checkboxes now start unchecked, and admins explicitly choose the XI/bench.
+
+2. **E2E regression coverage for this use case** — [admin-matches-default-lineup-selection.spec.ts](e2e/admin-matches-default-lineup-selection.spec.ts)
+   - Verifies in English that create-match step 2 and step 3 open with zero checked checkboxes in starters and substitutes columns by default.
+
 ### Touch-Safe Zone Selector (Two-Tap Preview/Confirm)
 
 1. **Fixed zone auto-selection on touch/tablet devices** — [FieldZoneSelector.tsx](src/pages/logger/components/molecules/FieldZoneSelector.tsx)
@@ -257,6 +267,8 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] E2E: `admin-matches-default-lineup-selection.spec.ts` -> PASS
+- [x] E2E: `admin-matches-lineup-order.spec.ts` -> PASS
 - [x] E2E: Full suite — 94 passed, 1 transient (ANL-12, passes in isolation), 3 interrupted -> PASS
 - [x] E2E: `logger-touch-interactions.spec.ts` (3 tests: destination+undo, two-tap zone, zone switch) -> PASS
 - [x] E2E: `logger-zone-selector.spec.ts` (19 tests, mouse behavior unchanged) -> PASS
