@@ -22,6 +22,9 @@ interface DestinationPayload {
 }
 
 interface DestinationResult {
+  sent?: boolean;
+  outOfBounds?: boolean;
+  blockedInteriorPassDestination?: boolean;
   isGoal?: boolean;
   triggerContext?: {
     teamId: string;
@@ -387,6 +390,15 @@ export const useCockpitInteractionHandlers = ({
         return;
       }
       const result = handleDestinationClick({ destination });
+      if (result?.blockedInteriorPassDestination) {
+        showToast(
+          t(
+            "passRequiresTargetOrOut",
+            "Pass must go to a player or out of bounds.",
+          ),
+        );
+        return;
+      }
       if (result?.triggerContext) {
         beginIneffective(
           result?.isGoal

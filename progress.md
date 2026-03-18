@@ -18,13 +18,84 @@
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
 - [x] Attribute Corner to opponent team and deduplicate analytics team-time rows
 - [x] Allow match deletion for Pending/Completed and localize delete guard (EN/ES)
+- [x] Block selecting as substitute any player already selected as starter
+- [x] Keep teams on their own half pre-match and prevent cross-half dragging
+- [x] Fix analytics times lost after INEFFECTIVE-mode period transitions
+- [x] Add Goal Kick as quick action (replacing out zones behind goals)
+- [x] Fix End Match and validate all period control buttons
 
 ## Status
 
-- Phase: Validate
+- Phase: Handoff
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Analytics Times Preserved Across INEFFECTIVE-Mode Transitions
+
+1. **Backend: clock_mode-aware stop logic** — [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py)
+
+   - **Root cause**: When the backend stopped the clock (period transition) while `clock_mode === "INEFFECTIVE"`, it naively added the elapsed time to `match_time_seconds`, corrupting the effective time by mixing in ineffective elapsed.
+   - **Fix**: Added `clock_mode` check in the `should_stop` branch. When `clock_mode == "INEFFECTIVE"`, `match_time_seconds` is frozen at its current value and the elapsed delta is routed to `ineffective_time_seconds` instead.
+
+2. **Frontend: `performTransition` sends current effective time** — [usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts)
+
+   - **Root cause**: `performTransition` called `updateMatchStatus(matchId, targetStatus)` without providing the known effective time. The backend fell back to `accumulated + elapsed`, which is wrong in INEFFECTIVE mode.
+   - **Fix**: Now sends `Math.round(effectiveTime)` as the fourth argument so the backend always has a trustworthy `match_time_seconds` value.
+
+3. **Frontend: live ineffective seconds derivation** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx)
+   - **Root cause**: Passed stale `match.ineffective_time_seconds` (server snapshot) to `MatchAnalytics` instead of the live running value.
+   - **Fix**: Computes `liveIneffectiveSeconds = parseGlobalSeconds(globalClock) - effectiveTime - timeoutTimeSeconds` using the inverse of the global formula.
+
+### Goal Kick Quick Action
+
+1. **Added Goal Kick to quick actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - Added `"Goal Kick"` to the `QUICK_ACTIONS` array between "Throw-in" and "Shot Out".
+   - Keyboard shortcut `g/G → "Goal Kick"` and locale keys `actionGoal Kick` already existed.
+
+2. **Added Goal Kick handler** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+   - Dispatches a SetPiece "Complete" event and triggers `OutOfBounds` ineffective time attributed to the opponent team (same pattern as Throw-in and Corner).
+
+### Period Control Buttons Validated
+
+- All period control transitions verified working end-to-end through E2E tests: 1H → HT → 2H → Fulltime → Completed, and the extra time path ET1 → ET-HT → ET2 → Penalties → Completed.
+
+### Previous Session
+
+1. **Updated pass destination field hint copy** — [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx)
+
+   - Pass destination hint now explicitly instructs: teammate/opponent or out of bounds.
+
+2. **Added missing logger locale keys used by pass destination validation toast** — [logger.json](public/locales/en/logger.json), [logger.json](public/locales/es/logger.json)
+
+   - Added `passFieldHint` and `passRequiresTargetOrOut` in EN/ES so UI hint and toast both resolve through translations instead of fallback literals.
+
+### Pre-Match Tactical Side Guardrails + Flip Stability
+
+1. **Pre-match tactical defaults now keep teams grouped by half** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
+
+   - **Root cause**: Initial tactical defaults were not clamped to side bounds, and away players in advanced roles could appear across the center line.
+   - **Fix**: Default position placement now clamps every player to side-aware bounds during initialization. Added canonical position mapping for full labels (e.g., `Extremo Derecho`) so default lanes are interpreted correctly.
+
+2. **Blocked dragging players into the opposite half** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
+
+   - Tightened team bounds to keep home on one half and away on the opposite half.
+   - Dragging now clamps within those bounds, preventing red/blue players from crossing the center line.
+
+3. **Flip behavior preserves lane semantics and restores correctly** — [logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)
+   - Added focused E2E verifying flip mirrors only x and preserves y lane (wing side lane), then restores original coordinates after unflip.
+
+### Create-Match Lineup Guardrail (Starter vs Substitute)
+
+1. **Blocked right-side substitute selection for players already chosen as starters** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - **Root cause**: In lineup step 2/3, the substitutes column allowed selecting a player even when that player was already selected as starter.
+   - **Fix**: Substitutes checkbox now becomes disabled when the same player is present in lineup with `is_starter: true` (applied for both home and away).
+
+2. **Focused English E2E coverage for this issue** — [admin-matches-default-lineup-selection.spec.ts](e2e/admin-matches-default-lineup-selection.spec.ts)
+   - Added test: `disables substitute checkbox when the same player is selected as starter`.
+   - Verifies the behavior in home and away lineup steps.
 
 ### Create-Match Lineup Defaults (No Prechecked Players)
 
@@ -267,8 +338,19 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] Full E2E suite: 280 passed (single-worker deterministic validation)
+- [x] Frontend pre-commit: all hooks passed (lint, typecheck, unit, markdown, secrets)
+- [x] E2E: `logger-fixes-validation.spec.ts` — 4 tests → PASS
+  - Analytics effective time not corrupted after INEFFECTIVE-mode transition
+  - Goal Kick quick action logs SetPiece + triggers OutOfBounds ineffective
+  - Full period walkthrough: 1H → HT → 2H → Fulltime → Completed
+  - Extra time path: ET1 → ET-HT → ET2 → Penalties → Completed
+- [x] E2E: `logger-period-transitions.spec.ts` — 9 tests → PASS (regression)
+- [x] E2E: `logger-zone-selector.spec.ts` — 19 tests → PASS (regression)
 - [x] E2E: `admin-matches-default-lineup-selection.spec.ts` -> PASS
 - [x] E2E: `admin-matches-lineup-order.spec.ts` -> PASS
+- [x] E2E: `admin-matches-default-lineup-selection.spec.ts` (2 tests including starter/substitute blocking) -> PASS
+- [x] E2E: `logger-field-flow.spec.ts` (3 focused tests for side grouping, cross-half drag block, flip lane stability) -> PASS
 - [x] E2E: Full suite — 94 passed, 1 transient (ANL-12, passes in isolation), 3 interrupted -> PASS
 - [x] E2E: `logger-touch-interactions.spec.ts` (3 tests: destination+undo, two-tap zone, zone switch) -> PASS
 - [x] E2E: `logger-zone-selector.spec.ts` (19 tests, mouse behavior unchanged) -> PASS

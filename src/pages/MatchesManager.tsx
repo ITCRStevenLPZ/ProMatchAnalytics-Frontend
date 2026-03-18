@@ -1465,6 +1465,10 @@ export default function MatchesManager() {
                             player.position &&
                             player.jersey_number !== undefined &&
                             player.jersey_number !== null;
+                          const selectedAsStarter = matchData.home_lineup.some(
+                            (p) =>
+                              p.player_id === player.player_id && p.is_starter,
+                          );
                           return (
                             <div
                               key={player.player_id}
@@ -1492,7 +1496,7 @@ export default function MatchesManager() {
                                       e.target.checked,
                                     )
                                   }
-                                  disabled={!selectable}
+                                  disabled={!selectable || selectedAsStarter}
                                   className="h-4 w-4"
                                 />
                                 <span className="font-semibold">
@@ -1602,6 +1606,10 @@ export default function MatchesManager() {
                             player.position &&
                             player.jersey_number !== undefined &&
                             player.jersey_number !== null;
+                          const selectedAsStarter = matchData.away_lineup.some(
+                            (p) =>
+                              p.player_id === player.player_id && p.is_starter,
+                          );
                           return (
                             <div
                               key={player.player_id}
@@ -1629,7 +1637,7 @@ export default function MatchesManager() {
                                       e.target.checked,
                                     )
                                   }
-                                  disabled={!selectable}
+                                  disabled={!selectable || selectedAsStarter}
                                   className="h-4 w-4"
                                 />
                                 <span className="font-semibold">

@@ -105,6 +105,7 @@ export const QUICK_ACTIONS = [
   "Free Kick",
   "Corner",
   "Throw-in",
+  "Goal Kick",
   "Shot Out",
 ] as const;
 

@@ -246,7 +246,10 @@ export default function ActionStage({
                 <span className="pointer-events-none text-xs text-slate-400/80 font-medium uppercase tracking-wider bg-slate-900/70 px-3 py-1 rounded-full">
                   {selectedAction === "Shot"
                     ? t("shotFieldHint", "Click player or field area")
-                    : t("passFieldHint", "Click player or field area")}
+                    : t(
+                        "passFieldHint",
+                        "Click teammate/opponent or out of bounds",
+                      )}
                 </span>
               </div>
             ) : showFieldResume ? (

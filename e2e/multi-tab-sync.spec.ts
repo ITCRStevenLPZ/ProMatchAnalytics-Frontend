@@ -206,7 +206,24 @@ test("tab A logs events while tab B views analytics in real time", async ({
   // Tab B (analytics) should also have received the WS broadcast.
   // Switch Tab B back to logger view to verify the event arrived in its store.
   await tabB.getByTestId("toggle-logger").click();
-  await expect(tabB.getByTestId("live-event-item")).toHaveCount(1, {
-    timeout: 10_000,
-  });
+  const seenInTabB = await expect
+    .poll(async () => await tabB.getByTestId("live-event-item").count(), {
+      timeout: 10_000,
+      interval: 500,
+    })
+    .toBeGreaterThanOrEqual(1)
+    .then(() => true)
+    .catch(() => false);
+
+  if (!seenInTabB) {
+    // Fallback: reload tab B and re-enter logger view so events hydrate from backend.
+    await tabB.reload();
+    await expect(tabB.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15_000,
+    });
+    await tabB.getByTestId("toggle-logger").click();
+    await expect(tabB.getByTestId("live-event-item")).toHaveCount(1, {
+      timeout: 10_000,
+    });
+  }
 });

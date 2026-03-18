@@ -49,6 +49,18 @@ export default function AnalyticsView({
   );
   const playerStats = usePlayerStats(match, allEvents);
 
+  // Derive live ineffective seconds from the global clock formula:
+  // globalSeconds = effectiveTime + ineffectiveSeconds + timeoutSeconds
+  // This avoids using stale match.ineffective_time_seconds from the server.
+  const parseGlobalSeconds = (clock: string) => {
+    const [mm, rest] = clock.split(":");
+    return Number(mm) * 60 + parseFloat(rest || "0");
+  };
+  const liveIneffectiveSeconds = Math.max(
+    0,
+    parseGlobalSeconds(globalClock) - effectiveTime - timeoutTimeSeconds,
+  );
+
   return (
     <div className="mb-6 flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-900/60 border border-slate-800 px-3 py-2">
@@ -113,7 +125,7 @@ export default function AnalyticsView({
         effectiveTime={effectiveTime}
         varTimeSeconds={varTimeSeconds}
         timeoutSeconds={timeoutTimeSeconds}
-        ineffectiveSeconds={match?.ineffective_time_seconds || 0}
+        ineffectiveSeconds={liveIneffectiveSeconds}
         ineffectiveBreakdown={ineffectiveBreakdown}
         t={t}
       />

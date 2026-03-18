@@ -51,6 +51,8 @@
   "instructionSelectRecipient": "Selecciona el receptor del pase",
   "instructionSelectQuickAction": "Elige una acción rápida para {{player}}",
   "instructionSelectDestination": "Haz clic en el destino para {{action}}",
+  "passFieldHint": "Haz clic en compañero/rival o fuera de la cancha",
+  "passRequiresTargetOrOut": "El pase debe ir a un jugador o fuera de la cancha.",
   "instructionSelectCardPlayer": "Selecciona un jugador para {{card}}.",
   "quickActionTitle": "Acciones rápidas",
   "quickActionMore": "Más acciones",

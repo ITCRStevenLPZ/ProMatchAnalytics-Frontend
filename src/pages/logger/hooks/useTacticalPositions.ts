@@ -142,10 +142,11 @@ const DEFAULT_Y: Record<string, number> = {
 
 const HOME_BOUNDS: Record<PositionGroup, PositionBounds> = {
   goalkeeper: { xMin: 0, xMax: 20, yMin: 15, yMax: 85 },
-  defense: { xMin: 5, xMax: 45, yMin: 0, yMax: 100 },
-  midfield: { xMin: 15, xMax: 85, yMin: 0, yMax: 100 },
-  attack: { xMin: 40, xMax: 95, yMin: 0, yMax: 100 },
-  other: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  // Keep every team on its own half pre-match; away bounds are mirrored.
+  defense: { xMin: 5, xMax: 40, yMin: 0, yMax: 100 },
+  midfield: { xMin: 18, xMax: 49, yMin: 0, yMax: 100 },
+  attack: { xMin: 30, xMax: 49, yMin: 0, yMax: 100 },
+  other: { xMin: 0, xMax: 49, yMin: 0, yMax: 100 },
 };
 
 /** Mirror bounds for the away team (home bounds reflected). */
@@ -165,6 +166,57 @@ const normalizePos = (v: string) =>
     .toLowerCase()
     .replace(/[^a-z]/g, "")
     .trim();
+
+const resolveCanonicalPositionKey = (raw?: string | null): string => {
+  const n = normalizePos(raw || "");
+  if (!n) return "OTHER";
+
+  if (["gk", "goalkeeper", "portero", "keeper"].some((k) => n.includes(k)))
+    return "GK";
+
+  if (
+    ["defensacentral", "centerback", "cb", "zaguero"].some((k) => n.includes(k))
+  )
+    return "CB";
+  if (["lateralizquierdo", "leftback", "lb"].some((k) => n.includes(k)))
+    return "LB";
+  if (["lateralderecho", "rightback", "rb"].some((k) => n.includes(k)))
+    return "RB";
+  if (["carrileroizquierdo", "leftwingback", "lwb"].some((k) => n.includes(k)))
+    return "LWB";
+  if (["carrileroderecho", "rightwingback", "rwb"].some((k) => n.includes(k)))
+    return "RWB";
+
+  if (
+    ["mediocentrodefensivo", "contencion", "cdm", "volantedefensivo"].some(
+      (k) => n.includes(k),
+    )
+  )
+    return "CDM";
+  if (
+    ["mediocentroofensivo", "enganche", "cam", "volanteofensivo"].some((k) =>
+      n.includes(k),
+    )
+  )
+    return "CAM";
+  if (
+    ["centrocampista", "mediocentro", "cm", "volante"].some((k) =>
+      n.includes(k),
+    )
+  )
+    return "CM";
+
+  if (["extremoizquierdo", "leftwing", "lw"].some((k) => n.includes(k)))
+    return "LW";
+  if (["extremoderecho", "rightwing", "rw"].some((k) => n.includes(k)))
+    return "RW";
+  if (["delantero", "striker", "st", "nueve"].some((k) => n.includes(k)))
+    return "ST";
+  if (["segundodelantero", "secondstriker", "ss"].some((k) => n.includes(k)))
+    return "SS";
+
+  return (raw || "OTHER").toUpperCase().trim();
+};
 
 export const getPositionGroup = (raw?: string | null): PositionGroup => {
   const n = normalizePos(raw || "");
@@ -394,7 +446,7 @@ export const resolveDefaultPositions = (
   // Group by normalised position string
   const grouped: Record<string, PlayerLike[]> = {};
   for (const p of players) {
-    const key = p.position?.toUpperCase().trim() || "OTHER";
+    const key = resolveCanonicalPositionKey(p.position);
     (grouped[key] ??= []).push(p);
   }
 
@@ -431,7 +483,8 @@ export const resolveDefaultPositions = (
         if (side === "away") {
           x = 100 - x;
         }
-        result.set(group[playerIdx].id, { x, y });
+        const bounds = getBoundsForPlayer(posKey, side);
+        result.set(group[playerIdx].id, clampToBounds({ x, y }, bounds));
         playerIdx++;
       }
     }
@@ -514,7 +567,8 @@ export const resolveFormationPositions = (
       if (side === "away") {
         x = 100 - x;
       }
-      result.set(player.id, { x, y });
+      const bounds = getBoundsForPlayer(player.position, side);
+      result.set(player.id, clampToBounds({ x, y }, bounds));
       playerIdx++;
     }
   }

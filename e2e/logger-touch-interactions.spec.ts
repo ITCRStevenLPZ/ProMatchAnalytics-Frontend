@@ -84,21 +84,8 @@ test("touch taps support destination selection and undo", async ({ page }) => {
     timeout: 10000,
   });
 
-  const field = page.getByTestId("soccer-field");
-  await expect(field).toBeVisible({ timeout: 10000 });
-  const fieldBox = await field.boundingBox();
-  expect(fieldBox).not.toBeNull();
-  if (!fieldBox) {
-    throw new Error("soccer-field bounding box unavailable");
-  }
-
-  // Pick an interior point away from control overlays to submit destination.
-  await field.tap({
-    position: {
-      x: fieldBox.width * 0.68,
-      y: fieldBox.height * 0.82,
-    },
-  });
+  // Pass must target a player or out-of-bounds. Use teammate touch target.
+  await tapLocator(page, page.getByTestId("field-player-HOME-4"));
 
   await waitForPendingAckToClear(page);
   await expect
