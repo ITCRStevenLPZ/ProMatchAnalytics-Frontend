@@ -149,6 +149,15 @@ const HOME_BOUNDS: Record<PositionGroup, PositionBounds> = {
   other: { xMin: 0, xMax: 49, yMin: 0, yMax: 100 },
 };
 
+/** During a live match players can roam the entire field. */
+const LIVE_HOME_BOUNDS: Record<PositionGroup, PositionBounds> = {
+  goalkeeper: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  defense: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  midfield: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  attack: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  other: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+};
+
 /** Mirror bounds for the away team (home bounds reflected). */
 const mirrorBounds = (b: PositionBounds): PositionBounds => ({
   xMin: 100 - b.xMax,
@@ -273,9 +282,11 @@ export const clampToBounds = (
 export const getBoundsForPlayer = (
   positionString: string | undefined,
   side: "home" | "away",
+  isMatchLive = false,
 ): PositionBounds => {
   const group = getPositionGroup(positionString);
-  const base = HOME_BOUNDS[group];
+  const table = isMatchLive ? LIVE_HOME_BOUNDS : HOME_BOUNDS;
+  const base = table[group];
   return side === "away" ? mirrorBounds(base) : base;
 };
 
@@ -592,12 +603,15 @@ interface UseTacticalPositionsOptions {
   matchId: string | undefined;
   homePlayers: PlayerLike[];
   awayPlayers: PlayerLike[];
+  /** When true (live match), players can be dragged across the entire field. */
+  isMatchLive?: boolean;
 }
 
 export const useTacticalPositions = ({
   matchId,
   homePlayers,
   awayPlayers,
+  isMatchLive = false,
 }: UseTacticalPositionsOptions) => {
   // Canonical positions (home = left). Keyed by player id.
   const [positions, setPositions] = useState<Map<string, TacticalPosition>>(
@@ -715,7 +729,7 @@ export const useTacticalPositions = ({
       playerPosition: string | undefined,
       side: "home" | "away",
     ) => {
-      const bounds = getBoundsForPlayer(playerPosition, side);
+      const bounds = getBoundsForPlayer(playerPosition, side, isMatchLive);
       const clamped = clampToBounds(newPos, bounds);
       setPositions((prev) => {
         const resolved = resolveCollision(playerId, clamped, prev, bounds);
@@ -725,7 +739,7 @@ export const useTacticalPositions = ({
         return next;
       });
     },
-    [persistPositions],
+    [persistPositions, isMatchLive],
   );
 
   /** Apply a formation to one side — recalculates all positions for that side

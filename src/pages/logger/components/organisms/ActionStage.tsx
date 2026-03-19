@@ -72,6 +72,8 @@ interface ActionStageProps {
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   dragLocked?: boolean;
+  /** When true (live match), expand drag bounds to full field. */
+  isMatchLive?: boolean;
   positionMode: PositionMode;
   onPositionModeChange: (mode: PositionMode) => void;
   t: any;
@@ -125,6 +127,7 @@ export default function ActionStage({
   awayFormation,
   applyFormation,
   dragLocked = true,
+  isMatchLive = false,
   positionMode,
   onPositionModeChange,
   t,
@@ -283,6 +286,7 @@ export default function ActionStage({
             (!isGlobalClockRunning || clockMode !== "EFFECTIVE" || isVarActive)
           }
           dragLocked={dragLocked}
+          isMatchLive={isMatchLive}
           visiblePlayerIds={
             currentStep === "selectZone" && selectedPlayer
               ? new Set([selectedPlayer.id])

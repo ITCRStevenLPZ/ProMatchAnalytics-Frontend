@@ -170,6 +170,9 @@ export function CockpitProvider({ children }: { children: ReactNode }) {
   );
 
   // ── Tactical positions ─────────────────────────────────────────────────
+  const isMatchLive =
+    !!match?.status && !["Pending", "Scheduled"].includes(match.status);
+
   const {
     positions: tacticalPositions,
     getDisplayPosition,
@@ -184,6 +187,7 @@ export function CockpitProvider({ children }: { children: ReactNode }) {
     matchId,
     homePlayers: homeOnFieldPlayers,
     awayPlayers: awayOnFieldPlayers,
+    isMatchLive,
   });
 
   const handleTacticalPlayerDragEnd = useCallback(
@@ -938,6 +942,7 @@ export function CockpitProvider({ children }: { children: ReactNode }) {
       undoCount: undoStack.length,
       manualHomeTeamLabel,
       manualAwayTeamLabel,
+      isMatchLive,
     }),
     [
       match,

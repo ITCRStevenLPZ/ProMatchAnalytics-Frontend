@@ -108,6 +108,8 @@ interface LoggerViewProps {
   setViewMode?: (mode: CockpitViewMode) => void;
   dragLocked?: boolean;
   onToggleDragLock?: () => void;
+  /** When true (live match), expand drag bounds to full field. */
+  isMatchLive?: boolean;
   positionMode: PositionMode;
   onPositionModeChange: (mode: PositionMode) => void;
   t: any;
@@ -195,6 +197,7 @@ export default function LoggerView({
   setViewMode,
   dragLocked,
   onToggleDragLock,
+  isMatchLive = false,
   positionMode,
   onPositionModeChange,
   t,
@@ -342,6 +345,7 @@ export default function LoggerView({
         awayFormation={awayFormation}
         applyFormation={applyFormation}
         dragLocked={dragLocked}
+        isMatchLive={isMatchLive}
         positionMode={positionMode}
         onPositionModeChange={onPositionModeChange}
         t={t}

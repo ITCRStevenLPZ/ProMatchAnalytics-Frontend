@@ -180,7 +180,6 @@ test.describe("Tactical Field", () => {
     const afterCoords = await getTacticalCoords(page, "HOME-1");
 
     // The GK position should have changed (we dragged right & down)
-    // GK bounds: xMax=20, so x will be clamped but > original 5
     expect(afterCoords.x).toBeGreaterThan(beforeCoords.x);
   });
 
@@ -307,13 +306,16 @@ test.describe("Tactical Field", () => {
     expect(afterAwayCoords.x).toBeCloseTo(100 - beforeAwayCoords.x, 0);
   });
 
-  test("GK position bounds — cannot be dragged past 20% x", async ({
+  test("pre-match: GK bounds — cannot be dragged past 20% x", async ({
     page,
   }) => {
     test.setTimeout(60000);
+    // Re-seed with Pending so isMatchLive=false and pre-match bounds apply.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
     await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
-    await ensureClockRunning(page);
 
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
@@ -338,6 +340,12 @@ test.describe("Tactical Field", () => {
     // Drag the GK far to the right — way past 20% of the field
     const dragRight = fieldBox.width * 0.6; // ~60% of field width
 
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await page.mouse.move(startX + dragRight, startY, { steps: 10 });
@@ -349,13 +357,16 @@ test.describe("Tactical Field", () => {
     expect(afterCoords.x).toBeLessThanOrEqual(21); // Allow small rounding
   });
 
-  test("players cannot cross into the opposite half when dragged", async ({
+  test("pre-match: players cannot cross into the opposite half", async ({
     page,
   }) => {
     test.setTimeout(60000);
+    // Re-seed with Pending so isMatchLive=false and pre-match bounds apply.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
     await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
-    await ensureClockRunning(page);
 
     const dragLockBtn = page.getByTestId("toggle-drag-lock");
     await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
@@ -367,13 +378,14 @@ test.describe("Tactical Field", () => {
     expect(fieldBox).not.toBeNull();
     if (!fieldBox) throw new Error("Field bounding box unavailable");
 
-    // Try to drag a home attacker deep into the away half.
-    const homePlayer = page.getByTestId("field-player-HOME-11");
+    // Use HOME-4 / AWAY-4 — positioned at y≈50 (center) so pointer
+    // interactions are reliable (HOME-11 at y≈86 can be clipped).
+    const homePlayer = page.getByTestId("field-player-HOME-4");
     await expect(homePlayer).toBeVisible({ timeout: 10000 });
     await homePlayer.scrollIntoViewIfNeeded();
     const homeBox = await homePlayer.boundingBox();
     expect(homeBox).not.toBeNull();
-    if (!homeBox) throw new Error("HOME-11 bounding box unavailable");
+    if (!homeBox) throw new Error("HOME-4 bounding box unavailable");
 
     await page.mouse.move(
       homeBox.x + homeBox.width / 2,
@@ -383,23 +395,21 @@ test.describe("Tactical Field", () => {
     await page.mouse.move(
       fieldBox.x + fieldBox.width * 0.92,
       homeBox.y + homeBox.height / 2,
-      {
-        steps: 12,
-      },
+      { steps: 12 },
     );
     await page.mouse.up();
     await page.waitForTimeout(250);
 
-    const homeAfter = await getTacticalCoords(page, "HOME-11");
+    const homeAfter = await getTacticalCoords(page, "HOME-4");
     expect(homeAfter.x).toBeLessThanOrEqual(49.5);
 
-    // Try to drag an away attacker deep into the home half.
-    const awayPlayer = page.getByTestId("field-player-AWAY-11");
+    // Try to drag an away player deep into the home half.
+    const awayPlayer = page.getByTestId("field-player-AWAY-4");
     await expect(awayPlayer).toBeVisible({ timeout: 10000 });
     await awayPlayer.scrollIntoViewIfNeeded();
     const awayBox = await awayPlayer.boundingBox();
     expect(awayBox).not.toBeNull();
-    if (!awayBox) throw new Error("AWAY-11 bounding box unavailable");
+    if (!awayBox) throw new Error("AWAY-4 bounding box unavailable");
 
     await page.mouse.move(
       awayBox.x + awayBox.width / 2,
@@ -409,15 +419,82 @@ test.describe("Tactical Field", () => {
     await page.mouse.move(
       fieldBox.x + fieldBox.width * 0.08,
       awayBox.y + awayBox.height / 2,
-      {
-        steps: 12,
-      },
+      { steps: 12 },
     );
     await page.mouse.up();
     await page.waitForTimeout(250);
 
-    const awayAfter = await getTacticalCoords(page, "AWAY-11");
+    const awayAfter = await getTacticalCoords(page, "AWAY-4");
     expect(awayAfter.x).toBeGreaterThanOrEqual(50.5);
+  });
+
+  test("live match: players CAN cross midfield when clock is running", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page); // → First_Half (live bounds = full field)
+
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const field = page.getByTestId("soccer-field");
+    const fieldBox = await field.boundingBox();
+    expect(fieldBox).not.toBeNull();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+
+    // Use HOME-4 / AWAY-4 — at y≈50 (center), reliable for pointer events.
+    const homePlayer = page.getByTestId("field-player-HOME-4");
+    await expect(homePlayer).toBeVisible({ timeout: 10000 });
+    await homePlayer.scrollIntoViewIfNeeded();
+    const homeBox = await homePlayer.boundingBox();
+    expect(homeBox).not.toBeNull();
+    if (!homeBox) throw new Error("HOME-4 bounding box unavailable");
+
+    await page.mouse.move(
+      homeBox.x + homeBox.width / 2,
+      homeBox.y + homeBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.85,
+      homeBox.y + homeBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const homeAfter = await getTacticalCoords(page, "HOME-4");
+    // During live play the player should have moved past midfield.
+    expect(homeAfter.x).toBeGreaterThan(50);
+
+    // Drag an away player deep into the home half — should succeed.
+    const awayPlayer = page.getByTestId("field-player-AWAY-4");
+    await expect(awayPlayer).toBeVisible({ timeout: 10000 });
+    await awayPlayer.scrollIntoViewIfNeeded();
+    const awayBox = await awayPlayer.boundingBox();
+    expect(awayBox).not.toBeNull();
+    if (!awayBox) throw new Error("AWAY-4 bounding box unavailable");
+
+    await page.mouse.move(
+      awayBox.x + awayBox.width / 2,
+      awayBox.y + awayBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.15,
+      awayBox.y + awayBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const awayAfter = await getTacticalCoords(page, "AWAY-4");
+    // During live play the away player should have crossed into the home half.
+    expect(awayAfter.x).toBeLessThan(50);
   });
 
   test("field flip preserves player role lane and restores after unflip", async ({

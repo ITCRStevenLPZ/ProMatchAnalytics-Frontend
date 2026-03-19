@@ -53,6 +53,7 @@ function CockpitContent() {
     ineffectiveNoteText,
     manualHomeTeamLabel,
     manualAwayTeamLabel,
+    isMatchLive,
     setIneffectiveActionDropdownOpen,
     setIneffectiveTeamDropdownOpen,
     setIneffectiveActionType,
@@ -529,6 +530,7 @@ function CockpitContent() {
                 setViewMode={setViewMode}
                 dragLocked={dragLocked}
                 onToggleDragLock={onToggleDragLock}
+                isMatchLive={isMatchLive}
                 positionMode={positionMode}
                 onPositionModeChange={setPositionMode}
                 t={t}

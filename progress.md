@@ -29,6 +29,7 @@
 - [x] Fix backend UTC serialization: eliminate timezone-naive datetimes at source
 - [x] E2E flaky-test isolation: per-file unique match IDs
 - [x] LoggerCockpit context provider extraction (reduce monolith)
+- [x] Fix tactical drag constraint blocking live "Auto" mode logging
 
 ## Status
 
@@ -37,49 +38,47 @@
 
 ## What Was Completed (Latest Session)
 
-### E2E Flaky-Test Isolation (Per-File Unique Match IDs)
+### Fix Tactical Drag Constraint — Live "Auto" Mode
 
-1. **Eliminated shared `MATCH_ID = "E2E-MATCH"` collisions** — 8 spec files modified
+The pre-match midfield clamp (`HOME_BOUNDS.xMax = 49` for non-GK) was unconditionally applied during drags, preventing players from crossing into the opponent's half even during live gameplay.
 
-   - **Root cause**: 6 spec files imported the same `MATCH_ID` from `e2e/utils/logger.ts`, and 2 additional files shared `"E2E-MATCH-TIMER"`. When run in parallel or sequentially, tests could corrupt each other's match state.
-   - **Fix**: Each file now uses a unique per-file constant:
-     - [logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts) → `"E2E-MATCH-KEYBOARD"`
-     - [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts) → `"E2E-MATCH-TOUCH"`
-     - [logger-validation-errors.spec.ts](e2e/logger-validation-errors.spec.ts) → `"E2E-MATCH-VALERR"`
-     - [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts) → `"E2E-MATCH-ZONE"`
-     - [review-formation-rotation.spec.ts](e2e/review-formation-rotation.spec.ts) → `"E2E-MATCH-REVIEW-FORM"`
-     - [formation-system.spec.ts](e2e/formation-system.spec.ts) → `"E2E-MATCH-FORMATION"`
-     - [logger-advanced.spec.ts](e2e/logger-advanced.spec.ts) → `"E2E-MATCH-ADV-SUB"` / `"E2E-MATCH-ADV-TIMER"`
-     - [new-features.spec.ts](e2e/new-features.spec.ts) → removed unused `MATCH_ID` import (already uses own `FEATURE_MATCH_ID`)
+1. **State-aware bounds** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
 
-2. **Also fixed `gotoLoggerPage` default-param bug** — [logger-validation-errors.spec.ts](e2e/logger-validation-errors.spec.ts)
-   - Was calling `gotoLoggerPage(page)` without matchId param, silently using shared default. Now passes explicit `VALERR_MATCH_ID`.
+   - Added `LIVE_HOME_BOUNDS` constant (all groups get `{xMin:0, xMax:100, yMin:0, yMax:100}`).
+   - `getBoundsForPlayer` gains an optional 3rd param `isMatchLive = false` — selects `LIVE_HOME_BOUNDS` vs `HOME_BOUNDS`.
+   - `movePlayer` callback passes `isMatchLive` into `getBoundsForPlayer`.
+   - Initial layout (`resolveDefaultPositions`, `resolveFormationPositions`) keeps tight pre-match bounds — correct since initial positioning is always pre-match.
 
-### LoggerCockpit Context Provider Extraction
+2. **Match-state derivation** — [CockpitContext.tsx](src/pages/logger/context/CockpitContext.tsx)
 
-1. **Created `CockpitContext.tsx`** — [CockpitContext.tsx](src/pages/logger/context/CockpitContext.tsx) (~770 lines)
+   - Computed `isMatchLive = !!match?.status && !["Pending", "Scheduled"].includes(match.status)`.
+   - Passed to `useTacticalPositions` hook and exposed on context for descendants.
 
-   - Extracts all ~30 hook calls and orchestration logic (~650 lines) from LoggerCockpit into a dedicated React context provider.
-   - `CockpitProvider` component: calls all hooks, wires callbacks (`handleRefereeAction`, `handleSubstitutionSubmit`, `handleTacticalPlayerDragEnd`), exposes `__PROMATCH_LOGGER_HARNESS__` for E2E testing.
-   - `useCockpit()` consumer hook: returns the full context value with runtime null-guard.
-   - Uses `useMemo` to stabilize the context value across renders.
+3. **Prop threading** — `CockpitContext` → `LoggerCockpit` → `LoggerView` → `ActionStage` → `PlayerSelectorPanel` → `TacticalField`
 
-2. **Rewrote `LoggerCockpit.tsx`** — [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) (1111 → 563 lines, **−49%**)
-   - Now a thin render shell: `LoggerCockpit()` wraps `<CockpitProvider><CockpitContent /></CockpitProvider>`.
-   - `CockpitContent()` destructures values from `useCockpit()` and renders loading guards, top section, view toggle, and conditional views (Logger/Analytics/Review).
-   - Zero logic duplication — all orchestration lives in the context.
+   - [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx): destructures `isMatchLive` from `useCockpit()`, passes to `LoggerView`
+   - [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx): added `isMatchLive` to props, forwards to `ActionStage`
+   - [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx): forwards to `PlayerSelectorPanel`
+   - [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx): forwards to `TacticalField`
+   - [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx): passes to `getBoundsForPlayer` for the drag bounds overlay
 
-### Tests Updated (Mandatory)
+4. **E2E tests updated** — [logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)
+   - **pre-match: GK bounds** — seeds match with `Pending` status, verifies GK clamped to x≤20
+   - **pre-match: players cannot cross midfield** — seeds with `Pending`, verifies HOME clamped to x≤49.5 and AWAY clamped to x≥50.5
+   - **live match: players CAN cross midfield** — calls `ensureClockRunning`, verifies HOME crosses past x>50 and AWAY crosses past x<50
+   - Uses HOME-4/AWAY-4 (y≈50, center) for drag reliability in headless Chromium
 
-- [x] E2E: **281 passed**, 0 failed (Playwright, single-worker, 9.5 min) — validates isolation + CockpitContext
-- [x] Unit: **123 passed**, 0 failed (Vitest) — no regressions from context refactor
+### Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: **282 passed**, 0 failed (Playwright, single-worker, 9.1 min)
+- [x] Unit: **123 passed**, 0 failed (Vitest)
 - [x] TypeScript: **0 errors** (`tsc --noEmit`)
-- [x] Frontend pre-commit: **All 14 hooks passed** (Prettier, CI Lint, TypeScript, Vitest, trailing-ws, end-of-files, YAML, JSON, merge-conflicts, private-keys, large-files, secrets, markdown-lint, npm-audit)
 
-## Implementation Notes
+### Implementation Notes
 
-- The `CockpitContext` uses `createContext<any>(null)` — types are enforced at component prop boundaries (e.g., `CockpitTopSection`, `LoggerView`) rather than at the context layer, avoiding a brittle 250-line interface that must stay in sync with 30+ hooks.
-- Match ID isolation is additive — the shared `MATCH_ID` export in `e2e/utils/logger.ts` is kept for any specs that don't need isolation (e.g., files using `uniqueId()` already).
+- `isMatchLive` is `true` for ALL non-Pending/Scheduled statuses (including Halftime, Fulltime, Completed) — allows repositioning at halftime or for post-match review.
+- The E2E `/e2e/reset` endpoint seeds `Live_First_Half` by default; pre-match tests explicitly re-seed with `status: "Pending"` to ensure `isMatchLive=false`.
+- Players at y≈86% (e.g. HOME-11) are unreliable for pointer-driven drag tests in headless Chromium due to clipping/overlap — using mid-field players (HOME-4/AWAY-4 at y≈50) resolves this.
 
 ### Previous Session
 

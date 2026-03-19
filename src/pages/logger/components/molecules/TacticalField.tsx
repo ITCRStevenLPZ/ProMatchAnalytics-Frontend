@@ -64,6 +64,8 @@ interface TacticalFieldProps {
   allPositions?: Map<string, TacticalPosition>;
   /** When true, prevent player node dragging. */
   dragLocked?: boolean;
+  /** When true (live match), expand drag bounds to the full field. */
+  isMatchLive?: boolean;
   /** When set, only render player nodes whose id is in this set. */
   visiblePlayerIds?: Set<string>;
 }
@@ -132,6 +134,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   onDragStop,
   allPositions,
   dragLocked = false,
+  isMatchLive = false,
 }) => {
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const lastTouchDestinationAt = useRef(0);
@@ -294,6 +297,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
                 const bounds = getBoundsForPlayer(
                   draggedPlayer.position,
                   draggedPlayer.side,
+                  isMatchLive,
                 );
                 // Convert bounds to display space (may need flip)
                 const displayBounds = flipSides
