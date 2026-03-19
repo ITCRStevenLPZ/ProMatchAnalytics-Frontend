@@ -38,6 +38,20 @@
 
 ## What Was Completed (Latest Session)
 
+### Field Destination Overlay UX (Non-Blocking Controls)
+
+During the `selectDestination` step for Shot/Pass, the overlay controls were centered on top of the tactical field and could block player taps/drags in crowded midfield areas.
+
+1. **Moved field action controls away from player lanes** — [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx)
+
+   - Repositioned the `field-cancel-btn` (and `field-goal-btn` for Shot flow) from centered overlay (`absolute inset-0 ... justify-center`) to bottom-anchored placement (`absolute inset-x-0 bottom-2`).
+   - Kept controls visible and reachable while preserving unobstructed player interaction in the central pitch area.
+   - Maintained test IDs, flow logic, and action handlers (`resetFlow`, `handleOutcomeSelect`) with no behavioral regression.
+
+2. **Session verification (post-change)**
+   - `pre-commit run --all-files`: **Passed** (all hooks)
+   - `npx playwright test --workers=1`: **282 passed**, 0 failed (9.7 min)
+
 ### Fix Tactical Drag Constraint — Live "Auto" Mode
 
 The pre-match midfield clamp (`HOME_BOUNDS.xMax = 49` for non-GK) was unconditionally applied during drags, preventing players from crossing into the opponent's half even during live gameplay.
