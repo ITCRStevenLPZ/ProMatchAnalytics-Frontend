@@ -741,4 +741,185 @@ test.describe("Tactical Field", () => {
     // MIN_PLAYER_SEPARATION = 6, allow a small tolerance
     expect(distance).toBeGreaterThanOrEqual(4);
   });
+
+  test("drag lock ON prevents repositioning", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    // Drag lock is ON by default — do NOT click toggle-drag-lock
+    const player = page.getByTestId("field-player-HOME-1");
+    await expect(player).toBeVisible({ timeout: 15000 });
+
+    const beforeCoords = await getTacticalCoords(page, "HOME-1");
+
+    await player.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await player.boundingBox();
+    if (!box) throw new Error("Player bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 80, startY + 40, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    const afterCoords = await getTacticalCoords(page, "HOME-1");
+    // With drag lock ON, coordinates should NOT change
+    expect(afterCoords.x).toBeCloseTo(beforeCoords.x, 0);
+    expect(afterCoords.y).toBeCloseTo(beforeCoords.y, 0);
+  });
+
+  test("pre-match: away GK bounds — cannot be dragged past 80% x", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+
+    const awayGk = page.getByTestId("field-player-AWAY-1");
+    await expect(awayGk).toBeVisible({ timeout: 15000 });
+
+    const field = page.getByTestId("soccer-field");
+    await awayGk.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
+    const fieldBox = await field.boundingBox();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+    const box = await awayGk.boundingBox();
+    if (!box) throw new Error("Away GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    // Try to drag away GK far to the left (past 80%)
+    const dragLeft = fieldBox.width * 0.6;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - dragLeft, startY, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const afterCoords = await getTacticalCoords(page, "AWAY-1");
+    // Away GK should be clamped to x >= 80 (mirror of home GK's x <= 20)
+    expect(afterCoords.x).toBeGreaterThanOrEqual(79);
+  });
+
+  test("player y-coordinate stays within field bounds", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const field = page.getByTestId("soccer-field");
+    const fieldBox = await field.boundingBox();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+
+    const player = page.getByTestId("field-player-HOME-4");
+    await expect(player).toBeVisible({ timeout: 10000 });
+    await player.scrollIntoViewIfNeeded();
+    const box = await player.boundingBox();
+    if (!box) throw new Error("HOME-4 bounding box unavailable");
+
+    // Drag player off the bottom edge
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2,
+      fieldBox.y + fieldBox.height + 100,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const afterCoords = await getTacticalCoords(page, "HOME-4");
+    expect(afterCoords.y).toBeLessThanOrEqual(100);
+    expect(afterCoords.y).toBeGreaterThanOrEqual(0);
+  });
+
+  test("double substitution — two subs in sequence preserve positions", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const before2 = await getTacticalCoords(page, "HOME-2");
+    const before3 = await getTacticalCoords(page, "HOME-3");
+
+    // First substitution: HOME-2 → HOME-12
+    const player2 = page.getByTestId("field-player-HOME-2");
+    await expect(player2).toBeVisible({ timeout: 10000 });
+    await player2.click();
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Substitution").click();
+
+    const subModal = page.getByTestId("substitution-modal");
+    await expect(subModal).toBeVisible({ timeout: 15000 });
+    await subModal.getByTestId("sub-off-HOME-2").click();
+    await subModal.getByTestId("sub-on-HOME-12").click();
+    const confirmBtn = subModal.getByTestId("confirm-substitution");
+    await expect(confirmBtn).toBeEnabled({ timeout: 15000 });
+    await confirmBtn.click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("field-player-HOME-2")).toBeHidden({
+      timeout: 10000,
+    });
+    const coords12 = await getTacticalCoords(page, "HOME-12");
+    expect(coords12.x).toBeCloseTo(before2.x, 0);
+    expect(coords12.y).toBeCloseTo(before2.y, 0);
+
+    // Second substitution: HOME-3 → HOME-13
+    const player3 = page.getByTestId("field-player-HOME-3");
+    await expect(player3).toBeVisible({ timeout: 10000 });
+    await player3.click();
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Substitution").click();
+
+    const subModal2 = page.getByTestId("substitution-modal");
+    await expect(subModal2).toBeVisible({ timeout: 15000 });
+    await subModal2.getByTestId("sub-off-HOME-3").click();
+    await subModal2.getByTestId("sub-on-HOME-13").click();
+    const confirmBtn2 = subModal2.getByTestId("confirm-substitution");
+    await expect(confirmBtn2).toBeEnabled({ timeout: 15000 });
+    await confirmBtn2.click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("field-player-HOME-3")).toBeHidden({
+      timeout: 10000,
+    });
+    const coords13 = await getTacticalCoords(page, "HOME-13");
+    expect(coords13.x).toBeCloseTo(before3.x, 0);
+    expect(coords13.y).toBeCloseTo(before3.y, 0);
+  });
 });

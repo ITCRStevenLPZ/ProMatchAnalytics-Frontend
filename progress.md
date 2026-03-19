@@ -32,6 +32,7 @@
 - [x] Fix tactical drag constraint blocking live "Auto" mode logging
 - [x] Analytics restoration: Live Match Context banner, on-field avg age, global totals
 - [x] Unrestricted tactical dragging during live matches (bounds overlay hidden)
+- [x] E2E coverage expansion: +31 new tests across 7 spec files (P0–P3 gaps)
 
 ## Status
 
@@ -78,6 +79,72 @@ Separated dynamic live metrics from the static comparison table into a dedicated
 
 - `tsc --noEmit`: **0 errors**
 - `npx playwright test --workers=1`: **283 passed**, 0 failed (10.0 min)
+
+### E2E Coverage Expansion (+31 Tests)
+
+Comprehensive gap audit identified ~50 missing test scenarios across all 67 spec files. Implemented 31 new tests (P0–P3 priority) across 7 spec files.
+
+#### New Spec Files
+
+1. **[logger-banner-context.spec.ts](e2e/logger-banner-context.spec.ts)** — 8 BNR tests
+
+   - BNR-1: Banner visible in analytics with all stat cells
+   - BNR-2: Effective time displays formatted MM:SS clock
+   - BNR-3: Ineffective time increments after referee stoppage (uses UI referee bar)
+   - BNR-4: On-field average age shows numeric values for both teams
+   - BNR-5: Banner values update live (effective time ticks)
+   - BNR-6: Banner accessible via direct `?view=analytics` URL
+   - BNR-7: Banner stats isolated from comparison table (no leakage)
+   - BNR-8: Average age recalculates after substitution
+
+2. **[mobile-viewport.spec.ts](e2e/mobile-viewport.spec.ts)** — 4 MOB tests
+   - MOB-1: Tactical field renders at 375×812
+   - MOB-2: Analytics panel accessible on mobile
+   - MOB-3: Live event feed scrollable on mobile
+   - MOB-4: Connection status indicator visible on mobile
+
+#### Tests Added to Existing Files
+
+3. **[logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts)** — +6 tests
+
+   - ANL-29: Saved shot counts as on-target
+   - ANL-30: Penalty miss counts as shot but not goal
+   - ANL-31: Multi-period event accumulation persists across halves
+   - ANL-32: Interleaved home/away events maintain bilateral totals
+   - ANL-33: Empty state shows zeroes (no NaN/undefined)
+   - ANL-34: Free kick set pieces count correctly
+
+4. **[logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)** — +4 tests
+
+   - Drag lock prevents repositioning
+   - Away GK bounds (x ≥ 79%)
+   - Vertical bounds (y stays 0–100)
+   - Double substitution in sequence preserves positions
+
+5. **[qa-fixes-v2.spec.ts](e2e/qa-fixes-v2.spec.ts)** — +3 tests
+
+   - QA-5: Drag lock ON prevents any position change
+   - QA-6: Banner effective time is non-zero after clock runs
+   - QA-7: Per-team time values display clock format
+
+6. **[duplicate-events.spec.ts](e2e/duplicate-events.spec.ts)** — +3 tests
+
+   - DUP-2: Different players not flagged as duplicates
+   - DUP-3: Re-submitting identical event pair surfaces dedup
+   - DUP-4: Card dedup detection via poll pattern
+
+7. **[multi-tab-sync.spec.ts](e2e/multi-tab-sync.spec.ts)** — +3 tests
+   - MTS-6: Undo syncs across tabs
+   - MTS-7: Match status change reflects in both tabs
+   - MTS-8: Multiple sequential events sync (varied player pairs to avoid dedup)
+
+#### Session Verification
+
+- `tsc --noEmit`: **0 errors**
+- `npx vitest run`: **123 unit tests passed**
+- `npx playwright test --workers=1` (new + modified files): **86 passed**, 0 failed
+- `npx playwright test --workers=4 --retries=2`: **314 passed**, 0 failed
+- Total E2E tests: **314** (283 original + 31 new)
 
 ### Field Destination Overlay UX (Non-Blocking Controls)
 

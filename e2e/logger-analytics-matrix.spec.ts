@@ -1231,4 +1231,172 @@ test.describe("Logger analytics matrix", () => {
     expect(secondReading).toBeTruthy();
     expect(secondReading).not.toBe(firstReading);
   });
+
+  test("ANL-29: saved shot counts as on-target", async ({ page }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:44.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-3",
+      type: "Shot",
+      data: { shot_type: "Standard", outcome: "Saved" },
+    });
+
+    await openAnalytics(page);
+    const shots = await getRowValues(page, "stat-shots");
+    const onTarget = await getRowValues(page, "stat-shots-on-target");
+    expect(shots.home).toBe(1);
+    expect(onTarget.home).toBe(1);
+  });
+
+  test("ANL-30: penalty miss counts as shot but not goal", async ({ page }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:45.000",
+      team_id: context!.awayTeamId,
+      player_id: "AWAY-2",
+      type: "Shot",
+      data: { shot_type: "Penalty", outcome: "OffTarget" },
+    });
+
+    await openAnalytics(page);
+    const shots = await getRowValues(page, "stat-shots");
+    const offTarget = await getRowValues(page, "stat-shots-off-target");
+    const score = await getRowValues(page, "stat-score");
+    expect(shots.away).toBe(1);
+    expect(offTarget.away).toBe(1);
+    expect(score.away).toBe(0);
+  });
+
+  test("ANL-31: multi-period events accumulate in totals", async ({ page }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    // Period 1 pass
+    await sendEvent(page, {
+      match_clock: "00:46.000",
+      period: 1,
+      team_id: context!.homeTeamId,
+      player_id: "HOME-7",
+      type: "Pass",
+      data: {
+        pass_type: "Standard",
+        outcome: "Complete",
+        receiver_id: "HOME-8",
+        receiver_name: "Home Player 8",
+      },
+    });
+
+    // Period 2 pass
+    await sendEvent(page, {
+      match_clock: "00:47.000",
+      period: 2,
+      team_id: context!.homeTeamId,
+      player_id: "HOME-7",
+      type: "Pass",
+      data: {
+        pass_type: "Standard",
+        outcome: "Complete",
+        receiver_id: "HOME-9",
+        receiver_name: "Home Player 9",
+      },
+    });
+
+    await openAnalytics(page);
+    const row = await getRowValues(page, "stat-accurate-passes");
+    expect(row.home).toBeGreaterThanOrEqual(2);
+  });
+
+  test("ANL-32: interleaved home/away events maintain bilateral totals", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:48.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-5",
+      type: "Shot",
+      data: { shot_type: "Standard", outcome: "Goal" },
+    });
+    await sendEvent(page, {
+      match_clock: "00:49.000",
+      team_id: context!.awayTeamId,
+      player_id: "AWAY-5",
+      type: "Shot",
+      data: { shot_type: "Standard", outcome: "Goal" },
+    });
+    await sendEvent(page, {
+      match_clock: "00:50.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-6",
+      type: "Shot",
+      data: { shot_type: "Standard", outcome: "Goal" },
+    });
+
+    await openAnalytics(page);
+    const score = await getRowValues(page, "stat-score");
+    expect(score.home).toBe(2);
+    expect(score.away).toBe(1);
+  });
+
+  test("ANL-33: analytics empty state when no events", async ({ page }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    await expect(
+      page.getByText(/No data available yet|Aún no hay datos/i),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test("ANL-34: free kick set piece increments set pieces", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    const context = await getHarnessMatchContext(page);
+    expect(context).not.toBeNull();
+
+    await sendEvent(page, {
+      match_clock: "00:51.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-11",
+      type: "SetPiece",
+      data: { set_piece_type: "FreeKick" },
+    });
+    await sendEvent(page, {
+      match_clock: "00:52.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-11",
+      type: "SetPiece",
+      data: { set_piece_type: "Corner" },
+    });
+
+    await openAnalytics(page);
+    const corners = await getRowValues(page, "stat-corners");
+    expect(corners.home).toBe(1);
+  });
 });

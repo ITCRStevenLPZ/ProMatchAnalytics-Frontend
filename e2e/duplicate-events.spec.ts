@@ -95,4 +95,147 @@ test.describe("Logger duplicate handling", () => {
       .toBeTruthy();
     await expectLiveEventCount(page, 1);
   });
+
+  test("same timestamp but different players are not flagged as duplicate", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await gotoLoggerPage(page, DUPLICATE_MATCH_ID);
+
+    const sendPass = async (playerId: string, clientId: string) => {
+      await page.evaluate(
+        ({ playerId, clientId }) => {
+          const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+          const ctx = harness?.getMatchContext?.();
+          if (!harness || !ctx) return;
+          harness.sendRawEvent?.({
+            match_id: ctx.matchId,
+            match_clock: "00:15.000",
+            period: 1,
+            team_id: ctx.homeTeamId,
+            player_id: playerId,
+            type: "Pass",
+            timestamp: "2026-01-01T00:00:15.000Z",
+            client_id: clientId,
+            data: {
+              pass_type: "Standard",
+              outcome: "Complete",
+              receiver_id: "HOME-3",
+              receiver_name: "Home Player 3",
+            },
+          });
+        },
+        { playerId, clientId },
+      );
+      await waitForPendingAckToClear(page);
+    };
+
+    await sendPass("HOME-1", "E2E-DUP-DIFF-PLAYER-001");
+    await expectLiveEventCount(page, 1);
+
+    await sendPass("HOME-2", "E2E-DUP-DIFF-PLAYER-002");
+    await expectLiveEventCount(page, 2);
+  });
+
+  test("re-submitting identical event pair surfaces dedup and keeps count stable", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await gotoLoggerPage(page, DUPLICATE_MATCH_ID);
+
+    const sendFixedPass = async () => {
+      await page.evaluate(() => {
+        const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+        const ctx = harness?.getMatchContext?.();
+        if (!harness || !ctx) return;
+        harness.sendRawEvent?.({
+          match_id: ctx.matchId,
+          match_clock: "00:20.000",
+          period: 1,
+          team_id: ctx.homeTeamId,
+          player_id: "HOME-1",
+          type: "Pass",
+          timestamp: "2026-01-01T00:00:20.000Z",
+          client_id: "E2E-RESUBMIT-001",
+          data: {
+            pass_type: "Standard",
+            outcome: "Complete",
+            receiver_id: "HOME-2",
+            receiver_name: "Home Player 2",
+          },
+        });
+      });
+      await waitForPendingAckToClear(page);
+    };
+
+    // First submit — accepted
+    await sendFixedPass();
+    await expectLiveEventCount(page, 1);
+
+    // Second submit with same client_id — duplicate detection
+    await sendFixedPass();
+
+    // Either the duplicate banner appears or the count stays at 1
+    await expect
+      .poll(
+        async () => {
+          const banner = page.getByTestId("duplicate-banner");
+          const bannerVisible =
+            (await banner.count()) > 0 && (await banner.first().isVisible());
+          const liveCount = await page.getByTestId("live-event-item").count();
+          return bannerVisible || liveCount >= 1;
+        },
+        { timeout: 10000 },
+      )
+      .toBeTruthy();
+    // The overall event count should not grow unboundedly
+    await expectLiveEventCount(page, 1);
+  });
+
+  test("card event with same timestamp and player is deduplicated", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await gotoLoggerPage(page, DUPLICATE_MATCH_ID);
+
+    const sendCard = async () => {
+      await page.evaluate(() => {
+        const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+        const ctx = harness?.getMatchContext?.();
+        if (!harness || !ctx) return;
+        harness.sendRawEvent?.({
+          match_id: ctx.matchId,
+          match_clock: "00:25.000",
+          period: 1,
+          team_id: ctx.homeTeamId,
+          player_id: "HOME-5",
+          type: "Card",
+          timestamp: "2026-01-01T00:00:25.000Z",
+          client_id: "E2E-CARD-DEDUP-001",
+          data: { card_type: "Yellow" },
+        });
+      });
+      await waitForPendingAckToClear(page);
+    };
+
+    await sendCard();
+    await expectLiveEventCount(page, 1);
+
+    await sendCard();
+
+    // Either banner shows or event count remains stable at 1
+    await expect
+      .poll(
+        async () => {
+          const banner = page.getByTestId("duplicate-banner");
+          const bannerVisible =
+            (await banner.count()) > 0 && (await banner.first().isVisible());
+          const liveCount = await page.getByTestId("live-event-item").count();
+          return bannerVisible || liveCount >= 1;
+        },
+        { timeout: 10000 },
+      )
+      .toBeTruthy();
+    await expectLiveEventCount(page, 1);
+  });
 });

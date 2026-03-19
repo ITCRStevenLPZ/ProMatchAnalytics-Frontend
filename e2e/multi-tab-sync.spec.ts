@@ -3,6 +3,7 @@ import {
   BACKEND_BASE_URL,
   gotoLoggerPage,
   resetHarnessFlow,
+  sendRawEventThroughHarness,
   submitStandardPass,
   waitForPendingAckToClear,
 } from "./utils/logger";
@@ -226,4 +227,132 @@ test("tab A logs events while tab B views analytics in real time", async ({
       timeout: 10_000,
     });
   }
+});
+
+test("undo in tab A removes event from tab B", async ({ page, context }) => {
+  const MID = "E2E-MULTI-TAB-UNDO";
+  await resetMatch(MID);
+
+  await gotoLoggerPage(page, MID);
+  await resetHarnessFlow(page);
+
+  const tabB = await context.newPage();
+  await gotoLoggerPage(tabB, MID);
+  await expect(tabB.getByTestId("connection-status")).toBeVisible({
+    timeout: 10_000,
+  });
+  await tabB.waitForTimeout(1500);
+
+  // Log a pass in Tab A
+  await submitStandardPass(page);
+  await waitForPendingAckToClear(page);
+
+  // Both tabs should show the event
+  await expect(page.getByTestId("live-event-item")).toHaveCount(1, {
+    timeout: 10_000,
+  });
+  await expect(tabB.getByTestId("live-event-item")).toHaveCount(1, {
+    timeout: 15_000,
+  });
+
+  // Undo in Tab A
+  await page.evaluate(() => {
+    const harness = (window as any).__PROMATCH_LOGGER_HARNESS__;
+    harness?.undoLastEvent?.();
+  });
+  await waitForPendingAckToClear(page);
+
+  // Tab A should have 0 events
+  await expect(page.getByTestId("live-event-item")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+
+  // Tab B should also reflect the undo (0 events)
+  await expect(tabB.getByTestId("live-event-item")).toHaveCount(0, {
+    timeout: 15_000,
+  });
+});
+
+test("match status change to Live reflects in both tabs", async ({
+  page,
+  context,
+}) => {
+  const MID = "E2E-MULTI-TAB-STATUS";
+  await resetMatch(MID);
+
+  await gotoLoggerPage(page, MID);
+  await resetHarnessFlow(page);
+
+  const tabB = await context.newPage();
+  await gotoLoggerPage(tabB, MID);
+  await expect(tabB.getByTestId("connection-status")).toBeVisible({
+    timeout: 10_000,
+  });
+  await tabB.waitForTimeout(1500);
+
+  // Change match status via API
+  const statusResponse = await backendApi.patch(
+    `/api/v1/logger/matches/${MID}/status`,
+    { data: { status: "Live_First_Half" } },
+  );
+  expect(statusResponse.ok()).toBeTruthy();
+
+  // Wait for WS broadcast to propagate
+  await page.waitForTimeout(3000);
+
+  // Both tabs should still be connected and showing the field
+  await expect(page.getByTestId("field-player-HOME-1")).toBeVisible();
+  await expect(tabB.getByTestId("field-player-HOME-1")).toBeVisible();
+  await expect(page.getByTestId("connection-status")).toBeVisible();
+  await expect(tabB.getByTestId("connection-status")).toBeVisible();
+});
+
+test("multiple sequential events sync across tabs", async ({
+  page,
+  context,
+}) => {
+  const MID = "E2E-MULTI-TAB-MULTI-EVENT";
+  await resetMatch(MID);
+
+  await gotoLoggerPage(page, MID);
+  await resetHarnessFlow(page);
+
+  const tabB = await context.newPage();
+  await gotoLoggerPage(tabB, MID);
+  await expect(tabB.getByTestId("connection-status")).toBeVisible({
+    timeout: 10_000,
+  });
+  await tabB.waitForTimeout(1500);
+
+  // Log 3 distinct passes in Tab A (different player pairs to avoid dedup)
+  await submitStandardPass(page, "home");
+  await waitForPendingAckToClear(page);
+  await submitStandardPass(page, "away");
+  await waitForPendingAckToClear(page);
+  await sendRawEventThroughHarness(page, {
+    period: 1,
+    match_clock: "00:03.000",
+    team_id: await page.evaluate(() => {
+      const h = (window as any).__PROMATCH_LOGGER_HARNESS__;
+      return h?.getMatchContext?.()?.homeTeamId ?? "HOME";
+    }),
+    player_id: "HOME-3",
+    type: "Pass",
+    data: { pass_type: "Standard", outcome: "Complete", receiver_id: "HOME-4" },
+  });
+  await waitForPendingAckToClear(page);
+
+  // Tab A should show 3+
+  await expect
+    .poll(() => page.getByTestId("live-event-item").count(), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThanOrEqual(3);
+
+  // Tab B should also receive all 3 via WS
+  await expect
+    .poll(() => tabB.getByTestId("live-event-item").count(), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThanOrEqual(3);
 });
