@@ -20,7 +20,6 @@ import {
 
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   sendRawEventThroughHarness,
   waitForPendingAckToClear,

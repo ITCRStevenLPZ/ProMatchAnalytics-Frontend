@@ -7,9 +7,10 @@ import {
 import {
   BACKEND_BASE_URL,
   gotoLoggerPage,
-  MATCH_ID,
   selectZoneIfVisible,
 } from "./utils/logger";
+
+const KEYBOARD_MATCH_ID = "E2E-MATCH-KEYBOARD";
 
 let backendRequest: APIRequestContext;
 
@@ -26,7 +27,7 @@ test.afterAll(async () => {
 
 test.beforeEach(async () => {
   const response = await backendRequest.post("/e2e/reset", {
-    data: { matchId: MATCH_ID },
+    data: { matchId: KEYBOARD_MATCH_ID },
   });
   expect(response.ok()).toBeTruthy();
 });
@@ -34,7 +35,7 @@ test.beforeEach(async () => {
 test.describe("Logger Keyboard Shortcuts", () => {
   test("should support full keyboard flow", async ({ page }) => {
     page.on("console", (msg) => console.log(msg.text()));
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, KEYBOARD_MATCH_ID);
 
     // 1. Select Player via Number (Jersey #10)
     // Type '1', '0'
@@ -81,7 +82,7 @@ test.describe("Logger Keyboard Shortcuts", () => {
   });
 
   test("should toggle clock with Space", async ({ page }) => {
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, KEYBOARD_MATCH_ID);
 
     const ballStateLabel = page.getByTestId("ball-state-label");
     await expect(ballStateLabel).toHaveText(/Bal[oó]n Fuera|Ball Out/i, {
@@ -102,7 +103,7 @@ test.describe("Logger Keyboard Shortcuts", () => {
   });
 
   test("should cancel flow with Escape", async ({ page }) => {
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, KEYBOARD_MATCH_ID);
 
     // Select a player via click to ensure flow progression
     const fieldPlayer = page.getByTestId("field-player-HOME-1");

@@ -96,3 +96,13 @@ repos:
     hooks:
       - id: hadolint
         name: Hadolint (Dockerfile)
+
+  # Dependency vulnerability audit
+  - repo: local
+    hooks:
+      - id: npm-audit
+        name: npm audit (production, critical)
+        entry: npm audit --omit=dev --audit-level=critical
+        language: system
+        pass_filenames: false
+        always_run: true

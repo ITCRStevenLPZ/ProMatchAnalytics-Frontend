@@ -8,13 +8,14 @@ import {
 } from "@playwright/test";
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   ensureClockRunning,
   resetHarnessFlow,
   selectZoneIfVisible,
   waitForPendingAckToClear,
 } from "./utils/logger";
+
+const TOUCH_MATCH_ID = "E2E-MATCH-TOUCH";
 
 const AUTH_USER = {
   uid: "e2e-admin",
@@ -43,7 +44,9 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+  await backendRequest.post("/e2e/reset", {
+    data: { matchId: TOUCH_MATCH_ID },
+  });
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await page.addInitScript((user) => {
     localStorage.setItem(
@@ -70,7 +73,7 @@ const tapLocator = async (page: Page, locator: Locator) => {
 
 test("touch taps support destination selection and undo", async ({ page }) => {
   test.setTimeout(60000);
-  await gotoLoggerPage(page, MATCH_ID);
+  await gotoLoggerPage(page, TOUCH_MATCH_ID);
   await ensureAdminRole(page);
   await ensureClockRunning(page);
 
@@ -107,7 +110,7 @@ test("touch zone selection requires two taps — first highlights, second confir
   page,
 }) => {
   test.setTimeout(60000);
-  await gotoLoggerPage(page, MATCH_ID);
+  await gotoLoggerPage(page, TOUCH_MATCH_ID);
   await ensureAdminRole(page);
   await ensureClockRunning(page);
   await resetHarnessFlow(page, "home");
@@ -147,7 +150,7 @@ test("touch tap on a different zone switches the highlight", async ({
   page,
 }) => {
   test.setTimeout(60000);
-  await gotoLoggerPage(page, MATCH_ID);
+  await gotoLoggerPage(page, TOUCH_MATCH_ID);
   await ensureAdminRole(page);
   await ensureClockRunning(page);
   await resetHarnessFlow(page, "home");
@@ -183,5 +186,42 @@ test("touch tap on a different zone switches the highlight", async ({
   await zone13.tap();
   await expect(page.getByTestId("quick-action-Pass")).toBeVisible({
     timeout: 8000,
+  });
+});
+
+test("touch tap on player opens zone selector or quick actions without getting stuck", async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await gotoLoggerPage(page, TOUCH_MATCH_ID);
+  await ensureAdminRole(page);
+  await ensureClockRunning(page);
+  await resetHarnessFlow(page, "home");
+
+  // Touch-tap a player node — must advance past selectPlayer (not get stuck)
+  await tapLocator(page, page.getByTestId("field-player-HOME-3"));
+
+  // Depending on position mode (Manual → zone selector, Auto → quick actions)
+  const zoneSelector = page.getByTestId("field-zone-selector");
+  const quickMenu = page.getByTestId("quick-action-menu");
+
+  const zoneVisible = await zoneSelector
+    .isVisible({ timeout: 3000 })
+    .catch(() => false);
+
+  if (zoneVisible) {
+    // Manual mode: confirm zone with two taps (touch two-tap flow)
+    const zone7 = page.getByTestId("zone-select-7");
+    await zone7.tap();
+    await zone7.tap();
+    await expect(quickMenu).toBeVisible({ timeout: 8000 });
+  } else {
+    // Auto mode: quick action menu should already be visible
+    await expect(quickMenu).toBeVisible({ timeout: 8000 });
+  }
+
+  // Quick action buttons must be interactive
+  await expect(page.getByTestId("quick-action-Pass")).toBeVisible({
+    timeout: 3000,
   });
 });

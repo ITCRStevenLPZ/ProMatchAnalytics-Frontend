@@ -23,6 +23,12 @@
 - [x] Fix analytics times lost after INEFFECTIVE-mode period transitions
 - [x] Add Goal Kick as quick action (replacing out zones behind goals)
 - [x] Fix End Match and validate all period control buttons
+- [x] Refactor Quick Actions: remove Shot sub-menu, rename Shot Out, group shot actions
+- [x] Fix touch event registration failure on pitch UI (player tap → zone/quick actions)
+- [x] Shift-left DevSecOps: add SAST + dependency audit to pre-commit pipelines
+- [x] Fix backend UTC serialization: eliminate timezone-naive datetimes at source
+- [x] E2E flaky-test isolation: per-file unique match IDs
+- [x] LoggerCockpit context provider extraction (reduce monolith)
 
 ## Status
 
@@ -30,6 +36,149 @@
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### E2E Flaky-Test Isolation (Per-File Unique Match IDs)
+
+1. **Eliminated shared `MATCH_ID = "E2E-MATCH"` collisions** — 8 spec files modified
+
+   - **Root cause**: 6 spec files imported the same `MATCH_ID` from `e2e/utils/logger.ts`, and 2 additional files shared `"E2E-MATCH-TIMER"`. When run in parallel or sequentially, tests could corrupt each other's match state.
+   - **Fix**: Each file now uses a unique per-file constant:
+     - [logger-keyboard.spec.ts](e2e/logger-keyboard.spec.ts) → `"E2E-MATCH-KEYBOARD"`
+     - [logger-touch-interactions.spec.ts](e2e/logger-touch-interactions.spec.ts) → `"E2E-MATCH-TOUCH"`
+     - [logger-validation-errors.spec.ts](e2e/logger-validation-errors.spec.ts) → `"E2E-MATCH-VALERR"`
+     - [logger-zone-selector.spec.ts](e2e/logger-zone-selector.spec.ts) → `"E2E-MATCH-ZONE"`
+     - [review-formation-rotation.spec.ts](e2e/review-formation-rotation.spec.ts) → `"E2E-MATCH-REVIEW-FORM"`
+     - [formation-system.spec.ts](e2e/formation-system.spec.ts) → `"E2E-MATCH-FORMATION"`
+     - [logger-advanced.spec.ts](e2e/logger-advanced.spec.ts) → `"E2E-MATCH-ADV-SUB"` / `"E2E-MATCH-ADV-TIMER"`
+     - [new-features.spec.ts](e2e/new-features.spec.ts) → removed unused `MATCH_ID` import (already uses own `FEATURE_MATCH_ID`)
+
+2. **Also fixed `gotoLoggerPage` default-param bug** — [logger-validation-errors.spec.ts](e2e/logger-validation-errors.spec.ts)
+   - Was calling `gotoLoggerPage(page)` without matchId param, silently using shared default. Now passes explicit `VALERR_MATCH_ID`.
+
+### LoggerCockpit Context Provider Extraction
+
+1. **Created `CockpitContext.tsx`** — [CockpitContext.tsx](src/pages/logger/context/CockpitContext.tsx) (~770 lines)
+
+   - Extracts all ~30 hook calls and orchestration logic (~650 lines) from LoggerCockpit into a dedicated React context provider.
+   - `CockpitProvider` component: calls all hooks, wires callbacks (`handleRefereeAction`, `handleSubstitutionSubmit`, `handleTacticalPlayerDragEnd`), exposes `__PROMATCH_LOGGER_HARNESS__` for E2E testing.
+   - `useCockpit()` consumer hook: returns the full context value with runtime null-guard.
+   - Uses `useMemo` to stabilize the context value across renders.
+
+2. **Rewrote `LoggerCockpit.tsx`** — [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx) (1111 → 563 lines, **−49%**)
+   - Now a thin render shell: `LoggerCockpit()` wraps `<CockpitProvider><CockpitContent /></CockpitProvider>`.
+   - `CockpitContent()` destructures values from `useCockpit()` and renders loading guards, top section, view toggle, and conditional views (Logger/Analytics/Review).
+   - Zero logic duplication — all orchestration lives in the context.
+
+### Tests Updated (Mandatory)
+
+- [x] E2E: **281 passed**, 0 failed (Playwright, single-worker, 9.5 min) — validates isolation + CockpitContext
+- [x] Unit: **123 passed**, 0 failed (Vitest) — no regressions from context refactor
+- [x] TypeScript: **0 errors** (`tsc --noEmit`)
+- [x] Frontend pre-commit: **All 14 hooks passed** (Prettier, CI Lint, TypeScript, Vitest, trailing-ws, end-of-files, YAML, JSON, merge-conflicts, private-keys, large-files, secrets, markdown-lint, npm-audit)
+
+## Implementation Notes
+
+- The `CockpitContext` uses `createContext<any>(null)` — types are enforced at component prop boundaries (e.g., `CockpitTopSection`, `LoggerView`) rather than at the context layer, avoiding a brittle 250-line interface that must stay in sync with 30+ hooks.
+- Match ID isolation is additive — the shared `MATCH_ID` export in `e2e/utils/logger.ts` is kept for any specs that don't need isolation (e.g., files using `uniqueId()` already).
+
+### Previous Session
+
+### DevSecOps: Pre-Commit Security Hardening
+
+1. **Backend SAST — Bandit** — [.pre-commit-config.yaml](../.pre-commit-config.yaml)
+
+   - Added `bandit` (v1.8.3) with `[toml]` extra for pyproject.toml config.
+   - Config: excludes `tests/`, `venv/`, `scripts/`; skips B101 (assert).
+   - 8 findings triaged: 4× B110 (intentional try/except/pass for best-effort WS broadcasts), 3× B105 ("Pass" is a soccer event type), 1× B104 (0.0.0.0 bind for Docker) — all annotated with `# nosec`.
+   - **Result: 0 issues, 0 skipped files.**
+
+2. **Backend dependency audit — pip-audit** — [.pre-commit-config.yaml](../.pre-commit-config.yaml), [requirements-dev.txt](../ProMatchAnalytics-Backend/requirements-dev.txt)
+
+   - Added `pip-audit` (v2.9.0) as local pre-commit hook with `--strict --desc=on`.
+   - Fixed 8 CVEs by upgrading: FastAPI 0.109.0→0.135.1, starlette 0.35.1→0.52.1, urllib3 2.5.0→2.6.3, black 25.9.0→26.3.1, cryptography→46.0.5, protobuf→6.33.6, pyasn1→0.6.3, pyjwt→2.12.1, virtualenv→21.2.0.
+   - **Result: 0 known vulnerabilities.**
+
+3. **Frontend dependency audit — npm audit** — [.pre-commit-config.yaml](.pre-commit-config.yaml)
+   - Added `npm audit --omit=dev --audit-level=critical` as local pre-commit hook.
+   - Fixed critical `jspdf` (5 CVEs), high `axios` (DoS), high `react-router-dom` (XSS) via `npm audit fix`.
+   - Remaining: 1 high `undici` (transitive via Firebase SDK, browser-only usage not affected).
+   - **Result: 0 critical vulnerabilities in production deps.**
+
+### Backend UTC Serialization Fix
+
+1. **Fixed timezone-naive `datetime.utcnow` in Team model** — [team.py](../ProMatchAnalytics-Backend/app/models/team.py)
+
+   - Replaced deprecated `default_factory=datetime.utcnow` with `default_factory=lambda: datetime.now(timezone.utc)` for `created_at` and `updated_at` fields.
+   - All other models (user.py, ingestion/\*.py) already used the correct pattern.
+
+2. **Hardened `_serialize_value` for WS broadcast** — [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py)
+
+   - Added defensive UTC fallback: if a naive datetime reaches the serializer, it now gets `replace(tzinfo=timezone.utc)` before `.isoformat()` — ensures WS broadcasts always emit timezone-qualified ISO strings.
+
+3. **Fixed seed script naive datetimes** — [seed_full_match.py](../ProMatchAnalytics-Backend/seed_full_match.py)
+
+   - All `datetime.now()` calls replaced with `datetime.now(timezone.utc)`.
+
+4. **Frontend `parseTimestampAsUtcMs` retained as defensive layer** — [utils.ts](src/pages/logger/utils.ts)
+   - The helper stays as a safety net for any edge case where a naive timestamp arrives from the server. Now that the backend enforces UTC at source, it should be a no-op path.
+
+### Dependency Upgrades Summary
+
+| Package          | Old     | New     | CVEs Fixed                |
+| ---------------- | ------- | ------- | ------------------------- |
+| FastAPI          | 0.109.0 | 0.135.1 | starlette DoS             |
+| starlette        | 0.35.1  | 0.52.1  | GHSA-2c2j-9gv5-cj73       |
+| urllib3          | 2.5.0   | 2.6.3   | 3 decompression bomb CVEs |
+| black            | 25.9.0  | 26.3.1  | GHSA-3936-cmfr-pm3m       |
+| cryptography     | 46.0.3  | 46.0.5  | GHSA-r6ph-v2qm-q3c2       |
+| protobuf         | 6.33.0  | 6.33.6  | GHSA-7gcm-g887-7qv7       |
+| pyasn1           | 0.6.1   | 0.6.3   | 2 CVEs                    |
+| pyjwt            | 2.10.1  | 2.12.1  | GHSA-752w-5fwx-jx9f       |
+| jspdf            | 4.1.0   | patched | 5 critical CVEs           |
+| axios            | vuln    | patched | DoS via **proto**         |
+| react-router-dom | vuln    | patched | XSS via open redirects    |
+
+### Tests Updated (Mandatory)
+
+- Bandit SAST: **0 issues** (8 nosec annotations on false positives)
+- pip-audit: **0 known vulnerabilities** (8 packages upgraded)
+- npm audit (production): **0 critical** vulnerabilities
+- Backend pytest: **125 passed**, 0 failed (validates FastAPI 0.135.1 upgrade)
+- Frontend vitest: **123 passed**, 0 failed
+- Frontend tsc: **0 errors**
+- Frontend E2E: **281 passed**, 0 failed (single-worker mode, 9.5m)
+
+### Previous Session
+
+### Quick Actions: Consolidate Shot Logic & Rename Shot Out
+
+1. **Removed "Shot" (Disparo) from Quick Actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - The "Disparo" button opened a redundant sub-menu (destination → outcome) when "Goal" and "DirectShot" already covered those paths as one-tap actions.
+   - "Shot" remains available via "More Actions" for advanced users who need the full destination-based flow.
+
+2. **Renamed "Shot Out" → "Off-target Shot" / "Disparo Fuera"** — [en/logger.json](public/locales/en/logger.json), [es/logger.json](public/locales/es/logger.json)
+
+   - Clarifies this is a shot that missed the target, not a goal kick restart.
+   - EN: `actionShot Out` → "Off-target Shot", ES: `actionShot Out` → "Disparo Fuera".
+   - Also renamed `actionDirectShot`: EN "Direct Shot" → "Shot on Target", ES "Disparo al arco" → "Disparo al Arco".
+
+3. **Regrouped Quick Actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - New order: Pass, Header, **DirectShot (Shot on Target)**, **Shot Out (Off-target Shot)**, **Goal**, Foul, Offside, Free Kick, Corner, Throw-in, Goal Kick.
+   - Shot-related actions are now adjacent in the grid for fast logging.
+
+4. **"Saque de Meta" (Goal Kick) confirmed independent** — no programmatic tie to Shot Out.
+
+### Tests Updated (Mandatory)
+
+- E2E: `logger-event-taxonomy.spec.ts` → Updated `logShotGoal` helper and "Shot via More Actions" test → PASS (13/13)
+- E2E: `logger-ultimate-cockpit.spec.ts` → ULT-01 checks `Shot Out` instead of `Shot`; ULT-02 uses More Actions for Shot → PASS (4/4)
+- E2E: `logger-zone-selector.spec.ts` → Shot Out test unchanged (action ID same) → PASS (19/19)
+- Unit: `useActionFlow.test.ts` → All 15 tests pass (handler still supports "Shot" internally)
+- Full suite: **280 passed**, 0 failed (single-worker mode, 9.3m)
+
+### Previous Session
 
 ### Analytics Times Preserved Across INEFFECTIVE-Mode Transitions
 

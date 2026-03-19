@@ -273,8 +273,8 @@ test.describe("Logger cockpit ultimate suite", () => {
     const initialMode = await openActionEntry(page, 0);
     if (initialMode === "quick") {
       await expect(page.getByTestId("quick-action-Pass")).toBeVisible();
-      await expect(page.getByTestId("quick-action-Shot")).toBeVisible();
       await expect(page.getByTestId("quick-action-DirectShot")).toBeVisible();
+      await expect(page.getByTestId("quick-action-Shot Out")).toBeVisible();
       await expect(page.getByTestId("quick-action-Goal")).toBeVisible();
       await expect(page.getByTestId("quick-action-Foul")).toBeVisible();
       await expect(page.getByTestId("quick-action-Offside")).toBeVisible();
@@ -295,15 +295,13 @@ test.describe("Logger cockpit ultimate suite", () => {
     }
     await resetHarnessFlow(page, "home");
 
-    const shotMode = await openActionEntry(page, 0);
-    await clickAction(page, shotMode, "Shot");
-    // Shot goes to destination selection — field-goal-btn overlay visible
-    if (shotMode !== "harness") {
-      await expect(page.getByTestId("field-goal-btn")).toBeVisible({
-        timeout: 8000,
-      });
-    }
-    await resetHarnessFlow(page, "home");
+    // Shot is no longer a quick action — test Shot Out (off-target) instead
+    const shotOutMode = await openActionEntry(page, 0);
+    await clickAction(page, shotOutMode, "Shot Out");
+    await waitForPendingAckToClear(page);
+    await expect
+      .poll(async () => await getLiveEventCount(page), { timeout: 10000 })
+      .toBeGreaterThan(0);
 
     const beforeFoul = await getLiveEventCount(page);
     const foulMode = await openActionEntry(page, 0);
@@ -426,7 +424,13 @@ test.describe("Logger cockpit ultimate suite", () => {
 
     const beforeShotKeeper = await getLiveEventCount(page);
     const shotMode = await openActionEntry(page, 0);
-    await clickAction(page, shotMode, "Shot");
+    // "Shot" removed from quick actions; go through More Actions in quick mode
+    if (shotMode === "quick") {
+      await page.getByTestId("quick-action-more").click({ timeout: 5000 });
+      await page.getByTestId("action-btn-Shot").click({ timeout: 5000 });
+    } else {
+      await clickAction(page, shotMode, "Shot");
+    }
     // Shot now goes to destination selection — click opponent GK for Saved
     if (shotMode !== "harness") {
       const gkNode = page

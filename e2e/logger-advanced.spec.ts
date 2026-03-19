@@ -18,9 +18,9 @@ import {
   waitForPendingAckToClear,
 } from "./utils/logger";
 
-const SUB_MATCH_ID = "E2E-MATCH-SUB";
+const SUB_MATCH_ID = "E2E-MATCH-ADV-SUB";
 const ANALYTICS_MATCH_ID = "E2E-MATCH-ANALYTICS";
-const TIMER_MATCH_ID = "E2E-MATCH-TIMER";
+const TIMER_MATCH_ID = "E2E-MATCH-ADV-TIMER";
 
 let backendRequest: APIRequestContext;
 

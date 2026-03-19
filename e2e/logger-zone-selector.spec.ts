@@ -7,12 +7,13 @@ import {
 } from "@playwright/test";
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   ensureClockRunning,
   resetHarnessFlow,
   waitForPendingAckToClear,
 } from "./utils/logger";
+
+const ZONE_MATCH_ID = "E2E-MATCH-ZONE";
 
 // ---------------------------------------------------------------------------
 // Zone Selector E2E — validates the full zone-selection flow:
@@ -41,7 +42,7 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+  await backendRequest.post("/e2e/reset", { data: { matchId: ZONE_MATCH_ID } });
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await page.addInitScript((user) => {
     localStorage.setItem(
@@ -84,7 +85,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -107,7 +108,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -141,7 +142,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -180,7 +181,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -202,7 +203,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
 
     test("selecting a zone advances to quick action menu", async ({ page }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -230,7 +231,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -274,7 +275,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -309,7 +310,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -348,7 +349,9 @@ test.describe("Logger Zone & Border Zone Tests", () => {
 
   test.describe("Out-of-Play Quick Actions", () => {
     test.beforeEach(async ({ page }) => {
-      await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+      await backendRequest.post("/e2e/reset", {
+        data: { matchId: ZONE_MATCH_ID },
+      });
       await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
     });
 
@@ -356,7 +359,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -404,7 +407,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -434,7 +437,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -467,7 +470,9 @@ test.describe("Logger Zone & Border Zone Tests", () => {
 
   test.describe("Zone-Biased Position Enhancement", () => {
     test.beforeEach(async ({ page }) => {
-      await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+      await backendRequest.post("/e2e/reset", {
+        data: { matchId: ZONE_MATCH_ID },
+      });
       await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
     });
 
@@ -477,7 +482,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
      */
     const fetchBackendEvents = async (): Promise<any[]> => {
       const res = await backendRequest.get(
-        `/api/v1/logger/matches/${MATCH_ID}/events?page_size=200`,
+        `/api/v1/logger/matches/${ZONE_MATCH_ID}/events?page_size=200`,
       );
       expect(res.ok()).toBeTruthy();
       const body = await res.json();
@@ -488,7 +493,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -523,7 +528,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -553,7 +558,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -590,7 +595,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -676,14 +681,16 @@ test.describe("Logger Zone & Border Zone Tests", () => {
   // -------------------------------------------------------------------------
   test.describe("Auto Position Mode", () => {
     test.beforeEach(async ({ page }) => {
-      await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+      await backendRequest.post("/e2e/reset", {
+        data: { matchId: ZONE_MATCH_ID },
+      });
       await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
     });
 
     /** Read the latest events from the backend. */
     const fetchBackendEvents = async (): Promise<any[]> => {
       const res = await backendRequest.get(
-        `/api/v1/logger/matches/${MATCH_ID}/events?page_size=200`,
+        `/api/v1/logger/matches/${ZONE_MATCH_ID}/events?page_size=200`,
       );
       expect(res.ok()).toBeTruthy();
       const body = await res.json();
@@ -694,7 +701,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(60000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
 
       const toggle = page.getByTestId("position-mode-toggle");
@@ -715,7 +722,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -744,7 +751,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");
@@ -802,7 +809,7 @@ test.describe("Logger Zone & Border Zone Tests", () => {
       page,
     }) => {
       test.setTimeout(90000);
-      await gotoLoggerPage(page, MATCH_ID);
+      await gotoLoggerPage(page, ZONE_MATCH_ID);
       await ensureAdminRole(page);
       await ensureClockRunning(page);
       await resetHarnessFlow(page, "home");

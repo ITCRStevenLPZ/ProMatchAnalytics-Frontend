@@ -96,9 +96,9 @@ export const ACTION_FLOWS: Record<string, ActionConfig> = {
 
 export const QUICK_ACTIONS = [
   "Pass",
-  "Shot",
   "Header",
   "DirectShot",
+  "Shot Out",
   "Goal",
   "Foul",
   "Offside",
@@ -106,7 +106,6 @@ export const QUICK_ACTIONS = [
   "Corner",
   "Throw-in",
   "Goal Kick",
-  "Shot Out",
 ] as const;
 
 export const DEFAULT_PERIOD_MAP: Record<MatchStatus, number> = {
