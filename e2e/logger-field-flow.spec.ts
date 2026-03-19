@@ -608,11 +608,16 @@ test.describe("Tactical Field", () => {
     expect(restoredCoords.y).toBeCloseTo(afterCoords.y, 0);
   });
 
-  test("drag bounds overlay appears during drag", async ({ page }) => {
+  test("drag bounds overlay appears during pre-match drag", async ({
+    page,
+  }) => {
     test.setTimeout(60000);
+    // Re-seed with Pending so isMatchLive=false and bounds overlay is rendered.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
     await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
-    await ensureClockRunning(page);
 
     // Unlock drag — drag is locked by default
     const dragLockBtn = page.getByTestId("toggle-drag-lock");
@@ -650,6 +655,42 @@ test.describe("Tactical Field", () => {
 
     // Overlay should disappear after drag ends
     await expect(overlay).toBeHidden({ timeout: 5000 });
+  });
+
+  test("live match: no bounds overlay during drag (unrestricted)", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const gkPlayer = page.getByTestId("field-player-HOME-1");
+    await expect(gkPlayer).toBeVisible({ timeout: 15000 });
+
+    await gkPlayer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await gkPlayer.boundingBox();
+    if (!box) throw new Error("GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 20, startY, { steps: 5 });
+    await page.waitForTimeout(200);
+
+    // During live match, bounds overlay should NOT appear
+    await expect(page.getByTestId("drag-bounds-overlay")).toBeHidden();
+
+    await page.mouse.up();
+    await page.waitForTimeout(300);
   });
 
   test("collision detection — players repel on overlap", async ({ page }) => {

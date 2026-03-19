@@ -30,6 +30,8 @@
 - [x] E2E flaky-test isolation: per-file unique match IDs
 - [x] LoggerCockpit context provider extraction (reduce monolith)
 - [x] Fix tactical drag constraint blocking live "Auto" mode logging
+- [x] Analytics restoration: Live Match Context banner, on-field avg age, global totals
+- [x] Unrestricted tactical dragging during live matches (bounds overlay hidden)
 
 ## Status
 
@@ -37,6 +39,45 @@
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Analytics Restoration & Live Match Context Banner
+
+Separated dynamic live metrics from the static comparison table into a dedicated banner widget at the top of AnalyticsView, improving UX clarity.
+
+1. **Live Match Context banner** — [LiveMatchContextBanner.tsx](src/pages/logger/components/molecules/LiveMatchContextBanner.tsx) (new)
+
+   - Dedicated widget rendering: Global Effective Time, Global Ineffective Time, On-Field Average Age (home/away).
+   - Average age dynamically recomputes from `onFieldIds` (via `useOnFieldRoster`), so substitutions immediately update the metric.
+   - Test IDs: `live-match-context`, `stat-total-effective-time`, `stat-total-ineffective-time`, `stat-on-field-age-home`, `stat-on-field-age-away`.
+
+2. **Removed static average age from comparison table** — [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx)
+
+   - Removed `stat-average-age` row from `comparativeRows` and cleaned up unused `calculateAverageAge`, `parseBirthDate`, `ageInYears` functions.
+
+3. **Wired on-field data to AnalyticsView** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `onFieldIds` prop from CockpitContext → LoggerCockpit → AnalyticsView → LiveMatchContextBanner.
+   - AnalyticsView computes `onFieldHomePlayers` / `onFieldAwayPlayers` from `onFieldIds`.
+
+4. **Locale keys** — EN/ES translations for `liveMatchContext`, `onFieldAvgAge`.
+
+### Unrestricted Tactical Dragging (Live Mode)
+
+5. **Hidden bounds overlay during live play** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
+   - Bounds overlay (`drag-bounds-overlay`) now only renders when `!isMatchLive`, since `LIVE_HOME_BOUNDS` grants 0-100 on all axes and the overlay is meaningless.
+   - Pre-match bounds overlay remains for visual feedback during pre-match positioning.
+
+### E2E Tests Updated
+
+- **ANL-24**: Validates average age in `live-match-context` banner (not comparison table); asserts `stat-average-age` absent from main table.
+- **QA-2**: Extended to verify `stat-total-effective-time` and `stat-total-ineffective-time` in banner.
+- **New: "drag bounds overlay appears during pre-match drag"**: Seeded with `Pending` status.
+- **New: "live match: no bounds overlay during drag (unrestricted)"**: Confirms overlay is hidden during live play.
+
+### Session Verification
+
+- `tsc --noEmit`: **0 errors**
+- `npx playwright test --workers=1`: **283 passed**, 0 failed (10.0 min)
 
 ### Field Destination Overlay UX (Non-Blocking Controls)
 

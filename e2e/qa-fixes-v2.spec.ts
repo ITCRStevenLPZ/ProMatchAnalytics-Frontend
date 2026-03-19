@@ -153,6 +153,14 @@ test.describe("QA Fixes v2", () => {
     await expect(
       mainTable.getByTestId("stat-total-ineffective-time"),
     ).toHaveCount(0);
+
+    // Global totals now live in the Live Match Context banner
+    const banner = page.getByTestId("live-match-context");
+    await expect(banner).toBeVisible();
+    await expect(banner.getByTestId("stat-total-effective-time")).toBeVisible();
+    await expect(
+      banner.getByTestId("stat-total-ineffective-time"),
+    ).toBeVisible();
   });
 
   test("QA-3: JPG export button exists (CSV removed)", async ({ page }) => {

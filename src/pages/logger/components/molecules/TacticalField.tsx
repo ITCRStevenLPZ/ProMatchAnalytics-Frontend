@@ -282,8 +282,9 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
               {flipSides ? `${homeTeamName} (Home)` : `${awayTeamName} (Away)`}
             </div>
 
-            {/* ─── Drag bounds overlay ─── */}
+            {/* ─── Drag bounds overlay (hidden during live – bounds are full field) ─── */}
             {draggingPlayerId &&
+              !isMatchLive &&
               (() => {
                 // Find the dragged player's position and side
                 const allPlayers = [

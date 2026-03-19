@@ -377,6 +377,7 @@ function CockpitContent() {
                   match={match}
                   liveEvents={liveEvents}
                   queuedEvents={queuedEvents}
+                  onFieldIds={onFieldIds}
                   effectiveClock={effectiveClock}
                   globalClock={globalClock}
                   ineffectiveClock={ineffectiveClock}

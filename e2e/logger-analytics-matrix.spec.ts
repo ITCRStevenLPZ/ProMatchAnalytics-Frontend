@@ -1009,14 +1009,29 @@ test.describe("Logger analytics matrix", () => {
     });
 
     await openAnalytics(page);
-    const row = page.getByTestId("stat-average-age");
-    await expect(row).toBeVisible({ timeout: 15000 });
 
-    const home = ((await row.locator("div").nth(0).textContent()) || "").trim();
-    const away = ((await row.locator("div").nth(2).textContent()) || "").trim();
+    // Average age now lives in the Live Match Context banner (on-field players)
+    const banner = page.getByTestId("live-match-context");
+    await expect(banner).toBeVisible({ timeout: 15000 });
+
+    const homeAgeCell = page.getByTestId("stat-on-field-age-home");
+    const awayAgeCell = page.getByTestId("stat-on-field-age-away");
+    await expect(homeAgeCell).toBeVisible();
+    await expect(awayAgeCell).toBeVisible();
+
+    const home = (
+      (await homeAgeCell.locator("span").last().textContent()) || ""
+    ).trim();
+    const away = (
+      (await awayAgeCell.locator("span").last().textContent()) || ""
+    ).trim();
     const numericPattern = /^\d+(\.\d)?$/;
     expect(home).toMatch(numericPattern);
     expect(away).toMatch(numericPattern);
+
+    // stat-average-age should no longer exist in the comparison table
+    const mainTable = page.getByTestId("analytics-comparison-table");
+    await expect(mainTable.getByTestId("stat-average-age")).toHaveCount(0);
   });
 
   test("ANL-25: analytics export buttons produce JPG and PDF downloads", async ({
