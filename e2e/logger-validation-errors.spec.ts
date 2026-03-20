@@ -8,12 +8,13 @@ import {
 
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   resetHarnessFlow,
   triggerInvalidPassEvent,
   waitForPendingAckToClear,
 } from "./utils/logger";
+
+const VALERR_MATCH_ID = "E2E-MATCH-VALERR";
 
 let backendRequest: APIRequestContext;
 
@@ -32,7 +33,7 @@ test.afterAll(async () => {
 
 test.beforeEach(async () => {
   const response = await backendRequest.post("/e2e/reset", {
-    data: { matchId: MATCH_ID },
+    data: { matchId: VALERR_MATCH_ID },
   });
   expect(response.ok()).toBeTruthy();
 });
@@ -45,7 +46,7 @@ test.describe("Logger validation handling", () => {
   }) => {
     test.setTimeout(120000);
 
-    await gotoLoggerPage(page);
+    await gotoLoggerPage(page, VALERR_MATCH_ID);
     await resetHarnessFlow(page);
 
     await triggerInvalidPassEvent(page);

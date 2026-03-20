@@ -142,9 +142,19 @@ const DEFAULT_Y: Record<string, number> = {
 
 const HOME_BOUNDS: Record<PositionGroup, PositionBounds> = {
   goalkeeper: { xMin: 0, xMax: 20, yMin: 15, yMax: 85 },
-  defense: { xMin: 5, xMax: 45, yMin: 0, yMax: 100 },
-  midfield: { xMin: 15, xMax: 85, yMin: 0, yMax: 100 },
-  attack: { xMin: 40, xMax: 95, yMin: 0, yMax: 100 },
+  // Keep every team on its own half pre-match; away bounds are mirrored.
+  defense: { xMin: 5, xMax: 40, yMin: 0, yMax: 100 },
+  midfield: { xMin: 18, xMax: 49, yMin: 0, yMax: 100 },
+  attack: { xMin: 30, xMax: 49, yMin: 0, yMax: 100 },
+  other: { xMin: 0, xMax: 49, yMin: 0, yMax: 100 },
+};
+
+/** During a live match players can roam the entire field. */
+const LIVE_HOME_BOUNDS: Record<PositionGroup, PositionBounds> = {
+  goalkeeper: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  defense: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  midfield: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
+  attack: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
   other: { xMin: 0, xMax: 100, yMin: 0, yMax: 100 },
 };
 
@@ -165,6 +175,57 @@ const normalizePos = (v: string) =>
     .toLowerCase()
     .replace(/[^a-z]/g, "")
     .trim();
+
+const resolveCanonicalPositionKey = (raw?: string | null): string => {
+  const n = normalizePos(raw || "");
+  if (!n) return "OTHER";
+
+  if (["gk", "goalkeeper", "portero", "keeper"].some((k) => n.includes(k)))
+    return "GK";
+
+  if (
+    ["defensacentral", "centerback", "cb", "zaguero"].some((k) => n.includes(k))
+  )
+    return "CB";
+  if (["lateralizquierdo", "leftback", "lb"].some((k) => n.includes(k)))
+    return "LB";
+  if (["lateralderecho", "rightback", "rb"].some((k) => n.includes(k)))
+    return "RB";
+  if (["carrileroizquierdo", "leftwingback", "lwb"].some((k) => n.includes(k)))
+    return "LWB";
+  if (["carrileroderecho", "rightwingback", "rwb"].some((k) => n.includes(k)))
+    return "RWB";
+
+  if (
+    ["mediocentrodefensivo", "contencion", "cdm", "volantedefensivo"].some(
+      (k) => n.includes(k),
+    )
+  )
+    return "CDM";
+  if (
+    ["mediocentroofensivo", "enganche", "cam", "volanteofensivo"].some((k) =>
+      n.includes(k),
+    )
+  )
+    return "CAM";
+  if (
+    ["centrocampista", "mediocentro", "cm", "volante"].some((k) =>
+      n.includes(k),
+    )
+  )
+    return "CM";
+
+  if (["extremoizquierdo", "leftwing", "lw"].some((k) => n.includes(k)))
+    return "LW";
+  if (["extremoderecho", "rightwing", "rw"].some((k) => n.includes(k)))
+    return "RW";
+  if (["delantero", "striker", "st", "nueve"].some((k) => n.includes(k)))
+    return "ST";
+  if (["segundodelantero", "secondstriker", "ss"].some((k) => n.includes(k)))
+    return "SS";
+
+  return (raw || "OTHER").toUpperCase().trim();
+};
 
 export const getPositionGroup = (raw?: string | null): PositionGroup => {
   const n = normalizePos(raw || "");
@@ -221,9 +282,11 @@ export const clampToBounds = (
 export const getBoundsForPlayer = (
   positionString: string | undefined,
   side: "home" | "away",
+  isMatchLive = false,
 ): PositionBounds => {
   const group = getPositionGroup(positionString);
-  const base = HOME_BOUNDS[group];
+  const table = isMatchLive ? LIVE_HOME_BOUNDS : HOME_BOUNDS;
+  const base = table[group];
   return side === "away" ? mirrorBounds(base) : base;
 };
 
@@ -394,7 +457,7 @@ export const resolveDefaultPositions = (
   // Group by normalised position string
   const grouped: Record<string, PlayerLike[]> = {};
   for (const p of players) {
-    const key = p.position?.toUpperCase().trim() || "OTHER";
+    const key = resolveCanonicalPositionKey(p.position);
     (grouped[key] ??= []).push(p);
   }
 
@@ -431,7 +494,8 @@ export const resolveDefaultPositions = (
         if (side === "away") {
           x = 100 - x;
         }
-        result.set(group[playerIdx].id, { x, y });
+        const bounds = getBoundsForPlayer(posKey, side);
+        result.set(group[playerIdx].id, clampToBounds({ x, y }, bounds));
         playerIdx++;
       }
     }
@@ -514,7 +578,8 @@ export const resolveFormationPositions = (
       if (side === "away") {
         x = 100 - x;
       }
-      result.set(player.id, { x, y });
+      const bounds = getBoundsForPlayer(player.position, side);
+      result.set(player.id, clampToBounds({ x, y }, bounds));
       playerIdx++;
     }
   }
@@ -538,12 +603,15 @@ interface UseTacticalPositionsOptions {
   matchId: string | undefined;
   homePlayers: PlayerLike[];
   awayPlayers: PlayerLike[];
+  /** When true (live match), players can be dragged across the entire field. */
+  isMatchLive?: boolean;
 }
 
 export const useTacticalPositions = ({
   matchId,
   homePlayers,
   awayPlayers,
+  isMatchLive = false,
 }: UseTacticalPositionsOptions) => {
   // Canonical positions (home = left). Keyed by player id.
   const [positions, setPositions] = useState<Map<string, TacticalPosition>>(
@@ -661,7 +729,7 @@ export const useTacticalPositions = ({
       playerPosition: string | undefined,
       side: "home" | "away",
     ) => {
-      const bounds = getBoundsForPlayer(playerPosition, side);
+      const bounds = getBoundsForPlayer(playerPosition, side, isMatchLive);
       const clamped = clampToBounds(newPos, bounds);
       setPositions((prev) => {
         const resolved = resolveCollision(playerId, clamped, prev, bounds);
@@ -671,7 +739,7 @@ export const useTacticalPositions = ({
         return next;
       });
     },
-    [persistPositions],
+    [persistPositions, isMatchLive],
   );
 
   /** Apply a formation to one side — recalculates all positions for that side

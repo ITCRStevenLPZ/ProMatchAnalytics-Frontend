@@ -1,732 +1,188 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { useParams, useSearchParams } from "react-router-dom";
 import { List, BarChart3, Eye } from "../components/icons";
-import { useMatchLogStore } from "../store/useMatchLogStore";
-import { useMatchSocket } from "../hooks/useMatchSocket";
-import { IS_E2E_TEST_MODE } from "../lib/loggerApi";
-import { useActionFlow } from "./logger/hooks/useActionFlow";
-import { useMatchTimer } from "./logger/hooks/useMatchTimer";
-import { usePeriodManager } from "./logger/hooks/usePeriodManager";
 import HalftimePanel from "./logger/components/molecules/HalftimePanel";
 import SubstitutionFlow from "./logger/components/molecules/SubstitutionFlow";
-import type { CardSelection } from "./logger/components/molecules/QuickCardPanel";
 import AnalyticsView from "./logger/components/organisms/AnalyticsView";
 import LoggerView from "./logger/components/organisms/LoggerView";
 import ReviewView from "./logger/components/organisms/ReviewView";
 import CockpitTopSection from "./logger/components/organisms/CockpitTopSection";
-import { useDisciplinary } from "./logger/hooks/useDisciplinary";
-import { useLiveScore } from "./logger/hooks/useLiveScore";
-import { useDuplicateTelemetry } from "./logger/hooks/useDuplicateTelemetry";
-import { useOnFieldRoster } from "./logger/hooks/useOnFieldRoster";
-import { useClockDrift } from "./logger/hooks/useClockDrift";
-import { useMatchData } from "./logger/hooks/useMatchData";
-import { useVarTimer } from "./logger/hooks/useVarTimer";
-import { useTimeoutTimer } from "./logger/hooks/useTimeoutTimer";
-import { useIneffectiveTime } from "./logger/hooks/useIneffectiveTime";
-import { useResetMatch } from "./logger/hooks/useResetMatch";
-import { useCockpitHarness } from "./logger/hooks/useCockpitHarness";
-import { useCockpitEventHandlers } from "./logger/hooks/useCockpitEventHandlers";
-import { useCockpitClockHandlers } from "./logger/hooks/useCockpitClockHandlers";
-import { useCockpitInteractionHandlers } from "./logger/hooks/useCockpitInteractionHandlers";
-import { useCockpitKeyboardHandlers } from "./logger/hooks/useCockpitKeyboardHandlers";
-import { useCockpitLifecycleEffects } from "./logger/hooks/useCockpitLifecycleEffects";
-import { useCockpitHarnessEvents } from "./logger/hooks/useCockpitHarnessEvents";
-import { useCockpitAutoEffects } from "./logger/hooks/useCockpitAutoEffects";
-import { useCockpitE2EPlayersSeed } from "./logger/hooks/useCockpitE2EPlayersSeed";
-import { useCockpitIneffectiveBreakdown } from "./logger/hooks/useCockpitIneffectiveBreakdown";
-import { useCockpitLocalEffects } from "./logger/hooks/useCockpitLocalEffects";
-import { useCockpitStatusProjection } from "./logger/hooks/useCockpitStatusProjection";
-import { useCockpitVarDerivedState } from "./logger/hooks/useCockpitVarDerivedState";
-import { useCockpitIneffectiveTickEffect } from "./logger/hooks/useCockpitIneffectiveTickEffect";
-import { useCockpitExpelledPlayerEffect } from "./logger/hooks/useCockpitExpelledPlayerEffect";
-import { useCockpitTransitionState } from "./logger/hooks/useCockpitTransitionState";
-import { useCockpitToast } from "./logger/hooks/useCockpitToast";
-import { useCockpitSubstitutionFlow } from "./logger/hooks/useCockpitSubstitutionFlow";
-import { useTacticalPositions } from "./logger/hooks/useTacticalPositions";
-import type { LoggerHarness } from "./logger/types";
-import type { CockpitViewMode } from "./logger/components/molecules/TeamSelector";
-import { parseClockToSeconds } from "./logger/lib/clockHelpers";
-
-import { useAuthStore } from "../store/authStore";
-
-declare global {
-  interface Window {
-    __PROMATCH_LOGGER_HARNESS__?: LoggerHarness;
-  }
-}
+import { CockpitProvider, useCockpit } from "./logger/context/CockpitContext";
 
 export default function LoggerCockpit() {
-  const { t, ready: isLoggerReady } = useTranslation("logger");
-  const { matchId } = useParams();
-  const [searchParams] = useSearchParams();
-  const initialView: CockpitViewMode =
-    searchParams.get("view") === "analytics"
-      ? "analytics"
-      : searchParams.get("view") === "review"
-        ? "review"
-        : "logger";
+  return (
+    <CockpitProvider>
+      <CockpitContent />
+    </CockpitProvider>
+  );
+}
 
+// ---------------------------------------------------------------------------
+// Inner component – consumes the cockpit context and renders views.
+// ---------------------------------------------------------------------------
+function CockpitContent() {
   const {
+    t,
+    isLoggerReady,
+    matchId,
+    match,
+    loading,
+    error,
+    isAdmin,
     isConnected,
-    liveEvents,
-    queuedEvents,
-    pendingAcks,
-    undoStack,
-    duplicateHighlight,
-    duplicateStats,
-    operatorClock,
-    operatorPeriod,
-    isBallInPlay,
-    setIsBallInPlay,
-    resetOperatorControls,
-    setCurrentMatch,
-    setLiveEvents,
-    upsertLiveEvent,
-    updateEventNotes,
-    removeQueuedEvent,
-    removeUndoCandidate,
-    clearDuplicateHighlight,
-    resetDuplicateStats,
-    clearQueuedEvents,
-    clearUndoStack,
-    clearPendingAcks,
-    removeLiveEventByClientId,
-    removeLiveEventById,
-    removeQueuedEventByClientId,
-    rejectPendingAck,
-    lastTimelineRefreshRequest,
-    lastMatchRefreshRequest,
-  } = useMatchLogStore();
-  const currentUser = useAuthStore((state) => state.user);
-  const isAdmin = currentUser?.role === "admin";
-  const pendingAckCount = Object.keys(pendingAcks).length;
-  const isSubmitting = pendingAckCount > 0;
-  const queuedCount = queuedEvents.length;
-
-  const { sendEvent, undoEvent } = useMatchSocket({
-    matchId: matchId!,
-    enabled: !!matchId,
-  });
-
-  const { match, setMatch, loading, error, fetchMatch, hydrateEvents } =
-    useMatchData({
-      matchId,
-      isLoggerReady,
-      t,
-      setLiveEvents,
-    });
-
-  const [selectedTeam, setSelectedTeam] = useState<"home" | "away" | "both">(
-    "home",
-  );
-  const [showSubstitutionFlow, setShowSubstitutionFlow] = useState(false);
-  const [substitutionTeam, setSubstitutionTeam] = useState<"home" | "away">(
-    "home",
-  );
-  const { onFieldIds, applyOnFieldChange } = useOnFieldRoster(
-    match,
-    liveEvents,
-    queuedEvents,
-  );
-  const [manualFieldFlip, setManualFieldFlip] = useState(false);
-
-  // Tactical field — compute on-field player lists for position management
-  const homeOnFieldPlayers = useMemo(
-    () =>
-      (match?.home_team.players ?? []).filter((p) => onFieldIds.home.has(p.id)),
-    [match, onFieldIds.home],
-  );
-  const awayOnFieldPlayers = useMemo(
-    () =>
-      (match?.away_team.players ?? []).filter((p) => onFieldIds.away.has(p.id)),
-    [match, onFieldIds.away],
-  );
-
-  const {
-    positions: tacticalPositions,
-    getDisplayPosition,
-    movePlayerFromDisplay,
-    applySubstitution: applyTacticalSubstitution,
-    draggingPlayerId,
-    setDraggingPlayerId,
-    homeFormation,
-    awayFormation,
-    applyFormation,
-  } = useTacticalPositions({
-    matchId,
-    homePlayers: homeOnFieldPlayers,
-    awayPlayers: awayOnFieldPlayers,
-  });
-
-  const handleTacticalPlayerDragEnd = useCallback(
-    (
-      playerId: string,
-      displayX: number,
-      displayY: number,
-      playerPosition: string | undefined,
-      side: "home" | "away",
-    ) => {
-      movePlayerFromDisplay(
-        playerId,
-        { x: displayX, y: displayY },
-        manualFieldFlip,
-        playerPosition,
-        side,
-      );
-    },
-    [movePlayerFromDisplay, manualFieldFlip],
-  );
-  const [viewMode, setViewMode] = useState<CockpitViewMode>(initialView);
-  const [dragLocked, setDragLocked] = useState(true);
-  const [priorityPlayerId, setPriorityPlayerId] = useState<string | null>(null);
-  const [pendingCardType, setPendingCardType] = useState<CardSelection | null>(
-    null,
-  );
-  const pendingCardTypeRef = useRef<CardSelection | null>(null);
-
-  const { toast, setToast, showTimedToast, dismissToast } = useCockpitToast();
-
-  const [ineffectiveTick, setIneffectiveTick] = useState(0);
-  const ineffectiveBreakdown = useCockpitIneffectiveBreakdown({
-    match,
-    liveEvents,
-    queuedEvents,
-    ineffectiveTick,
-  });
-
-  const {
-    isVarActiveLocal,
-    varStartMs,
-    varStartGlobalSeconds,
-    varStartTotalSeconds,
-    varPauseStartMs,
-    varPausedSeconds,
-    varTick,
-    syncVarPauseWithClockMode,
-    syncVarWithGlobalClockRunning,
-    handleVarToggle: handleVarToggleBase,
-    handleGlobalClockStartVarSync,
-    handleGlobalClockStopVarSync,
-    resetVarState,
-  } = useVarTimer({
-    match,
-  });
-
-  const breakdownVarActive = Boolean(ineffectiveBreakdown?.varActive);
-  const isVarActive = breakdownVarActive || isVarActiveLocal;
-
-  const { isTimeoutActive, timeoutTimeSeconds, timeoutTimeClock } =
-    useTimeoutTimer({
-      ineffectiveBreakdown,
-    });
-
-  const {
-    globalClock,
-    effectiveClock,
-    effectiveTime,
-    ineffectiveClock,
-    clockMode,
-    isClockRunning: isGlobalClockRunning,
-    handleGlobalClockStart,
-    handleGlobalClockStop,
-    handleModeSwitch,
-  } = useMatchTimer(match, fetchMatch, {
-    isVarActive,
-    varPauseStartMs,
-    varPausedSeconds,
-    timeoutSeconds: timeoutTimeSeconds,
-    isTimeoutActive,
-  });
-
-  const { varTimeSeconds, varTimeClock } = useCockpitVarDerivedState({
-    ineffectiveBreakdown,
-    isVarActiveLocal,
-    varStartGlobalSeconds,
-    varStartTotalSeconds,
-    varStartMs,
-    varPauseStartMs,
-    varPausedSeconds,
-    varTick,
-    isGlobalClockRunning,
-    clockMode,
-    syncVarWithGlobalClockRunning,
-    syncVarPauseWithClockMode,
-    globalClock,
-  });
-
-  const {
+    queuedCount,
+    pendingAckCount,
+    isSubmitting,
+    openResetModal,
+    resetBlocked,
+    resetTooltip,
+    undoError,
+    viewMode,
+    setViewMode,
+    statusOverride,
+    showResetModal,
+    setShowResetModal,
+    isFulltime,
+    resetDisabledReason,
+    resetConfirmText,
+    setResetConfirmText,
+    confirmGlobalReset,
     ineffectiveNoteOpen,
-    ineffectiveNoteText,
-    setIneffectiveNoteText,
     ineffectiveActionType,
-    setIneffectiveActionType,
     ineffectiveTeamSelection,
-    setIneffectiveTeamSelection,
     ineffectiveActionDropdownOpen,
-    setIneffectiveActionDropdownOpen,
     ineffectiveTeamDropdownOpen,
+    ineffectiveNoteText,
+    manualHomeTeamLabel,
+    manualAwayTeamLabel,
+    isMatchLive,
+    setIneffectiveActionDropdownOpen,
     setIneffectiveTeamDropdownOpen,
-    hasActiveIneffective,
-    beginIneffective,
-    endIneffectiveIfNeeded,
-    confirmIneffectiveNote,
+    setIneffectiveActionType,
+    setIneffectiveTeamSelection,
+    setIneffectiveNoteText,
     cancelIneffectiveNote,
-    switchIneffectiveTeam,
-    logNeutralTimerEvent,
-  } = useIneffectiveTime({
-    match,
-    selectedTeam,
-    globalClock,
-    operatorPeriod,
-    clockMode,
-    handleModeSwitch,
-    sendEvent,
-    setIsBallInPlay,
-    setMatch,
-  });
-
-  useCockpitIneffectiveTickEffect({
-    match,
-    hasActiveIneffective,
-    clockMode,
-    isVarActiveLocal,
-    isTimeoutActive,
-    setIneffectiveTick,
-  });
-
-  const { cardDisciplinaryStatus, cardYellowCounts, expelledPlayerIds } =
-    useDisciplinary(liveEvents, queuedEvents);
-
-  useCockpitLocalEffects({
-    match,
-    matchId,
-    setManualFieldFlip,
-    setPriorityPlayerId,
-    isGlobalClockRunning,
-    setIsBallInPlay,
-  });
-
-  const { statusOverride, matchForPhase } = useCockpitStatusProjection({
-    match,
-  });
-
-  const {
-    computedDriftSeconds,
-    forcedDriftSeconds,
-    driftSeconds,
-    showDriftNudge,
-  } = useClockDrift({
-    match,
-    globalClock,
-    varPauseStartMs,
-    varPausedSeconds,
-    varTimeSeconds,
-    fetchMatch,
-  });
-
-  const globalTimeSeconds = parseClockToSeconds(globalClock);
-  const {
+    confirmIneffectiveNote,
+    liveScore,
+    goalEvents,
+    formatGoalLabel,
+    transitionError,
+    toast,
+    currentStatusNormalized,
     currentPhase,
-    periodInfo,
+    clockMode,
+    isGlobalClockRunning,
+    cockpitLocked,
+    lockReason,
     showExtraTimeAlert,
+    periodInfo,
     transitionToHalftime,
-    transitionToSecondHalf,
     transitionToFulltime,
+    dismissExtraTimeAlert,
+    showDriftNudge,
+    driftSeconds,
+    fetchMatch,
+    operatorPeriod,
+    globalClock,
+    guardTransition,
+    transitionToSecondHalf,
     transitionToExtraFirst,
     transitionToExtraHalftime,
     transitionToExtraSecond,
     transitionToPenalties,
     finishMatch,
-    dismissExtraTimeAlert,
-  } = usePeriodManager(
-    matchForPhase,
-    effectiveTime,
-    globalTimeSeconds,
-    clockMode,
-    isGlobalClockRunning,
-    handleModeSwitch,
-    fetchMatch,
-    ({ target, error }) => {
-      const message = `Failed to update status to ${target}. ${
-        error instanceof Error ? error.message : ""
-      }`;
-      setToast({
-        message,
-        actionLabel: "Retry",
-        action: () => {
-          if (target === "Halftime")
-            guardTransition("Halftime", transitionToHalftime);
-          if (target === "Live_Second_Half")
-            guardTransition("Live_Second_Half", transitionToSecondHalf);
-          if (target === "Fulltime")
-            guardTransition("Fulltime", transitionToFulltime);
-        },
-      });
-    },
-  );
-
-  const {
-    currentStep,
-    currentTeam,
-    selectedPlayer,
-    selectedAction,
-    fieldAnchor,
-    availableActions,
-    availableOutcomes,
-    positionMode,
-    setPositionMode,
-    handlePlayerClick,
-    handleZoneSelect,
-    handleQuickActionSelect,
-    handleOpenMoreActions,
-    handleDestinationClick,
-    handleActionClick,
-    handleOutcomeClick,
-    handleRecipientClick,
-    resetFlow,
-    currentStepRef,
-  } = useActionFlow({
-    match,
-    globalClock,
-    operatorPeriod,
-    selectedTeam,
-    isSubmitting,
-    cardYellowCounts,
-    expelledPlayerIds,
-    recentEvents: [...liveEvents, ...queuedEvents],
-    onIneffectiveTrigger: (payload) => {
-      const note = payload.note
-        ? payload.note
-        : payload.actionType === "Foul"
-          ? t("ineffectiveNoteFoul", "Foul")
-          : payload.actionType === "OutOfBounds"
-            ? t("ineffectiveNoteOut", "Out of bounds")
-            : payload.actionType === "Offside"
-              ? t("ineffectiveNoteOffside", "Offside")
-              : t("ineffectiveNoteCard", "Card issued");
-      beginIneffective(note, {
-        teamId: payload.teamId,
-        playerId: payload.playerId,
-        actionType: payload.actionType,
-      });
-    },
-    sendEvent,
-  });
-
-  useCockpitExpelledPlayerEffect({
-    selectedPlayer,
-    expelledPlayerIds,
-    resetFlow,
-    setToast,
-    t,
-  });
-
-  const {
-    currentStatusNormalized,
-    transitionError,
-    guardTransition,
-    cockpitLocked,
-    lockReason,
     transitionDisabled,
     transitionReason,
-  } = useCockpitTransitionState({
-    statusOverride,
-    currentPhase,
-    globalTimeSeconds,
-    match,
-    isAdmin,
-    t,
-  });
-
-  const {
-    handleCardSelection,
-    cancelCardSelection,
-    handlePlayerSelection,
-    handleFieldPlayerSelection,
-    handleFieldDestination,
-    handleQuickSubstitution,
-    handleActionClickOverride,
-    handleOutcomeSelect,
-    handleRecipientSelect,
-    eligibleRecipients,
-  } = useCockpitInteractionHandlers({
-    t,
-    match,
-    cockpitLocked,
-    selectedTeam,
-    setSelectedTeam,
-    pendingCardType,
-    pendingCardTypeRef,
-    setPendingCardType,
-    resetFlow,
-    operatorPeriod,
-    globalClock,
-    sendEvent,
-    expelledPlayerIds,
-    isVarActive,
-    currentStep,
-    selectedPlayer,
-    currentTeam,
-    onFieldIds,
-    setSubstitutionTeam,
-    setShowSubstitutionFlow,
-    setPriorityPlayerId,
-    handlePlayerClick,
-    handleDestinationClick,
-    handleActionClick,
-    handleOutcomeClick,
-    handleRecipientClick,
-    beginIneffective,
-    showToast: (message) => {
-      showTimedToast(message);
-    },
-  });
-
-  const {
-    modalTeam: substitutionModalTeam,
-    availablePlayers: substitutionAvailablePlayers,
-    onField: substitutionOnField,
-    onSubmit: handleSubstitutionSubmitBase,
-    onCancel: handleSubstitutionCancel,
-  } = useCockpitSubstitutionFlow({
-    match,
-    substitutionTeam,
-    onFieldIds,
-    cockpitLocked,
-    expelledPlayerIds,
-    globalClock,
-    operatorPeriod,
-    applyOnFieldChange,
-    sendEvent,
-    setShowSubstitutionFlow,
-    showTimedToast,
-    t,
-  });
-
-  // Wrap substitution submit to also update tactical field positions
-  const handleSubstitutionSubmit = useCallback(
-    (playerOffId: string, playerOnId: string, isConcussion: boolean) => {
-      handleSubstitutionSubmitBase(playerOffId, playerOnId, isConcussion);
-      applyTacticalSubstitution(playerOffId, playerOnId);
-    },
-    [handleSubstitutionSubmitBase, applyTacticalSubstitution],
-  );
-
-  const { buffer } = useCockpitKeyboardHandlers({
-    isSubmitting,
-    cockpitLocked,
-    currentStep,
-    match,
-    currentTeam,
-    selectedTeam,
-    eligibleRecipients,
-    availableOutcomes,
-    isBallInPlay,
-    setIsBallInPlay,
-    setSelectedTeam,
-    setPriorityPlayerId,
-    handlePlayerClick,
-    handleRecipientClick,
-    handleOutcomeClick,
-    handleQuickActionSelect,
-    handleActionClick,
-    resetFlow,
-    handleGlobalClockStart,
-    handleGlobalClockStop,
-  });
-
-  useCockpitLifecycleEffects({
-    matchId,
-    lastTimelineRefreshRequest,
-    setCurrentMatch,
-    hydrateEvents,
+    duplicateStats,
+    lastDuplicateSummaryDetails,
+    lastDuplicateSummaryDefault,
+    lastDuplicateTeamName,
+    lastDuplicateSeenAt,
     resetDuplicateStats,
-    setManualFieldFlip,
-    match,
-    statusOverride,
-    resetOperatorControls,
-    cockpitLocked,
-    resetFlow,
-  });
-
-  // Re-fetch match document when another tab changes match state (clock, status, period)
-  useEffect(() => {
-    if (!lastMatchRefreshRequest) return;
-    fetchMatch();
-  }, [lastMatchRefreshRequest, fetchMatch]);
-
-  const {
+    duplicateHighlight,
+    duplicateDetailsDefault,
+    duplicateSessionDetailsSuffix,
+    duplicateSessionSummaryDefault,
+    duplicateExistingEventDefault,
+    clearDuplicateHighlight,
+    dismissToast,
+    effectiveClock,
+    ineffectiveClock,
+    varTimeClock,
+    timeoutTimeClock,
+    effectiveTime,
+    varTimeSeconds,
+    timeoutTimeSeconds,
+    ineffectiveBreakdown,
+    isVarActive,
+    isTimeoutActive,
+    liveEvents,
+    queuedEvents,
+    buffer,
     handleGlobalClockStartGuarded,
     handleGlobalClockStopGuarded,
     handleModeSwitchGuarded,
     handleVarToggle,
     handleTimeoutToggle,
+    handleRefereeAction,
     showFieldResume,
-  } = useCockpitClockHandlers({
-    cockpitLocked,
-    clockMode,
-    currentPhase,
-    isVarActiveLocal,
-    isTimeoutActive,
-    varTimeSeconds,
-    globalClock,
-    isGlobalClockRunning,
-    beginIneffective,
-    endIneffectiveIfNeeded,
-    setIsBallInPlay,
-    handleGlobalClockStart,
-    handleGlobalClockStop,
-    handleGlobalClockStartVarSync,
-    handleGlobalClockStopVarSync,
-    handleVarToggleBase,
-    logNeutralTimerEvent,
-  });
-
-  const handleRefereeAction = useCallback(
-    (actionId: string) => {
-      const actionLabels: Record<string, string> = {
-        interference: t(
-          "refereeActionInterference",
-          "Ball hits referee / interference",
-        ),
-        discussion: t(
-          "refereeActionDiscussion",
-          "Referee discussion / explanation",
-        ),
-        injury: t("refereeActionInjury", "Referee injury"),
-        equipment: t(
-          "refereeActionEquipment",
-          "Equipment / communication issue",
-        ),
-      };
-      const note =
-        actionLabels[actionId] || t("ineffectiveReasonOther", "Other");
-      beginIneffective(note, {
-        teamId: "NEUTRAL",
-        playerId: null,
-        actionType: "Other",
-        isNeutral: true,
-      });
-    },
-    [beginIneffective, t],
-  );
-
-  useCockpitE2EPlayersSeed({
-    enabled: IS_E2E_TEST_MODE,
-    match,
-  });
-
-  const { goalEvents, liveScore, formatGoalLabel } = useLiveScore(
-    match,
-    liveEvents,
-  );
-
-  useCockpitAutoEffects({
-    t,
-    liveEvents,
-    duplicateHighlight,
-    clearDuplicateHighlight,
-    beginIneffective,
-  });
-
-  const { sendHarnessPassEvent, sendHarnessRawEvent } = useCockpitHarnessEvents(
-    {
-      match,
-      operatorClock,
-      operatorPeriod,
-      sendEvent,
-    },
-  );
-
-  const {
-    undoError,
-    undoDisabled,
+    isBallInPlay,
+    hasActiveIneffective,
+    switchIneffectiveTeam,
+    currentStep,
+    selectedPlayer,
+    selectedAction,
+    pendingCardType,
+    fieldAnchor,
+    onFieldIds,
+    selectedTeam,
+    expelledPlayerIds,
+    cardDisciplinaryStatus,
+    setSelectedTeam,
+    handlePlayerSelection,
+    handleFieldPlayerSelection,
+    handleFieldDestination,
+    handleZoneSelect,
+    handleQuickActionSelect,
+    handleOpenMoreActions,
+    resetFlow,
+    handleQuickSubstitution,
+    handleCardSelection,
+    cancelCardSelection,
+    availableActions,
+    handleActionClickOverride,
+    availableOutcomes,
+    handleOutcomeSelect,
+    currentTeam,
+    eligibleRecipients,
+    handleRecipientSelect,
     handleUndoLastEvent,
+    undoDisabled,
+    undoCount,
+    manualFieldFlip,
+    setManualFieldFlip,
+    priorityPlayerId,
     handleDeletePendingEvent,
     handleDeleteLoggedEvent,
     handleUpdateEventNotes,
     handleUpdateEventData,
-  } = useCockpitEventHandlers({
-    t,
-    isAdmin,
-    isConnected,
-    cockpitLocked,
-    lockReason,
-    pendingAcks,
-    undoStack,
-    liveEvents,
-    queuedEvents,
-    removeLiveEventByClientId,
-    removeQueuedEvent,
-    removeUndoCandidate,
-    undoEvent,
-    removeQueuedEventByClientId,
-    rejectPendingAck,
-    removeLiveEventById,
-    hydrateEvents,
-    updateEventNotes,
-    upsertLiveEvent,
-    showToast: (message) => {
-      showTimedToast(message);
-    },
-  });
-
-  useCockpitHarness({
-    enabled: IS_E2E_TEST_MODE,
-    match,
-    resetFlow,
-    setSelectedTeam,
-    currentStepRef,
-    sendPassEvent: sendHarnessPassEvent,
-    sendRawEvent: sendHarnessRawEvent,
-    undoLastEvent: handleUndoLastEvent,
-    computedDriftSeconds,
-    forcedDriftSeconds,
-    driftSeconds,
-    showDriftNudge,
-  });
-
-  const {
-    lastDuplicateTeamName,
-    lastDuplicateSeenAt,
-    lastDuplicateSummaryDetails,
-    lastDuplicateSummaryDefault,
-    duplicateSessionDetailsSuffix,
-    duplicateSessionSummaryDefault,
-    duplicateDetailsDefault,
-    duplicateExistingEventDefault,
-  } = useDuplicateTelemetry(match, duplicateStats, duplicateHighlight);
-
-  const {
-    showResetModal,
-    setShowResetModal,
-    resetConfirmText,
-    setResetConfirmText,
-    isFulltime,
-    resetBlocked,
-    resetDisabledReason,
-    resetTooltip,
-    openResetModal,
-    confirmGlobalReset,
-  } = useResetMatch({
-    matchId,
-    isAdmin,
-    match,
-    queuedCount,
-    pendingAckCount,
-    t,
-    setMatch,
-    hydrateEvents,
-    resetVarState,
-    resetOperatorControls,
-    setLiveEvents,
-    clearQueuedEvents,
-    clearPendingAcks,
-    clearUndoStack,
-    resetDuplicateStats,
-    clearDuplicateHighlight,
-  });
+    getDisplayPosition,
+    handleTacticalPlayerDragEnd,
+    draggingPlayerId,
+    setDraggingPlayerId,
+    allTacticalPositions,
+    homeFormation,
+    awayFormation,
+    applyFormation,
+    dragLocked,
+    onToggleDragLock,
+    positionMode,
+    setPositionMode,
+    showSubstitutionFlow,
+    substitutionModalTeam,
+    substitutionAvailablePlayers,
+    substitutionOnField,
+    handleSubstitutionSubmit,
+    handleSubstitutionCancel,
+  } = useCockpit();
 
   if (!isLoggerReady) {
     return (
@@ -753,9 +209,6 @@ export default function LoggerCockpit() {
       </div>
     );
   }
-
-  const manualHomeTeamLabel = match?.home_team.name || t("homeTeam", "Home");
-  const manualAwayTeamLabel = match?.away_team.name || t("awayTeam", "Away");
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
@@ -924,6 +377,7 @@ export default function LoggerCockpit() {
                   match={match}
                   liveEvents={liveEvents}
                   queuedEvents={queuedEvents}
+                  onFieldIds={onFieldIds}
                   effectiveClock={effectiveClock}
                   globalClock={globalClock}
                   ineffectiveClock={ineffectiveClock}
@@ -1053,7 +507,7 @@ export default function LoggerCockpit() {
                 handleRecipientSelect={handleRecipientSelect}
                 handleUndoLastEvent={handleUndoLastEvent}
                 undoDisabled={undoDisabled}
-                undoCount={undoStack.length}
+                undoCount={undoCount}
                 manualFieldFlip={manualFieldFlip}
                 setManualFieldFlip={setManualFieldFlip}
                 priorityPlayerId={priorityPlayerId}
@@ -1069,14 +523,15 @@ export default function LoggerCockpit() {
                 draggingPlayerId={draggingPlayerId}
                 onTacticalDragStart={setDraggingPlayerId}
                 onTacticalDragStop={() => setDraggingPlayerId(null)}
-                allTacticalPositions={tacticalPositions}
+                allTacticalPositions={allTacticalPositions}
                 homeFormation={homeFormation}
                 awayFormation={awayFormation}
                 applyFormation={applyFormation}
                 viewMode={viewMode}
                 setViewMode={setViewMode}
                 dragLocked={dragLocked}
-                onToggleDragLock={() => setDragLocked((prev) => !prev)}
+                onToggleDragLock={onToggleDragLock}
+                isMatchLive={isMatchLive}
                 positionMode={positionMode}
                 onPositionModeChange={setPositionMode}
                 t={t}

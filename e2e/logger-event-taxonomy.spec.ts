@@ -93,7 +93,9 @@ const getHarnessCurrentStep = async (page: Page): Promise<string | null> => {
 const logShotGoal = async (page: Page) => {
   await selectHomePlayer(page).click();
   await selectZoneIfVisible(page);
-  await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
+  // "Shot" was removed from quick actions; use More Actions → Shot flow
+  await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+  await page.getByTestId("action-btn-Shot").click({ timeout: 8000 });
   // Shot goes to selectDestination; click the Goal overlay button
   await page.getByTestId("field-goal-btn").click({ timeout: 8000 });
   await waitForPendingAckToClear(page);
@@ -316,7 +318,7 @@ test.describe("Logger event taxonomy", () => {
     await expect(latestEvent).toContainText("Direct");
   });
 
-  test("quick Shot uses outcome selection and dispatches chosen outcome", async ({
+  test("Shot via More Actions uses field destination and dispatches chosen outcome", async ({
     page,
   }) => {
     await gotoLoggerPage(page, TAXONOMY_MATCH_ID);
@@ -329,7 +331,9 @@ test.describe("Logger event taxonomy", () => {
 
     await selectHomePlayer(page).click();
     await selectZoneIfVisible(page);
-    await page.getByTestId("quick-action-Shot").click({ timeout: 8000 });
+    // "Shot" is only available through More Actions now
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Shot").click({ timeout: 8000 });
 
     // Step must be selectDestination — Shot uses field-based destination flow
     const afterShotStep = await getHarnessCurrentStep(page);

@@ -18,13 +18,364 @@
 - [x] Fix clock phantom time accumulation on stop/start in INEFFECTIVE mode
 - [x] Attribute Corner to opponent team and deduplicate analytics team-time rows
 - [x] Allow match deletion for Pending/Completed and localize delete guard (EN/ES)
+- [x] Block selecting as substitute any player already selected as starter
+- [x] Keep teams on their own half pre-match and prevent cross-half dragging
+- [x] Fix analytics times lost after INEFFECTIVE-mode period transitions
+- [x] Add Goal Kick as quick action (replacing out zones behind goals)
+- [x] Fix End Match and validate all period control buttons
+- [x] Refactor Quick Actions: remove Shot sub-menu, rename Shot Out, group shot actions
+- [x] Fix touch event registration failure on pitch UI (player tap → zone/quick actions)
+- [x] Shift-left DevSecOps: add SAST + dependency audit to pre-commit pipelines
+- [x] Fix backend UTC serialization: eliminate timezone-naive datetimes at source
+- [x] E2E flaky-test isolation: per-file unique match IDs
+- [x] LoggerCockpit context provider extraction (reduce monolith)
+- [x] Fix tactical drag constraint blocking live "Auto" mode logging
+- [x] Analytics restoration: Live Match Context banner, on-field avg age, global totals
+- [x] Unrestricted tactical dragging during live matches (bounds overlay hidden)
+- [x] E2E coverage expansion: +31 new tests across 7 spec files (P0–P3 gaps)
 
 ## Status
 
-- Phase: Validate
+- Phase: Handoff
 - Overall: On track
 
 ## What Was Completed (Latest Session)
+
+### Analytics Restoration & Live Match Context Banner
+
+Separated dynamic live metrics from the static comparison table into a dedicated banner widget at the top of AnalyticsView, improving UX clarity.
+
+1. **Live Match Context banner** — [LiveMatchContextBanner.tsx](src/pages/logger/components/molecules/LiveMatchContextBanner.tsx) (new)
+
+   - Dedicated widget rendering: Global Effective Time, Global Ineffective Time, On-Field Average Age (home/away).
+   - Average age dynamically recomputes from `onFieldIds` (via `useOnFieldRoster`), so substitutions immediately update the metric.
+   - Test IDs: `live-match-context`, `stat-total-effective-time`, `stat-total-ineffective-time`, `stat-on-field-age-home`, `stat-on-field-age-away`.
+
+2. **Removed static average age from comparison table** — [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx)
+
+   - Removed `stat-average-age` row from `comparativeRows` and cleaned up unused `calculateAverageAge`, `parseBirthDate`, `ageInYears` functions.
+
+3. **Wired on-field data to AnalyticsView** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx), [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx)
+
+   - Added `onFieldIds` prop from CockpitContext → LoggerCockpit → AnalyticsView → LiveMatchContextBanner.
+   - AnalyticsView computes `onFieldHomePlayers` / `onFieldAwayPlayers` from `onFieldIds`.
+
+4. **Locale keys** — EN/ES translations for `liveMatchContext`, `onFieldAvgAge`.
+
+### Unrestricted Tactical Dragging (Live Mode)
+
+5. **Hidden bounds overlay during live play** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
+   - Bounds overlay (`drag-bounds-overlay`) now only renders when `!isMatchLive`, since `LIVE_HOME_BOUNDS` grants 0-100 on all axes and the overlay is meaningless.
+   - Pre-match bounds overlay remains for visual feedback during pre-match positioning.
+
+### E2E Tests Updated
+
+- **ANL-24**: Validates average age in `live-match-context` banner (not comparison table); asserts `stat-average-age` absent from main table.
+- **QA-2**: Extended to verify `stat-total-effective-time` and `stat-total-ineffective-time` in banner.
+- **New: "drag bounds overlay appears during pre-match drag"**: Seeded with `Pending` status.
+- **New: "live match: no bounds overlay during drag (unrestricted)"**: Confirms overlay is hidden during live play.
+
+### Session Verification
+
+- `tsc --noEmit`: **0 errors**
+- `npx playwright test --workers=1`: **283 passed**, 0 failed (10.0 min)
+
+### E2E Coverage Expansion (+31 Tests)
+
+Comprehensive gap audit identified ~50 missing test scenarios across all 67 spec files. Implemented 31 new tests (P0–P3 priority) across 7 spec files.
+
+#### New Spec Files
+
+1. **[logger-banner-context.spec.ts](e2e/logger-banner-context.spec.ts)** — 8 BNR tests
+
+   - BNR-1: Banner visible in analytics with all stat cells
+   - BNR-2: Effective time displays formatted MM:SS clock
+   - BNR-3: Ineffective time increments after referee stoppage (uses UI referee bar)
+   - BNR-4: On-field average age shows numeric values for both teams
+   - BNR-5: Banner values update live (effective time ticks)
+   - BNR-6: Banner accessible via direct `?view=analytics` URL
+   - BNR-7: Banner stats isolated from comparison table (no leakage)
+   - BNR-8: Average age recalculates after substitution
+
+2. **[mobile-viewport.spec.ts](e2e/mobile-viewport.spec.ts)** — 4 MOB tests
+   - MOB-1: Tactical field renders at 375×812
+   - MOB-2: Analytics panel accessible on mobile
+   - MOB-3: Live event feed scrollable on mobile
+   - MOB-4: Connection status indicator visible on mobile
+
+#### Tests Added to Existing Files
+
+3. **[logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts)** — +6 tests
+
+   - ANL-29: Saved shot counts as on-target
+   - ANL-30: Penalty miss counts as shot but not goal
+   - ANL-31: Multi-period event accumulation persists across halves
+   - ANL-32: Interleaved home/away events maintain bilateral totals
+   - ANL-33: Empty state shows zeroes (no NaN/undefined)
+   - ANL-34: Free kick set pieces count correctly
+
+4. **[logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)** — +4 tests
+
+   - Drag lock prevents repositioning
+   - Away GK bounds (x ≥ 79%)
+   - Vertical bounds (y stays 0–100)
+   - Double substitution in sequence preserves positions
+
+5. **[qa-fixes-v2.spec.ts](e2e/qa-fixes-v2.spec.ts)** — +3 tests
+
+   - QA-5: Drag lock ON prevents any position change
+   - QA-6: Banner effective time is non-zero after clock runs
+   - QA-7: Per-team time values display clock format
+
+6. **[duplicate-events.spec.ts](e2e/duplicate-events.spec.ts)** — +3 tests
+
+   - DUP-2: Different players not flagged as duplicates
+   - DUP-3: Re-submitting identical event pair surfaces dedup
+   - DUP-4: Card dedup detection via poll pattern
+
+7. **[multi-tab-sync.spec.ts](e2e/multi-tab-sync.spec.ts)** — +3 tests
+   - MTS-6: Undo syncs across tabs
+   - MTS-7: Match status change reflects in both tabs
+   - MTS-8: Multiple sequential events sync (varied player pairs to avoid dedup)
+
+#### Session Verification
+
+- `tsc --noEmit`: **0 errors**
+- `npx vitest run`: **123 unit tests passed**
+- `npx playwright test --workers=1` (new + modified files): **86 passed**, 0 failed
+- `npx playwright test --workers=4 --retries=2`: **314 passed**, 0 failed
+- Total E2E tests: **314** (283 original + 31 new)
+
+### Field Destination Overlay UX (Non-Blocking Controls)
+
+During the `selectDestination` step for Shot/Pass, the overlay controls were centered on top of the tactical field and could block player taps/drags in crowded midfield areas.
+
+1. **Moved field action controls away from player lanes** — [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx)
+
+   - Repositioned the `field-cancel-btn` (and `field-goal-btn` for Shot flow) from centered overlay (`absolute inset-0 ... justify-center`) to bottom-anchored placement (`absolute inset-x-0 bottom-2`).
+   - Kept controls visible and reachable while preserving unobstructed player interaction in the central pitch area.
+   - Maintained test IDs, flow logic, and action handlers (`resetFlow`, `handleOutcomeSelect`) with no behavioral regression.
+
+2. **Session verification (post-change)**
+   - `pre-commit run --all-files`: **Passed** (all hooks)
+   - `npx playwright test --workers=1`: **282 passed**, 0 failed (9.7 min)
+
+### Fix Tactical Drag Constraint — Live "Auto" Mode
+
+The pre-match midfield clamp (`HOME_BOUNDS.xMax = 49` for non-GK) was unconditionally applied during drags, preventing players from crossing into the opponent's half even during live gameplay.
+
+1. **State-aware bounds** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
+
+   - Added `LIVE_HOME_BOUNDS` constant (all groups get `{xMin:0, xMax:100, yMin:0, yMax:100}`).
+   - `getBoundsForPlayer` gains an optional 3rd param `isMatchLive = false` — selects `LIVE_HOME_BOUNDS` vs `HOME_BOUNDS`.
+   - `movePlayer` callback passes `isMatchLive` into `getBoundsForPlayer`.
+   - Initial layout (`resolveDefaultPositions`, `resolveFormationPositions`) keeps tight pre-match bounds — correct since initial positioning is always pre-match.
+
+2. **Match-state derivation** — [CockpitContext.tsx](src/pages/logger/context/CockpitContext.tsx)
+
+   - Computed `isMatchLive = !!match?.status && !["Pending", "Scheduled"].includes(match.status)`.
+   - Passed to `useTacticalPositions` hook and exposed on context for descendants.
+
+3. **Prop threading** — `CockpitContext` → `LoggerCockpit` → `LoggerView` → `ActionStage` → `PlayerSelectorPanel` → `TacticalField`
+
+   - [LoggerCockpit.tsx](src/pages/LoggerCockpit.tsx): destructures `isMatchLive` from `useCockpit()`, passes to `LoggerView`
+   - [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx): added `isMatchLive` to props, forwards to `ActionStage`
+   - [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx): forwards to `PlayerSelectorPanel`
+   - [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx): forwards to `TacticalField`
+   - [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx): passes to `getBoundsForPlayer` for the drag bounds overlay
+
+4. **E2E tests updated** — [logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)
+   - **pre-match: GK bounds** — seeds match with `Pending` status, verifies GK clamped to x≤20
+   - **pre-match: players cannot cross midfield** — seeds with `Pending`, verifies HOME clamped to x≤49.5 and AWAY clamped to x≥50.5
+   - **live match: players CAN cross midfield** — calls `ensureClockRunning`, verifies HOME crosses past x>50 and AWAY crosses past x<50
+   - Uses HOME-4/AWAY-4 (y≈50, center) for drag reliability in headless Chromium
+
+### Tests Implemented/Updated (Mandatory)
+
+- [x] E2E: **282 passed**, 0 failed (Playwright, single-worker, 9.1 min)
+- [x] Unit: **123 passed**, 0 failed (Vitest)
+- [x] TypeScript: **0 errors** (`tsc --noEmit`)
+
+### Implementation Notes
+
+- `isMatchLive` is `true` for ALL non-Pending/Scheduled statuses (including Halftime, Fulltime, Completed) — allows repositioning at halftime or for post-match review.
+- The E2E `/e2e/reset` endpoint seeds `Live_First_Half` by default; pre-match tests explicitly re-seed with `status: "Pending"` to ensure `isMatchLive=false`.
+- Players at y≈86% (e.g. HOME-11) are unreliable for pointer-driven drag tests in headless Chromium due to clipping/overlap — using mid-field players (HOME-4/AWAY-4 at y≈50) resolves this.
+
+### Previous Session
+
+### DevSecOps: Pre-Commit Security Hardening
+
+1. **Backend SAST — Bandit** — [.pre-commit-config.yaml](../.pre-commit-config.yaml)
+
+   - Added `bandit` (v1.8.3) with `[toml]` extra for pyproject.toml config.
+   - Config: excludes `tests/`, `venv/`, `scripts/`; skips B101 (assert).
+   - 8 findings triaged: 4× B110 (intentional try/except/pass for best-effort WS broadcasts), 3× B105 ("Pass" is a soccer event type), 1× B104 (0.0.0.0 bind for Docker) — all annotated with `# nosec`.
+   - **Result: 0 issues, 0 skipped files.**
+
+2. **Backend dependency audit — pip-audit** — [.pre-commit-config.yaml](../.pre-commit-config.yaml), [requirements-dev.txt](../ProMatchAnalytics-Backend/requirements-dev.txt)
+
+   - Added `pip-audit` (v2.9.0) as local pre-commit hook with `--strict --desc=on`.
+   - Fixed 8 CVEs by upgrading: FastAPI 0.109.0→0.135.1, starlette 0.35.1→0.52.1, urllib3 2.5.0→2.6.3, black 25.9.0→26.3.1, cryptography→46.0.5, protobuf→6.33.6, pyasn1→0.6.3, pyjwt→2.12.1, virtualenv→21.2.0.
+   - **Result: 0 known vulnerabilities.**
+
+3. **Frontend dependency audit — npm audit** — [.pre-commit-config.yaml](.pre-commit-config.yaml)
+   - Added `npm audit --omit=dev --audit-level=critical` as local pre-commit hook.
+   - Fixed critical `jspdf` (5 CVEs), high `axios` (DoS), high `react-router-dom` (XSS) via `npm audit fix`.
+   - Remaining: 1 high `undici` (transitive via Firebase SDK, browser-only usage not affected).
+   - **Result: 0 critical vulnerabilities in production deps.**
+
+### Backend UTC Serialization Fix
+
+1. **Fixed timezone-naive `datetime.utcnow` in Team model** — [team.py](../ProMatchAnalytics-Backend/app/models/team.py)
+
+   - Replaced deprecated `default_factory=datetime.utcnow` with `default_factory=lambda: datetime.now(timezone.utc)` for `created_at` and `updated_at` fields.
+   - All other models (user.py, ingestion/\*.py) already used the correct pattern.
+
+2. **Hardened `_serialize_value` for WS broadcast** — [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py)
+
+   - Added defensive UTC fallback: if a naive datetime reaches the serializer, it now gets `replace(tzinfo=timezone.utc)` before `.isoformat()` — ensures WS broadcasts always emit timezone-qualified ISO strings.
+
+3. **Fixed seed script naive datetimes** — [seed_full_match.py](../ProMatchAnalytics-Backend/seed_full_match.py)
+
+   - All `datetime.now()` calls replaced with `datetime.now(timezone.utc)`.
+
+4. **Frontend `parseTimestampAsUtcMs` retained as defensive layer** — [utils.ts](src/pages/logger/utils.ts)
+   - The helper stays as a safety net for any edge case where a naive timestamp arrives from the server. Now that the backend enforces UTC at source, it should be a no-op path.
+
+### Dependency Upgrades Summary
+
+| Package          | Old     | New     | CVEs Fixed                |
+| ---------------- | ------- | ------- | ------------------------- |
+| FastAPI          | 0.109.0 | 0.135.1 | starlette DoS             |
+| starlette        | 0.35.1  | 0.52.1  | GHSA-2c2j-9gv5-cj73       |
+| urllib3          | 2.5.0   | 2.6.3   | 3 decompression bomb CVEs |
+| black            | 25.9.0  | 26.3.1  | GHSA-3936-cmfr-pm3m       |
+| cryptography     | 46.0.3  | 46.0.5  | GHSA-r6ph-v2qm-q3c2       |
+| protobuf         | 6.33.0  | 6.33.6  | GHSA-7gcm-g887-7qv7       |
+| pyasn1           | 0.6.1   | 0.6.3   | 2 CVEs                    |
+| pyjwt            | 2.10.1  | 2.12.1  | GHSA-752w-5fwx-jx9f       |
+| jspdf            | 4.1.0   | patched | 5 critical CVEs           |
+| axios            | vuln    | patched | DoS via **proto**         |
+| react-router-dom | vuln    | patched | XSS via open redirects    |
+
+### Tests Updated (Mandatory)
+
+- Bandit SAST: **0 issues** (8 nosec annotations on false positives)
+- pip-audit: **0 known vulnerabilities** (8 packages upgraded)
+- npm audit (production): **0 critical** vulnerabilities
+- Backend pytest: **125 passed**, 0 failed (validates FastAPI 0.135.1 upgrade)
+- Frontend vitest: **123 passed**, 0 failed
+- Frontend tsc: **0 errors**
+- Frontend E2E: **281 passed**, 0 failed (single-worker mode, 9.5m)
+
+### Previous Session
+
+### Quick Actions: Consolidate Shot Logic & Rename Shot Out
+
+1. **Removed "Shot" (Disparo) from Quick Actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - The "Disparo" button opened a redundant sub-menu (destination → outcome) when "Goal" and "DirectShot" already covered those paths as one-tap actions.
+   - "Shot" remains available via "More Actions" for advanced users who need the full destination-based flow.
+
+2. **Renamed "Shot Out" → "Off-target Shot" / "Disparo Fuera"** — [en/logger.json](public/locales/en/logger.json), [es/logger.json](public/locales/es/logger.json)
+
+   - Clarifies this is a shot that missed the target, not a goal kick restart.
+   - EN: `actionShot Out` → "Off-target Shot", ES: `actionShot Out` → "Disparo Fuera".
+   - Also renamed `actionDirectShot`: EN "Direct Shot" → "Shot on Target", ES "Disparo al arco" → "Disparo al Arco".
+
+3. **Regrouped Quick Actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - New order: Pass, Header, **DirectShot (Shot on Target)**, **Shot Out (Off-target Shot)**, **Goal**, Foul, Offside, Free Kick, Corner, Throw-in, Goal Kick.
+   - Shot-related actions are now adjacent in the grid for fast logging.
+
+4. **"Saque de Meta" (Goal Kick) confirmed independent** — no programmatic tie to Shot Out.
+
+### Tests Updated (Mandatory)
+
+- E2E: `logger-event-taxonomy.spec.ts` → Updated `logShotGoal` helper and "Shot via More Actions" test → PASS (13/13)
+- E2E: `logger-ultimate-cockpit.spec.ts` → ULT-01 checks `Shot Out` instead of `Shot`; ULT-02 uses More Actions for Shot → PASS (4/4)
+- E2E: `logger-zone-selector.spec.ts` → Shot Out test unchanged (action ID same) → PASS (19/19)
+- Unit: `useActionFlow.test.ts` → All 15 tests pass (handler still supports "Shot" internally)
+- Full suite: **280 passed**, 0 failed (single-worker mode, 9.3m)
+
+### Previous Session
+
+### Analytics Times Preserved Across INEFFECTIVE-Mode Transitions
+
+1. **Backend: clock_mode-aware stop logic** — [matches_new.py](../ProMatchAnalytics-Backend/app/routers/matches_new.py)
+
+   - **Root cause**: When the backend stopped the clock (period transition) while `clock_mode === "INEFFECTIVE"`, it naively added the elapsed time to `match_time_seconds`, corrupting the effective time by mixing in ineffective elapsed.
+   - **Fix**: Added `clock_mode` check in the `should_stop` branch. When `clock_mode == "INEFFECTIVE"`, `match_time_seconds` is frozen at its current value and the elapsed delta is routed to `ineffective_time_seconds` instead.
+
+2. **Frontend: `performTransition` sends current effective time** — [usePeriodManager.ts](src/pages/logger/hooks/usePeriodManager.ts)
+
+   - **Root cause**: `performTransition` called `updateMatchStatus(matchId, targetStatus)` without providing the known effective time. The backend fell back to `accumulated + elapsed`, which is wrong in INEFFECTIVE mode.
+   - **Fix**: Now sends `Math.round(effectiveTime)` as the fourth argument so the backend always has a trustworthy `match_time_seconds` value.
+
+3. **Frontend: live ineffective seconds derivation** — [AnalyticsView.tsx](src/pages/logger/components/organisms/AnalyticsView.tsx)
+   - **Root cause**: Passed stale `match.ineffective_time_seconds` (server snapshot) to `MatchAnalytics` instead of the live running value.
+   - **Fix**: Computes `liveIneffectiveSeconds = parseGlobalSeconds(globalClock) - effectiveTime - timeoutTimeSeconds` using the inverse of the global formula.
+
+### Goal Kick Quick Action
+
+1. **Added Goal Kick to quick actions** — [constants.ts](src/pages/logger/constants.ts)
+
+   - Added `"Goal Kick"` to the `QUICK_ACTIONS` array between "Throw-in" and "Shot Out".
+   - Keyboard shortcut `g/G → "Goal Kick"` and locale keys `actionGoal Kick` already existed.
+
+2. **Added Goal Kick handler** — [useActionFlow.ts](src/pages/logger/hooks/useActionFlow.ts)
+   - Dispatches a SetPiece "Complete" event and triggers `OutOfBounds` ineffective time attributed to the opponent team (same pattern as Throw-in and Corner).
+
+### Period Control Buttons Validated
+
+- All period control transitions verified working end-to-end through E2E tests: 1H → HT → 2H → Fulltime → Completed, and the extra time path ET1 → ET-HT → ET2 → Penalties → Completed.
+
+### Previous Session
+
+1. **Updated pass destination field hint copy** — [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx)
+
+   - Pass destination hint now explicitly instructs: teammate/opponent or out of bounds.
+
+2. **Added missing logger locale keys used by pass destination validation toast** — [logger.json](public/locales/en/logger.json), [logger.json](public/locales/es/logger.json)
+
+   - Added `passFieldHint` and `passRequiresTargetOrOut` in EN/ES so UI hint and toast both resolve through translations instead of fallback literals.
+
+### Pre-Match Tactical Side Guardrails + Flip Stability
+
+1. **Pre-match tactical defaults now keep teams grouped by half** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
+
+   - **Root cause**: Initial tactical defaults were not clamped to side bounds, and away players in advanced roles could appear across the center line.
+   - **Fix**: Default position placement now clamps every player to side-aware bounds during initialization. Added canonical position mapping for full labels (e.g., `Extremo Derecho`) so default lanes are interpreted correctly.
+
+2. **Blocked dragging players into the opposite half** — [useTacticalPositions.ts](src/pages/logger/hooks/useTacticalPositions.ts)
+
+   - Tightened team bounds to keep home on one half and away on the opposite half.
+   - Dragging now clamps within those bounds, preventing red/blue players from crossing the center line.
+
+3. **Flip behavior preserves lane semantics and restores correctly** — [logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts)
+   - Added focused E2E verifying flip mirrors only x and preserves y lane (wing side lane), then restores original coordinates after unflip.
+
+### Create-Match Lineup Guardrail (Starter vs Substitute)
+
+1. **Blocked right-side substitute selection for players already chosen as starters** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - **Root cause**: In lineup step 2/3, the substitutes column allowed selecting a player even when that player was already selected as starter.
+   - **Fix**: Substitutes checkbox now becomes disabled when the same player is present in lineup with `is_starter: true` (applied for both home and away).
+
+2. **Focused English E2E coverage for this issue** — [admin-matches-default-lineup-selection.spec.ts](e2e/admin-matches-default-lineup-selection.spec.ts)
+   - Added test: `disables substitute checkbox when the same player is selected as starter`.
+   - Verifies the behavior in home and away lineup steps.
+
+### Create-Match Lineup Defaults (No Prechecked Players)
+
+1. **Removed default preselected lineup checkboxes in match wizard** — [MatchesManager.tsx](src/pages/MatchesManager.tsx)
+
+   - **Root cause**: `handleTeamSelection()` auto-filled `home_lineup` / `away_lineup` from roster players marked as starter, which prechecked boxes as soon as step 2/3 opened.
+   - **Fix**: Stopped auto-populating lineups on team selection. Home/Away starter/substitute checkboxes now start unchecked, and admins explicitly choose the XI/bench.
+
+2. **E2E regression coverage for this use case** — [admin-matches-default-lineup-selection.spec.ts](e2e/admin-matches-default-lineup-selection.spec.ts)
+   - Verifies in English that create-match step 2 and step 3 open with zero checked checkboxes in starters and substitutes columns by default.
 
 ### Touch-Safe Zone Selector (Two-Tap Preview/Confirm)
 
@@ -257,6 +608,19 @@
 
 ## Tests Implemented/Updated (Mandatory)
 
+- [x] Full E2E suite: 280 passed (single-worker deterministic validation)
+- [x] Frontend pre-commit: all hooks passed (lint, typecheck, unit, markdown, secrets)
+- [x] E2E: `logger-fixes-validation.spec.ts` — 4 tests → PASS
+  - Analytics effective time not corrupted after INEFFECTIVE-mode transition
+  - Goal Kick quick action logs SetPiece + triggers OutOfBounds ineffective
+  - Full period walkthrough: 1H → HT → 2H → Fulltime → Completed
+  - Extra time path: ET1 → ET-HT → ET2 → Penalties → Completed
+- [x] E2E: `logger-period-transitions.spec.ts` — 9 tests → PASS (regression)
+- [x] E2E: `logger-zone-selector.spec.ts` — 19 tests → PASS (regression)
+- [x] E2E: `admin-matches-default-lineup-selection.spec.ts` -> PASS
+- [x] E2E: `admin-matches-lineup-order.spec.ts` -> PASS
+- [x] E2E: `admin-matches-default-lineup-selection.spec.ts` (2 tests including starter/substitute blocking) -> PASS
+- [x] E2E: `logger-field-flow.spec.ts` (3 focused tests for side grouping, cross-half drag block, flip lane stability) -> PASS
 - [x] E2E: Full suite — 94 passed, 1 transient (ANL-12, passes in isolation), 3 interrupted -> PASS
 - [x] E2E: `logger-touch-interactions.spec.ts` (3 tests: destination+undo, two-tap zone, zone switch) -> PASS
 - [x] E2E: `logger-zone-selector.spec.ts` (19 tests, mouse behavior unchanged) -> PASS

@@ -597,6 +597,23 @@ export const useActionFlow = ({
         }
         return;
       }
+      if (action === "Goal Kick") {
+        if (selectedPlayer && currentTeam) {
+          const sent = dispatchEvent(action, "Complete", null, {
+            location: selectedPlayerLocation ?? undefined,
+          });
+          if (sent) {
+            onIneffectiveTrigger?.({
+              note: "Goal kick",
+              teamId: resolveOpponentTeamId(currentTeam.id) || currentTeam.id,
+              playerId: selectedPlayer.id,
+              actionType: "OutOfBounds",
+            });
+            resetFlow();
+          }
+        }
+        return;
+      }
       setCurrentStep("selectDestination");
     },
     [
@@ -668,6 +685,22 @@ export const useActionFlow = ({
         ownGoalEdge !== null &&
         destination.outOfBoundsEdge === ownGoalEdge;
       const shouldAwardCorner = isBehindOwnGoalLine;
+
+      // Pass destination guard:
+      // - valid: teammate/opponent click OR out-of-bounds area
+      // - invalid: empty inbounds grass click
+      if (
+        selectedAction === "Pass" &&
+        !targetPlayer &&
+        !destination.isOutOfBounds
+      ) {
+        return {
+          sent: false,
+          outOfBounds: false,
+          isGoal: false,
+          blockedInteriorPassDestination: true,
+        };
+      }
 
       const awardedCornerTeamId =
         shouldAwardCorner && selectedPlayerSide === "home"

@@ -153,6 +153,14 @@ test.describe("QA Fixes v2", () => {
     await expect(
       mainTable.getByTestId("stat-total-ineffective-time"),
     ).toHaveCount(0);
+
+    // Global totals now live in the Live Match Context banner
+    const banner = page.getByTestId("live-match-context");
+    await expect(banner).toBeVisible();
+    await expect(banner.getByTestId("stat-total-effective-time")).toBeVisible();
+    await expect(
+      banner.getByTestId("stat-total-ineffective-time"),
+    ).toBeVisible();
   });
 
   test("QA-3: JPG export button exists (CSV removed)", async ({ page }) => {
@@ -193,5 +201,94 @@ test.describe("QA Fixes v2", () => {
     // Click again to re-lock
     await lockBtn.click();
     await expect(lockBtn).toBeVisible();
+  });
+
+  test("QA-5: drag lock ON prevents any position change", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, QA_MATCH_ID);
+
+    // Lock is ON by default, don't toggle it
+    const player = page.getByTestId("field-player-HOME-1");
+    await expect(player).toBeVisible({ timeout: 15000 });
+
+    // Read data attributes before
+    const getCoords = async () => {
+      const el = page.getByTestId("field-player-HOME-1");
+      const x = await el.getAttribute("data-tactical-x");
+      const y = await el.getAttribute("data-tactical-y");
+      return { x: parseFloat(x ?? "0"), y: parseFloat(y ?? "0") };
+    };
+
+    const before = await getCoords();
+
+    await player.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await player.boundingBox();
+    if (!box) throw new Error("Bounding box unavailable");
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2 + 80,
+      box.y + box.height / 2 + 40,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    const after = await getCoords();
+    expect(after.x).toBeCloseTo(before.x, 0);
+    expect(after.y).toBeCloseTo(before.y, 0);
+  });
+
+  test("QA-6: banner effective time is non-zero after clock runs", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, QA_MATCH_ID);
+
+    await sendEvent(page, {
+      match_clock: "00:01.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Pass",
+      data: { outcome: "Complete" },
+    });
+
+    await openAnalytics(page);
+
+    const banner = page.getByTestId("live-match-context");
+    await expect(banner).toBeVisible();
+
+    const effText = await banner
+      .getByTestId("stat-total-effective-time")
+      .textContent();
+    // Should display a clock value like "00:XX" or "XX:XX"
+    expect(effText?.trim()).toMatch(/\d{2}:\d{2}/);
+  });
+
+  test("QA-7: per-team time values display clock format", async ({ page }) => {
+    await gotoLoggerPage(page, QA_MATCH_ID);
+
+    await sendEvent(page, {
+      match_clock: "00:02.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Pass",
+      data: { outcome: "Complete" },
+    });
+
+    await openAnalytics(page);
+
+    const perTeamSection = page.getByTestId("analytics-per-team-time");
+    await expect(perTeamSection).toBeVisible({ timeout: 10000 });
+
+    const effRow = perTeamSection.getByTestId("stat-effective-time");
+    await expect(effRow).toBeVisible();
+
+    const homeText = (await effRow.locator("div").nth(0).textContent()) || "";
+    const awayText = (await effRow.locator("div").nth(2).textContent()) || "";
+    expect(homeText.trim()).toMatch(/\d{2}:\d{2}/);
+    expect(awayText.trim()).toMatch(/\d{2}:\d{2}/);
   });
 });

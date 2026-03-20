@@ -7,13 +7,14 @@ import {
 } from "@playwright/test";
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   resetHarnessFlow,
   submitStandardPass,
   waitForPendingAckToClear,
   ensureClockRunning,
 } from "./utils/logger";
+
+const REVIEW_MATCH_ID = "E2E-MATCH-REVIEW-FORM";
 
 // ---------------------------------------------------------------------------
 // Formation rotation + Review view E2E tests
@@ -66,7 +67,9 @@ const ensureAdminRole = async (page: Page) => {
 
 test.describe("Formation Rotation", () => {
   test.beforeEach(async ({ page }) => {
-    await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: REVIEW_MATCH_ID },
+    });
     await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
     await page.addInitScript((user) => {
       localStorage.setItem(
@@ -80,7 +83,7 @@ test.describe("Formation Rotation", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, REVIEW_MATCH_ID);
     await ensureAdminRole(page);
 
     // Verify initial state: left slot has home formation, right has away
@@ -126,7 +129,7 @@ test.describe("Formation Rotation", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, REVIEW_MATCH_ID);
     await ensureAdminRole(page);
 
     const leftSlot = page.getByTestId("formation-slot-left");
@@ -162,7 +165,7 @@ test.describe("Formation Rotation", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, REVIEW_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("formation-slot-left")).toBeVisible({

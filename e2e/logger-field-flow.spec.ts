@@ -7,7 +7,6 @@ import {
 } from "@playwright/test";
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   resetHarnessFlow,
   ensureClockRunning,
@@ -28,6 +27,11 @@ const AUTH_USER = {
   role: "admin",
 };
 
+// Avoid cross-spec collisions with shared match fixtures in parallel workers.
+const FIELD_MATCH_ID = `E2E-FIELD-${Date.now()}-${Math.floor(
+  Math.random() * 1e6,
+)}`;
+
 let backendRequest: APIRequestContext;
 
 test.beforeAll(async () => {
@@ -42,7 +46,9 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+  await backendRequest.post("/e2e/reset", {
+    data: { matchId: FIELD_MATCH_ID },
+  });
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await page.addInitScript((user) => {
     localStorage.setItem(
@@ -91,7 +97,7 @@ test.describe("Tactical Field", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
 
     // The field wrapper should be visible
@@ -120,9 +126,22 @@ test.describe("Tactical Field", () => {
     }
   });
 
+  test("pre-match default keeps teams on separate halves", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+
+    for (let i = 1; i <= 11; i++) {
+      const home = await getTacticalCoords(page, `HOME-${i}`);
+      const away = await getTacticalCoords(page, `AWAY-${i}`);
+      expect(home.x).toBeLessThanOrEqual(49.5);
+      expect(away.x).toBeGreaterThanOrEqual(50.5);
+    }
+  });
+
   test("drag a player to reposition — coordinates update", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -161,7 +180,6 @@ test.describe("Tactical Field", () => {
     const afterCoords = await getTacticalCoords(page, "HOME-1");
 
     // The GK position should have changed (we dragged right & down)
-    // GK bounds: xMax=20, so x will be clamped but > original 5
     expect(afterCoords.x).toBeGreaterThan(beforeCoords.x);
   });
 
@@ -169,7 +187,7 @@ test.describe("Tactical Field", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -194,7 +212,7 @@ test.describe("Tactical Field", () => {
     page,
   }) => {
     test.setTimeout(90000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -254,7 +272,7 @@ test.describe("Tactical Field", () => {
 
   test("side-switching flips player positions", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
 
     // Record the GK position before flip
@@ -266,24 +284,38 @@ test.describe("Tactical Field", () => {
     await expect(flipButton).toBeVisible({ timeout: 10000 });
     await flipButton.click();
 
-    await page.waitForTimeout(300);
+    // Wait until positions settle after store/state propagation.
+    await expect
+      .poll(
+        async () => {
+          const afterHome = await getTacticalCoords(page, "HOME-1");
+          const afterAway = await getTacticalCoords(page, "AWAY-1");
+          const homeDelta = Math.abs(afterHome.x - (100 - beforeCoords.x));
+          const awayDelta = Math.abs(afterAway.x - (100 - beforeAwayCoords.x));
+          return homeDelta <= 1 && awayDelta <= 1;
+        },
+        { timeout: 5000, interval: 200 },
+      )
+      .toBeTruthy();
 
-    // After flipping, HOME GK should move from left → right
     const afterCoords = await getTacticalCoords(page, "HOME-1");
-    expect(afterCoords.x).toBeGreaterThan(beforeCoords.x + 50);
-
-    // AWAY GK should move from right → left
     const afterAwayCoords = await getTacticalCoords(page, "AWAY-1");
-    expect(afterAwayCoords.x).toBeLessThan(beforeAwayCoords.x - 50);
+
+    // Mirror invariant for side switch (x' ~= 100 - x, y unchanged elsewhere).
+    expect(afterCoords.x).toBeCloseTo(100 - beforeCoords.x, 0);
+    expect(afterAwayCoords.x).toBeCloseTo(100 - beforeAwayCoords.x, 0);
   });
 
-  test("GK position bounds — cannot be dragged past 20% x", async ({
+  test("pre-match: GK bounds — cannot be dragged past 20% x", async ({
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    // Re-seed with Pending so isMatchLive=false and pre-match bounds apply.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
-    await ensureClockRunning(page);
 
     const gkPlayer = page.getByTestId("field-player-HOME-1");
     await expect(gkPlayer).toBeVisible({ timeout: 15000 });
@@ -308,6 +340,12 @@ test.describe("Tactical Field", () => {
     // Drag the GK far to the right — way past 20% of the field
     const dragRight = fieldBox.width * 0.6; // ~60% of field width
 
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await page.mouse.move(startX + dragRight, startY, { steps: 10 });
@@ -319,11 +357,177 @@ test.describe("Tactical Field", () => {
     expect(afterCoords.x).toBeLessThanOrEqual(21); // Allow small rounding
   });
 
+  test("pre-match: players cannot cross into the opposite half", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    // Re-seed with Pending so isMatchLive=false and pre-match bounds apply.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const field = page.getByTestId("soccer-field");
+    const fieldBox = await field.boundingBox();
+    expect(fieldBox).not.toBeNull();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+
+    // Use HOME-4 / AWAY-4 — positioned at y≈50 (center) so pointer
+    // interactions are reliable (HOME-11 at y≈86 can be clipped).
+    const homePlayer = page.getByTestId("field-player-HOME-4");
+    await expect(homePlayer).toBeVisible({ timeout: 10000 });
+    await homePlayer.scrollIntoViewIfNeeded();
+    const homeBox = await homePlayer.boundingBox();
+    expect(homeBox).not.toBeNull();
+    if (!homeBox) throw new Error("HOME-4 bounding box unavailable");
+
+    await page.mouse.move(
+      homeBox.x + homeBox.width / 2,
+      homeBox.y + homeBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.92,
+      homeBox.y + homeBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const homeAfter = await getTacticalCoords(page, "HOME-4");
+    expect(homeAfter.x).toBeLessThanOrEqual(49.5);
+
+    // Try to drag an away player deep into the home half.
+    const awayPlayer = page.getByTestId("field-player-AWAY-4");
+    await expect(awayPlayer).toBeVisible({ timeout: 10000 });
+    await awayPlayer.scrollIntoViewIfNeeded();
+    const awayBox = await awayPlayer.boundingBox();
+    expect(awayBox).not.toBeNull();
+    if (!awayBox) throw new Error("AWAY-4 bounding box unavailable");
+
+    await page.mouse.move(
+      awayBox.x + awayBox.width / 2,
+      awayBox.y + awayBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.08,
+      awayBox.y + awayBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const awayAfter = await getTacticalCoords(page, "AWAY-4");
+    expect(awayAfter.x).toBeGreaterThanOrEqual(50.5);
+  });
+
+  test("live match: players CAN cross midfield when clock is running", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page); // → First_Half (live bounds = full field)
+
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const field = page.getByTestId("soccer-field");
+    const fieldBox = await field.boundingBox();
+    expect(fieldBox).not.toBeNull();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+
+    // Use HOME-4 / AWAY-4 — at y≈50 (center), reliable for pointer events.
+    const homePlayer = page.getByTestId("field-player-HOME-4");
+    await expect(homePlayer).toBeVisible({ timeout: 10000 });
+    await homePlayer.scrollIntoViewIfNeeded();
+    const homeBox = await homePlayer.boundingBox();
+    expect(homeBox).not.toBeNull();
+    if (!homeBox) throw new Error("HOME-4 bounding box unavailable");
+
+    await page.mouse.move(
+      homeBox.x + homeBox.width / 2,
+      homeBox.y + homeBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.85,
+      homeBox.y + homeBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const homeAfter = await getTacticalCoords(page, "HOME-4");
+    // During live play the player should have moved past midfield.
+    expect(homeAfter.x).toBeGreaterThan(50);
+
+    // Drag an away player deep into the home half — should succeed.
+    const awayPlayer = page.getByTestId("field-player-AWAY-4");
+    await expect(awayPlayer).toBeVisible({ timeout: 10000 });
+    await awayPlayer.scrollIntoViewIfNeeded();
+    const awayBox = await awayPlayer.boundingBox();
+    expect(awayBox).not.toBeNull();
+    if (!awayBox) throw new Error("AWAY-4 bounding box unavailable");
+
+    await page.mouse.move(
+      awayBox.x + awayBox.width / 2,
+      awayBox.y + awayBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width * 0.15,
+      awayBox.y + awayBox.height / 2,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    const awayAfter = await getTacticalCoords(page, "AWAY-4");
+    // During live play the away player should have crossed into the home half.
+    expect(awayAfter.x).toBeLessThan(50);
+  });
+
+  test("field flip preserves player role lane and restores after unflip", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+
+    const before = await getTacticalCoords(page, "AWAY-11");
+    const flipButton = page.getByTestId("toggle-field-flip");
+    await expect(flipButton).toBeVisible({ timeout: 10000 });
+
+    await flipButton.click();
+    await page.waitForTimeout(250);
+    const flipped = await getTacticalCoords(page, "AWAY-11");
+
+    // Flipping mirrors x but keeps vertical lane (right/left wing lane) stable.
+    expect(flipped.x).toBeCloseTo(100 - before.x, 0);
+    expect(flipped.y).toBeCloseTo(before.y, 0);
+
+    await flipButton.click();
+    await page.waitForTimeout(250);
+    const restored = await getTacticalCoords(page, "AWAY-11");
+    expect(restored.x).toBeCloseTo(before.x, 0);
+    expect(restored.y).toBeCloseTo(before.y, 0);
+  });
+
   test("backward compat — existing field-player testids are clickable", async ({
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -351,7 +555,7 @@ test.describe("Tactical Field", () => {
 
   test("dragged position persists across page navigation", async ({ page }) => {
     test.setTimeout(90000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -389,7 +593,7 @@ test.describe("Tactical Field", () => {
     await page.waitForTimeout(500);
 
     // Navigate back to the logger
-    await page.goto(`/matches/${MATCH_ID}/logger`);
+    await page.goto(`/matches/${FIELD_MATCH_ID}/logger`);
     await expect(page.getByTestId("soccer-field")).toBeVisible({
       timeout: 15000,
     });
@@ -404,11 +608,16 @@ test.describe("Tactical Field", () => {
     expect(restoredCoords.y).toBeCloseTo(afterCoords.y, 0);
   });
 
-  test("drag bounds overlay appears during drag", async ({ page }) => {
+  test("drag bounds overlay appears during pre-match drag", async ({
+    page,
+  }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    // Re-seed with Pending so isMatchLive=false and bounds overlay is rendered.
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
-    await ensureClockRunning(page);
 
     // Unlock drag — drag is locked by default
     const dragLockBtn = page.getByTestId("toggle-drag-lock");
@@ -448,9 +657,45 @@ test.describe("Tactical Field", () => {
     await expect(overlay).toBeHidden({ timeout: 5000 });
   });
 
+  test("live match: no bounds overlay during drag (unrestricted)", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const gkPlayer = page.getByTestId("field-player-HOME-1");
+    await expect(gkPlayer).toBeVisible({ timeout: 15000 });
+
+    await gkPlayer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await gkPlayer.boundingBox();
+    if (!box) throw new Error("GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 20, startY, { steps: 5 });
+    await page.waitForTimeout(200);
+
+    // During live match, bounds overlay should NOT appear
+    await expect(page.getByTestId("drag-bounds-overlay")).toBeHidden();
+
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+  });
+
   test("collision detection — players repel on overlap", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
     await ensureAdminRole(page);
     await ensureClockRunning(page);
 
@@ -495,5 +740,186 @@ test.describe("Tactical Field", () => {
 
     // MIN_PLAYER_SEPARATION = 6, allow a small tolerance
     expect(distance).toBeGreaterThanOrEqual(4);
+  });
+
+  test("drag lock ON prevents repositioning", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    // Drag lock is ON by default — do NOT click toggle-drag-lock
+    const player = page.getByTestId("field-player-HOME-1");
+    await expect(player).toBeVisible({ timeout: 15000 });
+
+    const beforeCoords = await getTacticalCoords(page, "HOME-1");
+
+    await player.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    const box = await player.boundingBox();
+    if (!box) throw new Error("Player bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 80, startY + 40, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    const afterCoords = await getTacticalCoords(page, "HOME-1");
+    // With drag lock ON, coordinates should NOT change
+    expect(afterCoords.x).toBeCloseTo(beforeCoords.x, 0);
+    expect(afterCoords.y).toBeCloseTo(beforeCoords.y, 0);
+  });
+
+  test("pre-match: away GK bounds — cannot be dragged past 80% x", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await backendRequest.post("/e2e/reset", {
+      data: { matchId: FIELD_MATCH_ID, status: "Pending" },
+    });
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+
+    const awayGk = page.getByTestId("field-player-AWAY-1");
+    await expect(awayGk).toBeVisible({ timeout: 15000 });
+
+    const field = page.getByTestId("soccer-field");
+    await awayGk.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
+    const fieldBox = await field.boundingBox();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+    const box = await awayGk.boundingBox();
+    if (!box) throw new Error("Away GK bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+
+    // Unlock drag
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    // Try to drag away GK far to the left (past 80%)
+    const dragLeft = fieldBox.width * 0.6;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - dragLeft, startY, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const afterCoords = await getTacticalCoords(page, "AWAY-1");
+    // Away GK should be clamped to x >= 80 (mirror of home GK's x <= 20)
+    expect(afterCoords.x).toBeGreaterThanOrEqual(79);
+  });
+
+  test("player y-coordinate stays within field bounds", async ({ page }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const dragLockBtn = page.getByTestId("toggle-drag-lock");
+    await expect(dragLockBtn).toBeVisible({ timeout: 10000 });
+    await dragLockBtn.click();
+    await page.waitForTimeout(300);
+
+    const field = page.getByTestId("soccer-field");
+    const fieldBox = await field.boundingBox();
+    if (!fieldBox) throw new Error("Field bounding box unavailable");
+
+    const player = page.getByTestId("field-player-HOME-4");
+    await expect(player).toBeVisible({ timeout: 10000 });
+    await player.scrollIntoViewIfNeeded();
+    const box = await player.boundingBox();
+    if (!box) throw new Error("HOME-4 bounding box unavailable");
+
+    // Drag player off the bottom edge
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + box.width / 2,
+      fieldBox.y + fieldBox.height + 100,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    const afterCoords = await getTacticalCoords(page, "HOME-4");
+    expect(afterCoords.y).toBeLessThanOrEqual(100);
+    expect(afterCoords.y).toBeGreaterThanOrEqual(0);
+  });
+
+  test("double substitution — two subs in sequence preserve positions", async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    const before2 = await getTacticalCoords(page, "HOME-2");
+    const before3 = await getTacticalCoords(page, "HOME-3");
+
+    // First substitution: HOME-2 → HOME-12
+    const player2 = page.getByTestId("field-player-HOME-2");
+    await expect(player2).toBeVisible({ timeout: 10000 });
+    await player2.click();
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Substitution").click();
+
+    const subModal = page.getByTestId("substitution-modal");
+    await expect(subModal).toBeVisible({ timeout: 15000 });
+    await subModal.getByTestId("sub-off-HOME-2").click();
+    await subModal.getByTestId("sub-on-HOME-12").click();
+    const confirmBtn = subModal.getByTestId("confirm-substitution");
+    await expect(confirmBtn).toBeEnabled({ timeout: 15000 });
+    await confirmBtn.click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("field-player-HOME-2")).toBeHidden({
+      timeout: 10000,
+    });
+    const coords12 = await getTacticalCoords(page, "HOME-12");
+    expect(coords12.x).toBeCloseTo(before2.x, 0);
+    expect(coords12.y).toBeCloseTo(before2.y, 0);
+
+    // Second substitution: HOME-3 → HOME-13
+    const player3 = page.getByTestId("field-player-HOME-3");
+    await expect(player3).toBeVisible({ timeout: 10000 });
+    await player3.click();
+    await expect(page.getByTestId("field-zone-selector")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.getByTestId("zone-select-7").click();
+    await page.getByTestId("quick-action-more").click({ timeout: 8000 });
+    await page.getByTestId("action-btn-Substitution").click();
+
+    const subModal2 = page.getByTestId("substitution-modal");
+    await expect(subModal2).toBeVisible({ timeout: 15000 });
+    await subModal2.getByTestId("sub-off-HOME-3").click();
+    await subModal2.getByTestId("sub-on-HOME-13").click();
+    const confirmBtn2 = subModal2.getByTestId("confirm-substitution");
+    await expect(confirmBtn2).toBeEnabled({ timeout: 15000 });
+    await confirmBtn2.click();
+    await waitForPendingAckToClear(page);
+    await page.waitForTimeout(500);
+
+    await expect(page.getByTestId("field-player-HOME-3")).toBeHidden({
+      timeout: 10000,
+    });
+    const coords13 = await getTacticalCoords(page, "HOME-13");
+    expect(coords13.x).toBeCloseTo(before3.x, 0);
+    expect(coords13.y).toBeCloseTo(before3.y, 0);
   });
 });

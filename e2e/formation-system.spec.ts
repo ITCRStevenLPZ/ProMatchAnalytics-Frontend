@@ -5,7 +5,9 @@ import {
   type APIRequestContext,
   type Page,
 } from "@playwright/test";
-import { BACKEND_BASE_URL, MATCH_ID, gotoLoggerPage } from "./utils/logger";
+import { BACKEND_BASE_URL, gotoLoggerPage } from "./utils/logger";
+
+const FORMATION_MATCH_ID = "E2E-MATCH-FORMATION";
 
 // ---------------------------------------------------------------------------
 // Formation system E2E tests.
@@ -34,7 +36,9 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await backendRequest.post("/e2e/reset", { data: { matchId: MATCH_ID } });
+  await backendRequest.post("/e2e/reset", {
+    data: { matchId: FORMATION_MATCH_ID },
+  });
   await page.addInitScript(() => localStorage.setItem("i18nextLng", "en"));
   await page.addInitScript((user) => {
     localStorage.setItem(
@@ -85,7 +89,7 @@ test.describe("Formation System", () => {
 
   test("formation pickers are visible in tactical view", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     // Formation pickers should be visible inside the TeamSelector toolbar
@@ -112,7 +116,7 @@ test.describe("Formation System", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     // Wait for field to render
@@ -160,7 +164,7 @@ test.describe("Formation System", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -190,7 +194,7 @@ test.describe("Formation System", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -218,7 +222,7 @@ test.describe("Formation System", () => {
 
   test("invalid format shows error", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -240,7 +244,7 @@ test.describe("Formation System", () => {
     page,
   }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -289,7 +293,7 @@ test.describe("Formation System", () => {
 
   test("formation persists across page reload", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -302,7 +306,7 @@ test.describe("Formation System", () => {
     await page.waitForTimeout(800); // Let IDB persist
 
     // Reload the page
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -317,7 +321,7 @@ test.describe("Formation System", () => {
 
   test("both teams can have independent formations", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -345,7 +349,7 @@ test.describe("Formation System", () => {
 
   test("GK stays fixed when formation is applied", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({
@@ -372,7 +376,7 @@ test.describe("Formation System", () => {
 
   test("Enter key submits custom formation", async ({ page }) => {
     test.setTimeout(60000);
-    await gotoLoggerPage(page, MATCH_ID);
+    await gotoLoggerPage(page, FORMATION_MATCH_ID);
     await ensureAdminRole(page);
 
     await expect(page.getByTestId("soccer-field")).toBeVisible({

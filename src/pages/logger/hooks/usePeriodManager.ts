@@ -298,12 +298,15 @@ export const usePeriodManager = (
     setShowExtraTimeAlert(false);
 
     try {
-      // Call updateMatchStatus FIRST so the backend can properly initialise
-      // period_timestamps.{period}.global_start_seconds while
-      // current_period_start_timestamp is still null.  handleModeSwitch runs
-      // after so it only overwrites the timestamp (minor ms delta) without
-      // preventing the backend from recording the period start metadata.
-      await updateMatchStatus(match.id, targetStatus);
+      // Send the current effective time so the backend doesn't miscalculate
+      // match_time_seconds when clock_mode is INEFFECTIVE (it would otherwise
+      // add the ineffective elapsed to the effective total).
+      await updateMatchStatus(
+        match.id,
+        targetStatus,
+        undefined,
+        Math.round(effectiveTime),
+      );
       console.log(`✅ Match status updated to ${targetStatus}`);
 
       if (targetMode) {

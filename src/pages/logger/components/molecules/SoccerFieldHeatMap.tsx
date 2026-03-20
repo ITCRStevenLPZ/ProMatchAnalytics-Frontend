@@ -1,20 +1,18 @@
 /**
- * SoccerFieldHeatMap — SVG soccer pitch with a colored zone overlay.
+ * SoccerFieldHeatMap — SVG soccer pitch with a continuous density heat-map
+ * overlay rendered on an HTML5 Canvas.
  *
- * Renders a realistic mini soccer field (aspect 120:80 = 3:2) and paints each
- * of the 24 zones (6 cols × 4 rows) according to the provided heat-map data
- * using a yellow → orange → red colour scale.
+ * Uses radial-gradient accumulation + colorization for smooth, topographical
+ * density visualization instead of a discrete 24-zone grid.
  */
-import React, { useMemo } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ZONES,
   PITCH_WIDTH,
   PITCH_HEIGHT,
   ZONE_COLS,
-  ZONE_ROWS,
   ZONE_W,
-  ZONE_H,
-  intensityToColor,
+  buildDensityColorMap,
   type HeatMapData,
 } from "../../utils/heatMapZones";
 
@@ -23,8 +21,10 @@ import {
 /* ------------------------------------------------------------------ */
 
 interface SoccerFieldHeatMapProps {
-  /** Heat-map data containing counts per zone */
+  /** Heat-map data containing counts per zone (for stats & E2E) */
   data: HeatMapData;
+  /** Raw event coordinates for canvas density rendering */
+  points: [number, number][];
   /** Optional title displayed above the field */
   title?: string;
   /** Team colour for the title badge (hex) */
@@ -37,25 +37,90 @@ interface SoccerFieldHeatMapProps {
 /*  Pitch markup constants (all in StatsBomb coordinate units)         */
 /* ------------------------------------------------------------------ */
 
-// Penalty area dimensions (per FIFA Law 1)
-const PA_WIDTH = 16.5; // depth from goal-line
-const PA_HEIGHT = 40.32; // total width (centred)
+const PA_WIDTH = 16.5;
+const PA_HEIGHT = 40.32;
 const PA_Y = (PITCH_HEIGHT - PA_HEIGHT) / 2;
 
-// Goal area
 const GA_WIDTH = 5.5;
 const GA_HEIGHT = 18.32;
 const GA_Y = (PITCH_HEIGHT - GA_HEIGHT) / 2;
 
-// Centre circle radius
 const CC_R = 9.15;
-
-// Penalty spot distance
 const PEN_X = 11;
 const PEN_R = 0.5;
-
-// Corner arc radius (in SVG units)
 const CORNER_R = 1.5;
+
+/* ------------------------------------------------------------------ */
+/*  Canvas rendering constants                                         */
+/* ------------------------------------------------------------------ */
+
+const CANVAS_W = 600;
+const CANVAS_H = 400;
+const DENSITY_COLORMAP = buildDensityColorMap();
+
+/* Canvas-pitch alignment percentages (SVG viewBox = -2 -2 124 84) */
+const PITCH_LEFT_PCT = (2 / (PITCH_WIDTH + 4)) * 100;
+const PITCH_TOP_PCT = (2 / (PITCH_HEIGHT + 4)) * 100;
+const PITCH_W_PCT = (PITCH_WIDTH / (PITCH_WIDTH + 4)) * 100;
+const PITCH_H_PCT = (PITCH_HEIGHT / (PITCH_HEIGHT + 4)) * 100;
+
+/* ------------------------------------------------------------------ */
+/*  Canvas density renderer                                            */
+/* ------------------------------------------------------------------ */
+
+function renderDensityHeatMap(
+  ctx: CanvasRenderingContext2D,
+  points: [number, number][],
+) {
+  const w = CANVAS_W;
+  const h = CANVAS_H;
+  ctx.clearRect(0, 0, w, h);
+  if (points.length === 0) return;
+
+  const radius = w * 0.1;
+  const pointAlpha = Math.max(0.05, Math.min(0.15, 3 / points.length));
+
+  // Step 1: Accumulate density via radial gradients (additive blending)
+  for (const [px, py] of points) {
+    const cx = (px / PITCH_WIDTH) * w;
+    const cy = (py / PITCH_HEIGHT) * h;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, `rgba(0,0,0,${pointAlpha})`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Step 2: Read pixels, normalize density, apply colour map
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const px = imgData.data;
+
+  let maxA = 0;
+  for (let i = 3; i < px.length; i += 4) {
+    if (px[i] > maxA) maxA = px[i];
+  }
+  if (maxA === 0) {
+    ctx.putImageData(imgData, 0, 0);
+    return;
+  }
+
+  const cmap = DENSITY_COLORMAP;
+  for (let i = 0; i < px.length; i += 4) {
+    const a = px[i + 3];
+    if (a > 0) {
+      const idx = Math.min(255, Math.round((a / maxA) * 255));
+      px[i] = cmap[idx * 4];
+      px[i + 1] = cmap[idx * 4 + 1];
+      px[i + 2] = cmap[idx * 4 + 2];
+      px[i + 3] = cmap[idx * 4 + 3];
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -63,21 +128,20 @@ const CORNER_R = 1.5;
 
 const SoccerFieldHeatMap: React.FC<SoccerFieldHeatMapProps> = ({
   data,
+  points,
   title,
   accentColor = "#6366f1",
   "data-testid": testId,
 }) => {
-  /* Compute zone colours from data */
-  const zoneColors = useMemo(() => {
-    if (data.max === 0) {
-      return ZONES.map(() => "rgba(0,0,0,0)");
-    }
-    return ZONES.map((zone) => {
-      const count = data.counts[zone.id];
-      const intensity = count / data.max;
-      return intensityToColor(intensity);
-    });
-  }, [data]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    renderDensityHeatMap(ctx, points);
+  }, [points]);
 
   return (
     <div className="flex flex-col items-center gap-1" data-testid={testId}>
@@ -97,209 +161,165 @@ const SoccerFieldHeatMap: React.FC<SoccerFieldHeatMapProps> = ({
         </div>
       )}
 
-      {/* SVG Pitch */}
-      <svg
-        viewBox={`-2 -2 ${PITCH_WIDTH + 4} ${PITCH_HEIGHT + 4}`}
-        className="w-full max-w-md rounded-lg border border-slate-700 bg-green-800"
-        preserveAspectRatio="xMidYMid meet"
-        data-testid={testId ? `${testId}-svg` : undefined}
+      {/* SVG Pitch + Canvas heat-map overlay */}
+      <div
+        className="relative w-full max-w-md rounded-lg border border-slate-700 bg-green-800 overflow-hidden"
+        style={{
+          aspectRatio: `${PITCH_WIDTH + 4} / ${PITCH_HEIGHT + 4}`,
+        }}
       >
-        {/* ─── Field background ─── */}
-        <rect
-          x={0}
-          y={0}
-          width={PITCH_WIDTH}
-          height={PITCH_HEIGHT}
-          fill="#2d6a2e"
-          rx={1}
-        />
-
-        {/* ─── Mowing stripes (alternating vertical bands) ─── */}
-        {Array.from({ length: ZONE_COLS }, (_, i) =>
-          i % 2 === 0 ? (
-            <rect
-              key={`stripe-${i}`}
-              x={i * ZONE_W}
-              y={0}
-              width={ZONE_W}
-              height={PITCH_HEIGHT}
-              fill="rgba(255,255,255,0.03)"
-            />
-          ) : null,
-        )}
-
-        {/* ─── Pitch markings ─── */}
-        <g stroke="rgba(255,255,255,0.55)" strokeWidth={0.4} fill="none">
-          {/* Touchlines & goal lines */}
+        <svg
+          viewBox={`-2 -2 ${PITCH_WIDTH + 4} ${PITCH_HEIGHT + 4}`}
+          className="absolute inset-0 w-full h-full"
+          preserveAspectRatio="xMidYMid meet"
+          data-testid={testId ? `${testId}-svg` : undefined}
+        >
+          {/* ─── Field background ─── */}
           <rect
             x={0}
             y={0}
             width={PITCH_WIDTH}
             height={PITCH_HEIGHT}
-            rx={0.5}
+            fill="#2d6a2e"
+            rx={1}
           />
 
-          {/* Centre line */}
-          <line
-            x1={PITCH_WIDTH / 2}
-            y1={0}
-            x2={PITCH_WIDTH / 2}
-            y2={PITCH_HEIGHT}
-          />
-
-          {/* Centre circle */}
-          <circle cx={PITCH_WIDTH / 2} cy={PITCH_HEIGHT / 2} r={CC_R} />
-
-          {/* Centre spot */}
-          <circle
-            cx={PITCH_WIDTH / 2}
-            cy={PITCH_HEIGHT / 2}
-            r={PEN_R}
-            fill="rgba(255,255,255,0.55)"
-          />
-
-          {/* Left penalty area */}
-          <rect x={0} y={PA_Y} width={PA_WIDTH} height={PA_HEIGHT} />
-          {/* Right penalty area */}
-          <rect
-            x={PITCH_WIDTH - PA_WIDTH}
-            y={PA_Y}
-            width={PA_WIDTH}
-            height={PA_HEIGHT}
-          />
-
-          {/* Left goal area */}
-          <rect x={0} y={GA_Y} width={GA_WIDTH} height={GA_HEIGHT} />
-          {/* Right goal area */}
-          <rect
-            x={PITCH_WIDTH - GA_WIDTH}
-            y={GA_Y}
-            width={GA_WIDTH}
-            height={GA_HEIGHT}
-          />
-
-          {/* Penalty spots */}
-          <circle
-            cx={PEN_X}
-            cy={PITCH_HEIGHT / 2}
-            r={PEN_R}
-            fill="rgba(255,255,255,0.55)"
-          />
-          <circle
-            cx={PITCH_WIDTH - PEN_X}
-            cy={PITCH_HEIGHT / 2}
-            r={PEN_R}
-            fill="rgba(255,255,255,0.55)"
-          />
-
-          {/* Penalty arcs */}
-          <path
-            d={`M ${PA_WIDTH} ${
-              PITCH_HEIGHT / 2 - CC_R * 0.65
-            } A ${CC_R} ${CC_R} 0 0 1 ${PA_WIDTH} ${
-              PITCH_HEIGHT / 2 + CC_R * 0.65
-            }`}
-          />
-          <path
-            d={`M ${PITCH_WIDTH - PA_WIDTH} ${
-              PITCH_HEIGHT / 2 - CC_R * 0.65
-            } A ${CC_R} ${CC_R} 0 0 0 ${PITCH_WIDTH - PA_WIDTH} ${
-              PITCH_HEIGHT / 2 + CC_R * 0.65
-            }`}
-          />
-
-          {/* Corner arcs */}
-          <path
-            d={`M 0 ${CORNER_R} A ${CORNER_R} ${CORNER_R} 0 0 1 ${CORNER_R} 0`}
-          />
-          <path
-            d={`M ${
-              PITCH_WIDTH - CORNER_R
-            } 0 A ${CORNER_R} ${CORNER_R} 0 0 1 ${PITCH_WIDTH} ${CORNER_R}`}
-          />
-          <path
-            d={`M 0 ${
-              PITCH_HEIGHT - CORNER_R
-            } A ${CORNER_R} ${CORNER_R} 0 0 0 ${CORNER_R} ${PITCH_HEIGHT}`}
-          />
-          <path
-            d={`M ${
-              PITCH_WIDTH - CORNER_R
-            } ${PITCH_HEIGHT} A ${CORNER_R} ${CORNER_R} 0 0 0 ${PITCH_WIDTH} ${
-              PITCH_HEIGHT - CORNER_R
-            }`}
-          />
-        </g>
-
-        {/* ─── Heat-map zone overlay ─── */}
-        <g data-testid={testId ? `${testId}-zones` : undefined}>
-          {ZONES.map((zone) => (
-            <rect
-              key={zone.id}
-              x={zone.x0}
-              y={zone.y0}
-              width={ZONE_W}
-              height={ZONE_H}
-              fill={zoneColors[zone.id]}
-              data-testid={testId ? `${testId}-zone-${zone.id}` : undefined}
-              data-zone-id={zone.id}
-              data-zone-count={data.counts[zone.id]}
-            >
-              <title>
-                {zone.label}: {data.counts[zone.id]} event
-                {data.counts[zone.id] !== 1 ? "s" : ""}
-              </title>
-            </rect>
-          ))}
-        </g>
-
-        {/* ─── Zone grid lines (subtle) ─── */}
-        <g stroke="rgba(255,255,255,0.12)" strokeWidth={0.2} fill="none">
-          {Array.from({ length: ZONE_COLS - 1 }, (_, i) => (
-            <line
-              key={`vcol-${i}`}
-              x1={(i + 1) * ZONE_W}
-              y1={0}
-              x2={(i + 1) * ZONE_W}
-              y2={PITCH_HEIGHT}
-            />
-          ))}
-          {Array.from({ length: ZONE_ROWS - 1 }, (_, i) => (
-            <line
-              key={`hrow-${i}`}
-              x1={0}
-              y1={(i + 1) * ZONE_H}
-              x2={PITCH_WIDTH}
-              y2={(i + 1) * ZONE_H}
-            />
-          ))}
-        </g>
-
-        {/* ─── Zone counts (only when > 0) ─── */}
-        <g
-          fontSize={4}
-          fontWeight="bold"
-          fill="white"
-          textAnchor="middle"
-          dominantBaseline="central"
-        >
-          {ZONES.map((zone) =>
-            data.counts[zone.id] > 0 ? (
-              <text
-                key={`label-${zone.id}`}
-                x={zone.x0 + ZONE_W / 2}
-                y={zone.y0 + ZONE_H / 2}
-                style={{
-                  textShadow: "0 0 3px rgba(0,0,0,0.8)",
-                  pointerEvents: "none",
-                }}
-              >
-                {data.counts[zone.id]}
-              </text>
+          {/* ─── Mowing stripes (alternating vertical bands) ─── */}
+          {Array.from({ length: ZONE_COLS }, (_, i) =>
+            i % 2 === 0 ? (
+              <rect
+                key={`stripe-${i}`}
+                x={i * ZONE_W}
+                y={0}
+                width={ZONE_W}
+                height={PITCH_HEIGHT}
+                fill="rgba(255,255,255,0.03)"
+              />
             ) : null,
           )}
-        </g>
-      </svg>
+
+          {/* ─── Pitch markings ─── */}
+          <g stroke="rgba(255,255,255,0.55)" strokeWidth={0.4} fill="none">
+            <rect
+              x={0}
+              y={0}
+              width={PITCH_WIDTH}
+              height={PITCH_HEIGHT}
+              rx={0.5}
+            />
+            <line
+              x1={PITCH_WIDTH / 2}
+              y1={0}
+              x2={PITCH_WIDTH / 2}
+              y2={PITCH_HEIGHT}
+            />
+            <circle cx={PITCH_WIDTH / 2} cy={PITCH_HEIGHT / 2} r={CC_R} />
+            <circle
+              cx={PITCH_WIDTH / 2}
+              cy={PITCH_HEIGHT / 2}
+              r={PEN_R}
+              fill="rgba(255,255,255,0.55)"
+            />
+            <rect x={0} y={PA_Y} width={PA_WIDTH} height={PA_HEIGHT} />
+            <rect
+              x={PITCH_WIDTH - PA_WIDTH}
+              y={PA_Y}
+              width={PA_WIDTH}
+              height={PA_HEIGHT}
+            />
+            <rect x={0} y={GA_Y} width={GA_WIDTH} height={GA_HEIGHT} />
+            <rect
+              x={PITCH_WIDTH - GA_WIDTH}
+              y={GA_Y}
+              width={GA_WIDTH}
+              height={GA_HEIGHT}
+            />
+            <circle
+              cx={PEN_X}
+              cy={PITCH_HEIGHT / 2}
+              r={PEN_R}
+              fill="rgba(255,255,255,0.55)"
+            />
+            <circle
+              cx={PITCH_WIDTH - PEN_X}
+              cy={PITCH_HEIGHT / 2}
+              r={PEN_R}
+              fill="rgba(255,255,255,0.55)"
+            />
+            <path
+              d={`M ${PA_WIDTH} ${
+                PITCH_HEIGHT / 2 - CC_R * 0.65
+              } A ${CC_R} ${CC_R} 0 0 1 ${PA_WIDTH} ${
+                PITCH_HEIGHT / 2 + CC_R * 0.65
+              }`}
+            />
+            <path
+              d={`M ${PITCH_WIDTH - PA_WIDTH} ${
+                PITCH_HEIGHT / 2 - CC_R * 0.65
+              } A ${CC_R} ${CC_R} 0 0 0 ${PITCH_WIDTH - PA_WIDTH} ${
+                PITCH_HEIGHT / 2 + CC_R * 0.65
+              }`}
+            />
+            <path
+              d={`M 0 ${CORNER_R} A ${CORNER_R} ${CORNER_R} 0 0 1 ${CORNER_R} 0`}
+            />
+            <path
+              d={`M ${
+                PITCH_WIDTH - CORNER_R
+              } 0 A ${CORNER_R} ${CORNER_R} 0 0 1 ${PITCH_WIDTH} ${CORNER_R}`}
+            />
+            <path
+              d={`M 0 ${
+                PITCH_HEIGHT - CORNER_R
+              } A ${CORNER_R} ${CORNER_R} 0 0 0 ${CORNER_R} ${PITCH_HEIGHT}`}
+            />
+            <path
+              d={`M ${
+                PITCH_WIDTH - CORNER_R
+              } ${PITCH_HEIGHT} A ${CORNER_R} ${CORNER_R} 0 0 0 ${PITCH_WIDTH} ${
+                PITCH_HEIGHT - CORNER_R
+              }`}
+            />
+          </g>
+        </svg>
+
+        {/* ─── Canvas heat-map overlay ─── */}
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_W}
+          height={CANVAS_H}
+          className="absolute pointer-events-none"
+          style={{
+            left: `${PITCH_LEFT_PCT}%`,
+            top: `${PITCH_TOP_PCT}%`,
+            width: `${PITCH_W_PCT}%`,
+            height: `${PITCH_H_PCT}%`,
+          }}
+          data-testid={testId ? `${testId}-canvas` : undefined}
+        />
+      </div>
+
+      {/* ─── Hidden zone data for E2E testing ─── */}
+      <div
+        aria-hidden="true"
+        data-testid={testId ? `${testId}-zones` : undefined}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          opacity: 0,
+        }}
+      >
+        {ZONES.map((zone) => (
+          <span
+            key={zone.id}
+            data-testid={testId ? `${testId}-zone-${zone.id}` : undefined}
+            data-zone-id={zone.id}
+            data-zone-count={data.counts[zone.id]}
+          />
+        ))}
+      </div>
     </div>
   );
 };

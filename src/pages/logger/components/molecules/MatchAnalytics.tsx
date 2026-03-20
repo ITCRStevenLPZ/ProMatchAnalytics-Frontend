@@ -137,35 +137,6 @@ const parseClockToSeconds = (clock?: string) => {
   return Number(mm) * 60 + seconds;
 };
 
-const parseBirthDate = (value?: string | null): Date | null => {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const ageInYears = (birthDate: Date, atDate: Date = new Date()) => {
-  let age = atDate.getFullYear() - birthDate.getFullYear();
-  const monthDelta = atDate.getMonth() - birthDate.getMonth();
-  if (
-    monthDelta < 0 ||
-    (monthDelta === 0 && atDate.getDate() < birthDate.getDate())
-  ) {
-    age -= 1;
-  }
-  return age;
-};
-
-const calculateAverageAge = (players: Match["home_team"]["players"]) => {
-  const ages = players
-    .map((player) => parseBirthDate(player.birth_date))
-    .filter((birthDate): birthDate is Date => Boolean(birthDate))
-    .map((birthDate) => ageInYears(birthDate))
-    .filter((age) => Number.isFinite(age) && age > 0);
-
-  if (!ages.length) return null;
-  return ages.reduce((sum, age) => sum + age, 0) / ages.length;
-};
-
 const compareCardEventOrder = (
   left: { event: MatchEvent; index: number },
   right: { event: MatchEvent; index: number },
@@ -550,9 +521,6 @@ export function MatchAnalytics({
       },
       { minute: 0, count: 0 },
     );
-    const homeAverageAge = calculateAverageAge(match.home_team.players);
-    const awayAverageAge = calculateAverageAge(match.away_team.players);
-    const averageAgeNotAvailable = t("analytics.notAvailable", "N/A");
 
     return {
       timeline,
@@ -691,18 +659,6 @@ export function MatchAnalytics({
           home: homeReds,
           away: awayReds,
           testId: "stat-red",
-        },
-        {
-          label: t("analytics.averageAge", "Average Age"),
-          home:
-            homeAverageAge !== null
-              ? homeAverageAge.toFixed(1)
-              : averageAgeNotAvailable,
-          away:
-            awayAverageAge !== null
-              ? awayAverageAge.toFixed(1)
-              : averageAgeNotAvailable,
-          testId: "stat-average-age",
         },
       ] as ComparativeRow[],
       perTeamTimeRows: [

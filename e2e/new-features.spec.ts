@@ -20,7 +20,6 @@ import {
 
 import {
   BACKEND_BASE_URL,
-  MATCH_ID,
   gotoLoggerPage,
   sendRawEventThroughHarness,
   waitForPendingAckToClear,
@@ -227,7 +226,9 @@ test.describe("New feature coverage", () => {
     // Referee option in the dropdown shows "(neutral)" label
     // Verify the action was selected by checking the trigger text
     const actionTrigger = page.getByTestId("ineffective-note-action");
-    await expect(actionTrigger).toContainText(/Referee/i, { timeout: 3000 });
+    await expect(actionTrigger).toContainText(/Referee|Arbitro|Árbitro/i, {
+      timeout: 3000,
+    });
 
     // Save the ineffective note
     await page.getByTestId("ineffective-note-save").click();

@@ -132,15 +132,18 @@ test.describe("Heat-map analytics", () => {
     const section = page.getByTestId("heatmap-section");
     await expect(section).toBeVisible({ timeout: 15000 });
 
-    // Three SVG fields: home, away, combined
+    // Three map containers: home, away, combined
     await expect(page.getByTestId("heatmap-home")).toBeVisible();
     await expect(page.getByTestId("heatmap-away")).toBeVisible();
     await expect(page.getByTestId("heatmap-match")).toBeVisible();
 
-    // Each should have an SVG element
+    // Each should have SVG (pitch) and canvas (heat overlay) elements
     await expect(page.getByTestId("heatmap-home-svg")).toBeVisible();
     await expect(page.getByTestId("heatmap-away-svg")).toBeVisible();
     await expect(page.getByTestId("heatmap-match-svg")).toBeVisible();
+    await expect(page.getByTestId("heatmap-home-canvas")).toBeVisible();
+    await expect(page.getByTestId("heatmap-away-canvas")).toBeVisible();
+    await expect(page.getByTestId("heatmap-match-canvas")).toBeVisible();
   });
 
   test("events with location populate the correct heat-map zones", async ({
@@ -213,7 +216,6 @@ test.describe("Heat-map analytics", () => {
 
     // Home heat map should show zone 0 with count 2
     const homeZone0 = page.getByTestId("heatmap-home-zone-0");
-    await expect(homeZone0).toBeVisible();
     await expect(homeZone0).toHaveAttribute("data-zone-count", "2");
 
     // Home zone 15 should have count 1
@@ -340,7 +342,7 @@ test.describe("Heat-map analytics", () => {
     await expect(homeZone7Again).toHaveAttribute("data-zone-count", "2");
   });
 
-  test("heat map zones use colour gradient based on density", async ({
+  test("heat map canvas renders density gradient from events", async ({
     page,
   }) => {
     test.setTimeout(90000);
@@ -392,30 +394,59 @@ test.describe("Heat-map analytics", () => {
 
     await openAnalytics(page);
 
-    // Zone 0 (max density = 5) should have a fill colour (not transparent)
+    // Verify zone counts are correct via data attributes
     const zone0 = page.getByTestId("heatmap-home-zone-0");
-    await expect(zone0).toBeVisible();
-    const fill0 = await zone0.getAttribute("fill");
-    expect(fill0).not.toBe("rgba(0,0,0,0)");
-    // The hottest zone should have red-ish fill (intensity = 1.0)
-    expect(fill0).toMatch(/^rgba\(220,40,0,/);
+    await expect(zone0).toHaveAttribute("data-zone-count", "5");
 
-    // Zone 7 (2/5 = 0.4 intensity) should be yellow-ish
     const zone7 = page.getByTestId("heatmap-home-zone-7");
-    const fill7 = await zone7.getAttribute("fill");
-    expect(fill7).not.toBe("rgba(0,0,0,0)");
-    // Green channel should be higher than zone 0 (more yellow)
-    const g7 = parseInt((fill7 ?? "").split(",")[1]);
-    expect(g7).toBeGreaterThan(100);
+    await expect(zone7).toHaveAttribute("data-zone-count", "2");
 
-    // Zone 15 (1/5 = 0.2 intensity) should be most yellow
     const zone15 = page.getByTestId("heatmap-home-zone-15");
-    const fill15 = await zone15.getAttribute("fill");
-    expect(fill15).not.toBe("rgba(0,0,0,0)");
+    await expect(zone15).toHaveAttribute("data-zone-count", "1");
 
-    // An unfilled zone should be transparent
     const zone23 = page.getByTestId("heatmap-home-zone-23");
-    const fill23 = await zone23.getAttribute("fill");
-    expect(fill23).toBe("rgba(0,0,0,0)");
+    await expect(zone23).toHaveAttribute("data-zone-count", "0");
+
+    // Verify the canvas has rendered non-transparent pixels at the hot spot
+    // and transparent pixels at the empty area
+    const pixelData = await page.evaluate(() => {
+      const canvas = document.querySelector(
+        '[data-testid="heatmap-home-canvas"]',
+      ) as HTMLCanvasElement | null;
+      if (!canvas) return null;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      // Hot spot: (10, 10) in StatsBomb → canvas pixel
+      const hotX = Math.round((10 / 120) * canvas.width);
+      const hotY = Math.round((10 / 80) * canvas.height);
+      const hotPx = ctx.getImageData(hotX, hotY, 1, 1).data;
+
+      // Cool spot: (65, 45) in StatsBomb → canvas pixel
+      const coolX = Math.round((65 / 120) * canvas.width);
+      const coolY = Math.round((45 / 80) * canvas.height);
+      const coolPx = ctx.getImageData(coolX, coolY, 1, 1).data;
+
+      // Empty spot: (110, 10) — no events here
+      const emptyX = Math.round((110 / 120) * canvas.width);
+      const emptyY = Math.round((10 / 80) * canvas.height);
+      const emptyPx = ctx.getImageData(emptyX, emptyY, 1, 1).data;
+
+      return {
+        hot: Array.from(hotPx),
+        cool: Array.from(coolPx),
+        empty: Array.from(emptyPx),
+      };
+    });
+
+    expect(pixelData).not.toBeNull();
+    // Hot spot should be visible (non-zero alpha)
+    expect(pixelData!.hot[3]).toBeGreaterThan(0);
+    // Cool spot should also be visible
+    expect(pixelData!.cool[3]).toBeGreaterThan(0);
+    // Hot spot should have higher red channel (warmer color)
+    expect(pixelData!.hot[0]).toBeGreaterThanOrEqual(pixelData!.cool[0]);
+    // Empty spot should be transparent
+    expect(pixelData!.empty[3]).toBe(0);
   });
 });

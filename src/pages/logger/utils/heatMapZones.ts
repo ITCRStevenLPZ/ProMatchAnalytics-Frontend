@@ -140,6 +140,72 @@ export function computeHeatMapData(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Extract raw coordinate points for canvas heat map                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Extract raw (x, y) coordinate points from events for canvas rendering.
+ *
+ * @param events  - MatchEvent[]
+ * @param teamId  - If provided, only include events for this team.
+ */
+export function extractHeatPoints(
+  events: MatchEvent[],
+  teamId?: string,
+): [number, number][] {
+  const points: [number, number][] = [];
+  for (const ev of events) {
+    if (teamId && ev.team_id !== teamId) continue;
+    if (!ev.location || ev.location.length < 2) continue;
+    points.push([ev.location[0], ev.location[1]]);
+  }
+  return points;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Density color map for canvas heat map                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build a 256-entry RGBA color lookup for density heat maps.
+ * Scale: transparent → blue → cyan → green → yellow → orange → red.
+ */
+export function buildDensityColorMap(): Uint8Array {
+  const map = new Uint8Array(256 * 4);
+
+  const stops = [
+    { pos: 0, r: 0, g: 0, b: 0, a: 0 },
+    { pos: 0.1, r: 0, g: 0, b: 255, a: 100 },
+    { pos: 0.25, r: 0, g: 200, b: 255, a: 140 },
+    { pos: 0.4, r: 0, g: 255, b: 0, a: 170 },
+    { pos: 0.55, r: 255, g: 255, b: 0, a: 190 },
+    { pos: 0.75, r: 255, g: 165, b: 0, a: 210 },
+    { pos: 1.0, r: 255, g: 0, b: 0, a: 230 },
+  ];
+
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let lo = stops[0];
+    let hi = stops[stops.length - 1];
+    for (let s = 0; s < stops.length - 1; s++) {
+      if (t >= stops[s].pos && t <= stops[s + 1].pos) {
+        lo = stops[s];
+        hi = stops[s + 1];
+        break;
+      }
+    }
+    const range = hi.pos - lo.pos || 1;
+    const f = (t - lo.pos) / range;
+    map[i * 4] = Math.round(lo.r + (hi.r - lo.r) * f);
+    map[i * 4 + 1] = Math.round(lo.g + (hi.g - lo.g) * f);
+    map[i * 4 + 2] = Math.round(lo.b + (hi.b - lo.b) * f);
+    map[i * 4 + 3] = Math.round(lo.a + (hi.a - lo.a) * f);
+  }
+
+  return map;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Color interpolation (yellow → orange → red)                        */
 /* ------------------------------------------------------------------ */
 

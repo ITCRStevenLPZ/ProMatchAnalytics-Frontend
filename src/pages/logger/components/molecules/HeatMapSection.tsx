@@ -9,7 +9,10 @@
  */
 import React, { useMemo } from "react";
 import SoccerFieldHeatMap from "./SoccerFieldHeatMap";
-import { computeHeatMapData } from "../../utils/heatMapZones";
+import {
+  computeHeatMapData,
+  extractHeatPoints,
+} from "../../utils/heatMapZones";
 import type { MatchEvent } from "../../../../store/useMatchLogStore";
 import type { Match } from "../../types";
 import { Activity } from "../../../../components/icons";
@@ -40,13 +43,22 @@ const HeatMapSection: React.FC<HeatMapSectionProps> = ({
     () => computeHeatMapData(events, homeTeamId),
     [events, homeTeamId],
   );
+  const homePoints = useMemo(
+    () => extractHeatPoints(events, homeTeamId),
+    [events, homeTeamId],
+  );
 
   const awayData = useMemo(
     () => computeHeatMapData(events, awayTeamId),
     [events, awayTeamId],
   );
+  const awayPoints = useMemo(
+    () => extractHeatPoints(events, awayTeamId),
+    [events, awayTeamId],
+  );
 
   const matchData = useMemo(() => computeHeatMapData(events), [events]);
+  const matchPoints = useMemo(() => extractHeatPoints(events), [events]);
 
   return (
     <div
@@ -65,18 +77,21 @@ const HeatMapSection: React.FC<HeatMapSectionProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SoccerFieldHeatMap
           data={homeData}
+          points={homePoints}
           title={match.home_team.short_name || match.home_team.name}
           accentColor="#10b981"
           data-testid="heatmap-home"
         />
         <SoccerFieldHeatMap
           data={awayData}
+          points={awayPoints}
           title={match.away_team.short_name || match.away_team.name}
           accentColor="#6366f1"
           data-testid="heatmap-away"
         />
         <SoccerFieldHeatMap
           data={matchData}
+          points={matchPoints}
           title={t("analytics.combined", "Combined")}
           accentColor="#f59e0b"
           data-testid="heatmap-match"
@@ -87,26 +102,20 @@ const HeatMapSection: React.FC<HeatMapSectionProps> = ({
       <div className="flex items-center justify-center gap-3 text-xs text-slate-400">
         <span>{t("analytics.low", "Low")}</span>
         <div className="flex h-3 w-32 rounded overflow-hidden border border-slate-600">
+          <div className="flex-1" style={{ background: "rgba(0,0,255,0.4)" }} />
           <div
             className="flex-1"
-            style={{ background: "rgba(255,255,0,0.4)" }}
+            style={{ background: "rgba(0,200,255,0.55)" }}
           />
           <div
             className="flex-1"
-            style={{ background: "rgba(255,200,0,0.55)" }}
+            style={{ background: "rgba(0,255,0,0.65)" }}
           />
           <div
             className="flex-1"
-            style={{ background: "rgba(255,165,0,0.65)" }}
+            style={{ background: "rgba(255,255,0,0.75)" }}
           />
-          <div
-            className="flex-1"
-            style={{ background: "rgba(255,100,0,0.75)" }}
-          />
-          <div
-            className="flex-1"
-            style={{ background: "rgba(220,40,0,0.85)" }}
-          />
+          <div className="flex-1" style={{ background: "rgba(255,0,0,0.9)" }} />
         </div>
         <span>{t("analytics.high", "High")}</span>
       </div>

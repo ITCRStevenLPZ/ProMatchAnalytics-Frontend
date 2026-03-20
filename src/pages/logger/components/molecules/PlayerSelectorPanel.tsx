@@ -183,6 +183,8 @@ interface PlayerSelectorPanelProps {
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   /** When set, only these player nodes are visible on the field */
   visiblePlayerIds?: Set<string>;
+  /** When true (live match), expand tactical drag bounds to full field. */
+  isMatchLive?: boolean;
   t: TFunction<"logger">;
 }
 
@@ -218,6 +220,7 @@ const PlayerSelectorPanel = ({
   awayFormation: _awayFormation,
   applyFormation: _applyFormation,
   visiblePlayerIds,
+  isMatchLive = false,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
@@ -559,6 +562,7 @@ const PlayerSelectorPanel = ({
             allPositions={allTacticalPositions}
             dragLocked={effectiveDragLocked}
             visiblePlayerIds={visiblePlayerIds}
+            isMatchLive={isMatchLive}
           />
         </div>
       ) : resolvedViewMode === "field" ? (
