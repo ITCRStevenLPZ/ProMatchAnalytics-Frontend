@@ -3,6 +3,8 @@ import {
   locationToZoneId,
   computeHeatMapData,
   intensityToColor,
+  extractHeatPoints,
+  buildDensityColorMap,
   ZONES,
   TOTAL_ZONES,
   ZONE_COLS,
@@ -144,6 +146,63 @@ describe("heatMapZones", () => {
     it("should clamp values above 1", () => {
       const color = intensityToColor(2.0);
       expect(color).toBe(intensityToColor(1.0));
+    });
+  });
+
+  describe("extractHeatPoints", () => {
+    const events = [
+      { team_id: "home", location: [10, 10] },
+      { team_id: "home", location: [60, 40] },
+      { team_id: "away", location: [90, 60] },
+      { team_id: "home" },
+      { team_id: "away", location: null },
+    ] as any[];
+
+    it("should extract all points for combined view", () => {
+      const pts = extractHeatPoints(events);
+      expect(pts).toHaveLength(3);
+      expect(pts[0]).toEqual([10, 10]);
+      expect(pts[1]).toEqual([60, 40]);
+      expect(pts[2]).toEqual([90, 60]);
+    });
+
+    it("should filter by team", () => {
+      const pts = extractHeatPoints(events, "home");
+      expect(pts).toHaveLength(2);
+      expect(pts[0]).toEqual([10, 10]);
+    });
+
+    it("should return empty array when no events have locations", () => {
+      const noLocEvents = [{ team_id: "home" }, { team_id: "away" }] as any[];
+      expect(extractHeatPoints(noLocEvents)).toHaveLength(0);
+    });
+  });
+
+  describe("buildDensityColorMap", () => {
+    it("should return a 1024-byte Uint8Array (256 RGBA entries)", () => {
+      const cmap = buildDensityColorMap();
+      expect(cmap).toBeInstanceOf(Uint8Array);
+      expect(cmap.length).toBe(256 * 4);
+    });
+
+    it("should have transparent at index 0", () => {
+      const cmap = buildDensityColorMap();
+      expect(cmap[3]).toBe(0); // alpha at index 0
+    });
+
+    it("should have red at index 255", () => {
+      const cmap = buildDensityColorMap();
+      expect(cmap[255 * 4]).toBe(255); // R
+      expect(cmap[255 * 4 + 1]).toBe(0); // G
+      expect(cmap[255 * 4 + 2]).toBe(0); // B
+      expect(cmap[255 * 4 + 3]).toBe(230); // A
+    });
+
+    it("should have increasing alpha across the range", () => {
+      const cmap = buildDensityColorMap();
+      const alphaAt64 = cmap[64 * 4 + 3];
+      const alphaAt192 = cmap[192 * 4 + 3];
+      expect(alphaAt192).toBeGreaterThan(alphaAt64);
     });
   });
 });

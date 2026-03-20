@@ -151,13 +151,13 @@ export default function AnalyticsView({
         ineffectiveBreakdown={ineffectiveBreakdown}
         t={t}
       />
-      <HeatMapSection match={match} events={allEvents} t={t} />
       <PlayerStatsTable
         stats={playerStats}
         homeTeamName={match.home_team.short_name}
         awayTeamName={match.away_team.short_name}
         t={t}
       />
+      <HeatMapSection match={match} events={allEvents} t={t} />
     </div>
   );
 }
