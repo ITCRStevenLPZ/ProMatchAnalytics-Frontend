@@ -142,6 +142,12 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   dragLocked = false,
   isMatchLive = false,
 }) => {
+  const FIELD_LINE_STROKE_WIDTH = 0.4;
+  const FIELD_BOUNDARY_INSET = FIELD_LINE_STROKE_WIDTH / 2;
+  const FIELD_BOUNDARY_WIDTH = PITCH_WIDTH - FIELD_LINE_STROKE_WIDTH;
+  const FIELD_BOUNDARY_HEIGHT = PITCH_HEIGHT - FIELD_LINE_STROKE_WIDTH;
+  const FIELD_BOTTOM_LINE_Y = PITCH_HEIGHT - FIELD_BOUNDARY_INSET;
+
   const PA_WIDTH = PITCH_MARKINGS.penaltyAreaDepth;
   const PA_HEIGHT = PITCH_MARKINGS.penaltyAreaHeight;
   const PA_Y = PITCH_MARKINGS_DERIVED.penaltyAreaY;
@@ -288,13 +294,26 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
               preserveAspectRatio="none"
               data-testid="tactical-field-markings"
             >
-              <g stroke="rgba(255,255,255,0.55)" strokeWidth={0.4} fill="none">
+              <g
+                stroke="rgba(255,255,255,0.55)"
+                strokeWidth={FIELD_LINE_STROKE_WIDTH}
+                fill="none"
+              >
                 <rect
-                  x={0}
-                  y={0}
-                  width={PITCH_WIDTH}
-                  height={PITCH_HEIGHT}
+                  x={FIELD_BOUNDARY_INSET}
+                  y={FIELD_BOUNDARY_INSET}
+                  width={FIELD_BOUNDARY_WIDTH}
+                  height={FIELD_BOUNDARY_HEIGHT}
                   rx={0.5}
+                  data-testid="tactical-field-boundary"
+                />
+                <line
+                  x1={FIELD_BOUNDARY_INSET}
+                  y1={FIELD_BOTTOM_LINE_Y}
+                  x2={PITCH_WIDTH - FIELD_BOUNDARY_INSET}
+                  y2={FIELD_BOTTOM_LINE_Y}
+                  strokeLinecap="square"
+                  data-testid="tactical-bottom-sideline"
                 />
                 <line
                   x1={PITCH_WIDTH / 2}

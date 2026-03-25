@@ -83,6 +83,36 @@ Validated that all soccer field lines are visible and unobstructed in both tacti
 
 ## What Was Completed (Latest Session)
 
+### Tactical Input Field: Bottom Lateral Sideline Visibility Fix
+
+Resolved the cockpit soccer input issue where the bottom white sideline could disappear due to SVG stroke-edge clipping.
+
+1. **Rendering fix in tactical field**
+
+   - Updated boundary drawing in [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx) so the outer pitch stroke is inset by half the stroke width (inside viewBox).
+   - Added an explicit bottom sideline geometry (`tactical-bottom-sideline`) aligned to the lower edge for robust visibility.
+   - Preserved existing interaction behavior and all prior tactical flow test IDs.
+
+2. **Unit regression coverage**
+
+   - Added [TacticalField.test.tsx](src/pages/logger/components/molecules/TacticalField.test.tsx) to assert:
+     - boundary inset geometry,
+     - explicit bottom sideline coordinates,
+     - tactical field markings render hooks.
+
+3. **E2E + screenshot evidence**
+
+   - Hardened [logger-pitch-markings-scale.spec.ts](e2e/logger-pitch-markings-scale.spec.ts) with stable boundary/sideline geometry assertions and screenshot capture of the field container.
+   - Screenshot artifact from passing run:
+     - `test-results/logger-pitch-markings-scal-502b4-se-the-same-scaled-geometry-chromium/tactical-field-sideline.png`
+
+### Verification Evidence
+
+- `npx vitest run src/pages/logger/components/molecules/TacticalField.test.tsx` -> **1 passed**
+- `npx playwright test e2e/logger-pitch-markings-scale.spec.ts --workers=1 --retries=1` -> **2 passed**
+- `npx playwright test e2e/logger-field-flow.spec.ts --workers=2 --retries=1` -> **20 passed**
+- `npx tsc --noEmit --pretty false` -> **PASS**
+
 ### Cockpit/Analytics Stored Short Name + Ineffective Drag Movement
 
 Completed the user-requested logger fixes so team labels always prefer stored `short_name` in cockpit/analytics and tactical players remain movable during ineffective stoppage windows.
