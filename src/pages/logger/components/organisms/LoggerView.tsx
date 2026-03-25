@@ -225,7 +225,9 @@ export default function LoggerView({
           onTimeoutToggle={handleTimeoutToggle}
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
-          hideResumeButton={showFieldResume || isHalftimePhase}
+          hideResumeButton={
+            (showFieldResume && !!pendingCardType) || !!isHalftimePhase
+          }
           periodElapsedSeconds={periodElapsedSeconds}
           periodMinimumSeconds={periodMinimumSeconds}
           t={t}
