@@ -253,22 +253,35 @@ export default function LoggerView({
         />
       </div>
 
-      <div className="flex-none z-10">
-        <InstructionBanner
-          t={t}
-          currentStep={currentStep}
-          selectedPlayer={selectedPlayer}
-          selectedAction={selectedAction}
-          cardSelection={
-            pendingCardType
-              ? pendingCardType === "Yellow"
-                ? t("cardSelectYellow", "Yellow")
-                : pendingCardType === "Red"
-                  ? t("cardSelectRed", "Red")
-                  : t("cardSelectCancel", "Cancel")
-              : null
-          }
-        />
+      <div className="flex-none z-10 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <InstructionBanner
+            t={t}
+            currentStep={currentStep}
+            selectedPlayer={selectedPlayer}
+            selectedAction={selectedAction}
+            cardSelection={
+              pendingCardType
+                ? pendingCardType === "Yellow"
+                  ? t("cardSelectYellow", "Yellow")
+                  : pendingCardType === "Red"
+                    ? t("cardSelectRed", "Red")
+                    : t("cardSelectCancel", "Cancel")
+                : null
+            }
+          />
+        </div>
+        {showFieldResume && (
+          <button
+            type="button"
+            data-testid="btn-resume-effective"
+            onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
+            className="flex-none flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
+          >
+            <Play size={14} />
+            {t("resumeEffective", "Resume Effective Time")}
+          </button>
+        )}
       </div>
 
       <div className="flex-none z-10">
@@ -282,20 +295,6 @@ export default function LoggerView({
           t={t}
         />
       </div>
-
-      {showFieldResume && (
-        <div className="flex-none flex justify-center">
-          <button
-            type="button"
-            data-testid="btn-resume-effective"
-            onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-bold text-xs uppercase tracking-wider transition-colors shadow-lg shadow-emerald-900/30"
-          >
-            <Play size={14} />
-            {t("resumeEffective", "Resume Effective Time")}
-          </button>
-        </div>
-      )}
 
       <ActionStage
         match={match}
