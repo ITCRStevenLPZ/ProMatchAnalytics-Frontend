@@ -1399,4 +1399,41 @@ test.describe("Logger analytics matrix", () => {
     const corners = await getRowValues(page, "stat-corners");
     expect(corners.home).toBe(1);
   });
+
+  test("ANL-35: analytics uses initials acronym fallback when short_name is missing", async ({
+    page,
+  }) => {
+    await gotoLoggerPage(page, MATRIX_MATCH_ID);
+    await setRole(page, "admin");
+
+    await openAnalytics(page);
+
+    const homeLabel =
+      (
+        await page
+          .getByTestId("heatmap-home")
+          .locator("span")
+          .nth(1)
+          .textContent()
+      )
+        ?.trim()
+        .toUpperCase() ?? "";
+    const awayLabel =
+      (
+        await page
+          .getByTestId("heatmap-away")
+          .locator("span")
+          .nth(1)
+          .textContent()
+      )
+        ?.trim()
+        .toUpperCase() ?? "";
+
+    // E2E fixture uses "E2E Home" / "E2E Away" and no short_name.
+    // We should derive initials (EH/EA), not first-three letters (E2E).
+    expect(homeLabel).toBe("EH");
+    expect(awayLabel).toBe("EA");
+    expect(homeLabel).not.toBe("E2E");
+    expect(awayLabel).not.toBe("E2E");
+  });
 });

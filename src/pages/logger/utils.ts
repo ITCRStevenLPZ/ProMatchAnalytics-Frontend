@@ -426,8 +426,84 @@ export const buildIneffectiveBreakdownFromAggregates = (
   };
 };
 
-export const deriveShortName = (name?: string, fallback: string = "TEAM") =>
-  name?.slice(0, 3).toUpperCase() ?? fallback;
+const SHORT_NAME_STOP_WORDS = new Set([
+  "de",
+  "del",
+  "la",
+  "las",
+  "los",
+  "el",
+  "y",
+  "the",
+  "of",
+  "and",
+]);
+
+const sanitizeShortName = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.toUpperCase();
+};
+
+const resolveConfiguredTeamShortName = (team: any): string | null => {
+  const directCandidates = [
+    team?.short_name,
+    team?.shortName,
+    team?.abbreviation,
+    team?.abbr,
+    team?.acronym,
+    team?.initials,
+    team?.siglas,
+    team?.team_short_name,
+  ];
+
+  for (const candidate of directCandidates) {
+    const sanitized = sanitizeShortName(candidate);
+    if (sanitized) return sanitized;
+  }
+
+  const nestedCandidates = [
+    team?.metadata?.short_name,
+    team?.metadata?.shortName,
+    team?.metadata?.abbreviation,
+    team?.metadata?.abbr,
+    team?.meta?.short_name,
+    team?.meta?.abbreviation,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const sanitized = sanitizeShortName(candidate);
+    if (sanitized) return sanitized;
+  }
+
+  return null;
+};
+
+export const deriveShortName = (name?: string, fallback: string = "TEAM") => {
+  if (!name || typeof name !== "string") return fallback;
+  const tokens =
+    name
+      .trim()
+      .match(/[0-9A-Za-zÀ-ÖØ-öø-ÿ]+/g)
+      ?.filter(Boolean) ?? [];
+
+  if (!tokens.length) return fallback;
+
+  const meaningful = tokens.filter(
+    (token) => !SHORT_NAME_STOP_WORDS.has(token.toLowerCase()),
+  );
+  const source = meaningful.length > 0 ? meaningful : tokens;
+  const initials = source
+    .map((token) => token[0])
+    .join("")
+    .toUpperCase();
+
+  if (initials.length >= 2) return initials.slice(0, 3);
+
+  // Single-word fallback keeps previous behavior for names like "Herediano".
+  return tokens[0].slice(0, 3).toUpperCase() || fallback;
+};
 
 const normalizeBirthDateValue = (value: unknown): string | null => {
   if (!value) return null;
@@ -486,7 +562,9 @@ export const normalizeTeamFromApi = (
 ): Team => {
   const teamId = team?.team_id ?? team?.id ?? fallbackLabel;
   const name = team?.name ?? fallbackLabel;
-  const shortName = team?.short_name ?? deriveShortName(name, fallbackLabel);
+  const shortName =
+    resolveConfiguredTeamShortName(team) ??
+    deriveShortName(name, fallbackLabel);
 
   return {
     id: teamId,

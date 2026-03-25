@@ -1299,11 +1299,16 @@ export function MatchAnalytics({
         </div>
 
         <div className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
-          <div className="truncate">{match.home_team.short_name}</div>
+          <div className="truncate" data-testid="analytics-shortname-home">
+            {match.home_team.short_name}
+          </div>
           <div className="text-center truncate">
             {t("analytics.metric", "Metric")}
           </div>
-          <div className="text-right truncate">
+          <div
+            className="text-right truncate"
+            data-testid="analytics-shortname-away"
+          >
             {match.away_team.short_name}
           </div>
         </div>

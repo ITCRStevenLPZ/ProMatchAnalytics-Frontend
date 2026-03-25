@@ -7,6 +7,12 @@ import {
   MIN_PLAYER_SEPARATION,
 } from "../../hooks/useTacticalPositions";
 import type { FieldAnchor, FieldCoordinate } from "../../types";
+import { PITCH_HEIGHT, PITCH_WIDTH } from "../../utils/heatMapZones";
+import {
+  PENALTY_ARC_Y_OFFSET,
+  PITCH_MARKINGS,
+  PITCH_MARKINGS_DERIVED,
+} from "../../utils/pitchGeometry";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -136,6 +142,18 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   dragLocked = false,
   isMatchLive = false,
 }) => {
+  const PA_WIDTH = PITCH_MARKINGS.penaltyAreaDepth;
+  const PA_HEIGHT = PITCH_MARKINGS.penaltyAreaHeight;
+  const PA_Y = PITCH_MARKINGS_DERIVED.penaltyAreaY;
+  const GA_WIDTH = PITCH_MARKINGS.goalAreaDepth;
+  const GA_HEIGHT = PITCH_MARKINGS.goalAreaHeight;
+  const GA_Y = PITCH_MARKINGS_DERIVED.goalAreaY;
+  const CC_RX = PITCH_MARKINGS.centerCircleRx;
+  const CC_RY = PITCH_MARKINGS.centerCircleRy;
+  const PEN_X = PITCH_MARKINGS.penaltyMarkX;
+  const PEN_R = PITCH_MARKINGS.penaltyMarkRadius;
+  const CORNER_R = PITCH_MARKINGS.cornerArcR;
+
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const lastTouchDestinationAt = useRef(0);
 
@@ -261,18 +279,116 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
             onPointerUp={handleFieldPointerUp}
             className="w-full aspect-[1.6] bg-green-600 rounded-xl relative overflow-hidden border-4 border-white shadow-inner touch-manipulation"
           >
-            {/* ─── Field Markings ─── */}
-            <div className="absolute inset-0 border-2 border-white opacity-50 m-4" />
-            {/* Centre line */}
-            <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-white opacity-50 -translate-x-1/2" />
-            {/* Centre circle */}
-            <div className="absolute top-1/2 left-1/2 w-24 h-24 border-2 border-white rounded-full -translate-x-1/2 -translate-y-1/2 opacity-50" />
-            {/* Penalty areas */}
-            <div className="absolute top-1/2 left-0 w-32 h-64 border-2 border-white -translate-y-1/2 translate-x-4 opacity-50" />
-            <div className="absolute top-1/2 right-0 w-32 h-64 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-50" />
-            {/* Goal areas */}
-            <div className="absolute top-1/2 left-0 w-16 h-32 border-2 border-white -translate-y-1/2 translate-x-4 opacity-30" />
-            <div className="absolute top-1/2 right-0 w-16 h-32 border-2 border-white -translate-y-1/2 -translate-x-4 opacity-30" />
+            {/* ─── Field Markings (IFAB-scaled, mapped to 120x80 coordinates) ─── */}
+            <svg
+              className="absolute inset-4 pointer-events-none"
+              viewBox={`0 0 ${PITCH_WIDTH} ${PITCH_HEIGHT}`}
+              preserveAspectRatio="none"
+              data-testid="tactical-field-markings"
+            >
+              <g stroke="rgba(255,255,255,0.55)" strokeWidth={0.4} fill="none">
+                <rect
+                  x={0}
+                  y={0}
+                  width={PITCH_WIDTH}
+                  height={PITCH_HEIGHT}
+                  rx={0.5}
+                />
+                <line
+                  x1={PITCH_WIDTH / 2}
+                  y1={0}
+                  x2={PITCH_WIDTH / 2}
+                  y2={PITCH_HEIGHT}
+                />
+                <ellipse
+                  cx={PITCH_WIDTH / 2}
+                  cy={PITCH_HEIGHT / 2}
+                  rx={CC_RX}
+                  ry={CC_RY}
+                  data-testid="tactical-center-circle"
+                />
+                <circle
+                  cx={PITCH_WIDTH / 2}
+                  cy={PITCH_HEIGHT / 2}
+                  r={PEN_R}
+                  fill="rgba(255,255,255,0.55)"
+                />
+                <rect
+                  x={0}
+                  y={PA_Y}
+                  width={PA_WIDTH}
+                  height={PA_HEIGHT}
+                  data-testid="tactical-penalty-left"
+                />
+                <rect
+                  x={PITCH_WIDTH - PA_WIDTH}
+                  y={PA_Y}
+                  width={PA_WIDTH}
+                  height={PA_HEIGHT}
+                  data-testid="tactical-penalty-right"
+                />
+                <rect
+                  x={0}
+                  y={GA_Y}
+                  width={GA_WIDTH}
+                  height={GA_HEIGHT}
+                  data-testid="tactical-goalarea-left"
+                />
+                <rect
+                  x={PITCH_WIDTH - GA_WIDTH}
+                  y={GA_Y}
+                  width={GA_WIDTH}
+                  height={GA_HEIGHT}
+                  data-testid="tactical-goalarea-right"
+                />
+                <circle
+                  cx={PEN_X}
+                  cy={PITCH_HEIGHT / 2}
+                  r={PEN_R}
+                  fill="rgba(255,255,255,0.55)"
+                />
+                <circle
+                  cx={PITCH_WIDTH - PEN_X}
+                  cy={PITCH_HEIGHT / 2}
+                  r={PEN_R}
+                  fill="rgba(255,255,255,0.55)"
+                />
+                <path
+                  d={`M ${PA_WIDTH} ${
+                    PITCH_HEIGHT / 2 - PENALTY_ARC_Y_OFFSET
+                  } A ${CC_RX} ${CC_RY} 0 0 1 ${PA_WIDTH} ${
+                    PITCH_HEIGHT / 2 + PENALTY_ARC_Y_OFFSET
+                  }`}
+                />
+                <path
+                  d={`M ${PITCH_WIDTH - PA_WIDTH} ${
+                    PITCH_HEIGHT / 2 - PENALTY_ARC_Y_OFFSET
+                  } A ${CC_RX} ${CC_RY} 0 0 0 ${PITCH_WIDTH - PA_WIDTH} ${
+                    PITCH_HEIGHT / 2 + PENALTY_ARC_Y_OFFSET
+                  }`}
+                />
+                <path
+                  d={`M 0 ${CORNER_R} A ${CORNER_R} ${CORNER_R} 0 0 1 ${CORNER_R} 0`}
+                />
+                <path
+                  d={`M ${
+                    PITCH_WIDTH - CORNER_R
+                  } 0 A ${CORNER_R} ${CORNER_R} 0 0 1 ${PITCH_WIDTH} ${CORNER_R}`}
+                />
+                <path
+                  d={`M 0 ${
+                    PITCH_HEIGHT - CORNER_R
+                  } A ${CORNER_R} ${CORNER_R} 0 0 0 ${CORNER_R} ${PITCH_HEIGHT}`}
+                />
+                <path
+                  d={`M ${
+                    PITCH_WIDTH - CORNER_R
+                  } ${PITCH_HEIGHT} A ${CORNER_R} ${CORNER_R} 0 0 0 ${PITCH_WIDTH} ${
+                    PITCH_HEIGHT - CORNER_R
+                  }`}
+                />
+              </g>
+            </svg>
 
             {/* ─── Team labels ─── */}
             <div className="absolute top-2 left-2 text-white font-bold text-xs bg-black/50 px-2 py-1 rounded-md z-20">

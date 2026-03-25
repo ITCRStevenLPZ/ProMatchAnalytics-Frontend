@@ -41,6 +41,72 @@
 
 ## What Was Completed (Latest Session)
 
+### Team Acronym Normalization in Analytics
+
+Resolved analytics acronym fallback so team initials honor configured abbreviations and no longer default to first-three-letter truncation.
+
+1. **Improved team short-name resolution** — [utils.ts](src/pages/logger/utils.ts)
+
+   - Added multi-alias extraction for configured abbreviations: `short_name`, `shortName`, `abbreviation`, `abbr`, `acronym`, `initials`, `siglas`, and nested metadata variants.
+   - Added sanitization and uppercase normalization for configured abbreviations.
+   - Replaced fallback from `name.slice(0,3)` to initials-based acronym derivation (e.g., `Liga Deportiva Alajuelense` → `LDA`, `Club Sport Herediano` → `CSH`).
+
+2. **Added explicit analytics test hook** — [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx)
+
+   - Added `data-testid` markers for home/away short-name labels in comparison headers.
+
+3. **Regression coverage**
+
+   - Unit tests added in [utils.test.ts](src/pages/logger/utils.test.ts) for initials derivation and configured abbreviation precedence.
+   - Added E2E case `ANL-35` in [logger-analytics-matrix.spec.ts](e2e/logger-analytics-matrix.spec.ts) to enforce initials fallback behavior when `short_name` is absent.
+
+### Session Verification
+
+- `npx vitest run src/pages/logger/utils.test.ts`: **6 passed**
+- `./node_modules/.bin/playwright test e2e/logger-analytics-matrix.spec.ts -g "ANL-35" --workers=1 --retries=0`: **1 passed**
+- `./node_modules/.bin/playwright test --workers=4 --retries=2`: **316 passed** (1 flaky recovered by retry), **0 failed**
+- `pre-commit run --all-files`: **Passed**
+
+### IFAB-Scaled Pitch Markings (Heat Map + Tactical Input Field)
+
+Implemented real-world Law 1 geometry scaling so pitch markings are no longer undersized in analytics and logger input surfaces.
+
+1. **Added shared geometry utility** — [pitchGeometry.ts](src/pages/logger/utils/pitchGeometry.ts)
+
+   - Uses IFAB Law 1 dimensions in meters (penalty area, goal area, centre circle, penalty mark, corner arc).
+   - Maps a 105m x 68m reference pitch into the app's internal 120 x 80 coordinate system.
+   - Exposes derived values for consistent reuse across components.
+
+2. **Updated heat map pitch markings to real scale** — [SoccerFieldHeatMap.tsx](src/pages/logger/components/molecules/SoccerFieldHeatMap.tsx)
+
+   - Replaced hardcoded constants with shared IFAB-scaled geometry.
+   - Updated centre circle to an ellipse (`rx`/`ry`) to respect x/y scale differences.
+   - Updated penalty arcs using mathematically correct intersections with penalty-box lines.
+   - Added stable test IDs for circle/penalty/goal-area elements.
+
+3. **Updated tactical input field markings to real scale** — [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx)
+
+   - Replaced fixed pixel rectangles (`w-32`, `h-64`, etc.) with an SVG overlay using IFAB-scaled geometry.
+   - Logger action-input field now mirrors heat-map field proportions for all key markings.
+   - Added `tactical-field-markings` and element test IDs for automated geometry assertions.
+
+4. **Workspace hygiene**
+
+   - Removed accidental unused duplicate context file: [CockpitContext 2.tsx](src/pages/logger/context/CockpitContext%202.tsx).
+
+5. **New E2E coverage for geometric scale**
+
+   - Added [logger-pitch-markings-scale.spec.ts](e2e/logger-pitch-markings-scale.spec.ts):
+     - Validates analytics heat map dimensions against IFAB-scaled numeric targets.
+     - Validates tactical input field uses the same scaled values.
+     - Includes regression guards to prevent reverting to old undersized constants.
+
+### Session Verification
+
+- `npx playwright test e2e/logger-pitch-markings-scale.spec.ts --workers=1 --retries=1`: **2 passed**
+- `npx playwright test --workers=4 --retries=2`: **315 passed** (1 flaky recovered by retry), **0 failed**
+- `pre-commit run --all-files`: **Passed**
+
 ### Analytics Restoration & Live Match Context Banner
 
 Separated dynamic live metrics from the static comparison table into a dedicated banner widget at the top of AnalyticsView, improving UX clarity.

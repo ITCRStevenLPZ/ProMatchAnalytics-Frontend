@@ -15,6 +15,11 @@ import {
   buildDensityColorMap,
   type HeatMapData,
 } from "../../utils/heatMapZones";
+import {
+  PENALTY_ARC_Y_OFFSET,
+  PITCH_MARKINGS,
+  PITCH_MARKINGS_DERIVED,
+} from "../../utils/pitchGeometry";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -37,18 +42,19 @@ interface SoccerFieldHeatMapProps {
 /*  Pitch markup constants (all in StatsBomb coordinate units)         */
 /* ------------------------------------------------------------------ */
 
-const PA_WIDTH = 16.5;
-const PA_HEIGHT = 40.32;
-const PA_Y = (PITCH_HEIGHT - PA_HEIGHT) / 2;
+const PA_WIDTH = PITCH_MARKINGS.penaltyAreaDepth;
+const PA_HEIGHT = PITCH_MARKINGS.penaltyAreaHeight;
+const PA_Y = PITCH_MARKINGS_DERIVED.penaltyAreaY;
 
-const GA_WIDTH = 5.5;
-const GA_HEIGHT = 18.32;
-const GA_Y = (PITCH_HEIGHT - GA_HEIGHT) / 2;
+const GA_WIDTH = PITCH_MARKINGS.goalAreaDepth;
+const GA_HEIGHT = PITCH_MARKINGS.goalAreaHeight;
+const GA_Y = PITCH_MARKINGS_DERIVED.goalAreaY;
 
-const CC_R = 9.15;
-const PEN_X = 11;
-const PEN_R = 0.5;
-const CORNER_R = 1.5;
+const CC_RX = PITCH_MARKINGS.centerCircleRx;
+const CC_RY = PITCH_MARKINGS.centerCircleRy;
+const PEN_X = PITCH_MARKINGS.penaltyMarkX;
+const PEN_R = PITCH_MARKINGS.penaltyMarkRadius;
+const CORNER_R = PITCH_MARKINGS.cornerArcR;
 
 /* ------------------------------------------------------------------ */
 /*  Canvas rendering constants                                         */
@@ -213,26 +219,46 @@ const SoccerFieldHeatMap: React.FC<SoccerFieldHeatMapProps> = ({
               x2={PITCH_WIDTH / 2}
               y2={PITCH_HEIGHT}
             />
-            <circle cx={PITCH_WIDTH / 2} cy={PITCH_HEIGHT / 2} r={CC_R} />
+            <ellipse
+              cx={PITCH_WIDTH / 2}
+              cy={PITCH_HEIGHT / 2}
+              rx={CC_RX}
+              ry={CC_RY}
+              data-testid={testId ? `${testId}-center-circle` : undefined}
+            />
             <circle
               cx={PITCH_WIDTH / 2}
               cy={PITCH_HEIGHT / 2}
               r={PEN_R}
               fill="rgba(255,255,255,0.55)"
             />
-            <rect x={0} y={PA_Y} width={PA_WIDTH} height={PA_HEIGHT} />
+            <rect
+              x={0}
+              y={PA_Y}
+              width={PA_WIDTH}
+              height={PA_HEIGHT}
+              data-testid={testId ? `${testId}-penalty-left` : undefined}
+            />
             <rect
               x={PITCH_WIDTH - PA_WIDTH}
               y={PA_Y}
               width={PA_WIDTH}
               height={PA_HEIGHT}
+              data-testid={testId ? `${testId}-penalty-right` : undefined}
             />
-            <rect x={0} y={GA_Y} width={GA_WIDTH} height={GA_HEIGHT} />
+            <rect
+              x={0}
+              y={GA_Y}
+              width={GA_WIDTH}
+              height={GA_HEIGHT}
+              data-testid={testId ? `${testId}-goalarea-left` : undefined}
+            />
             <rect
               x={PITCH_WIDTH - GA_WIDTH}
               y={GA_Y}
               width={GA_WIDTH}
               height={GA_HEIGHT}
+              data-testid={testId ? `${testId}-goalarea-right` : undefined}
             />
             <circle
               cx={PEN_X}
@@ -248,16 +274,16 @@ const SoccerFieldHeatMap: React.FC<SoccerFieldHeatMapProps> = ({
             />
             <path
               d={`M ${PA_WIDTH} ${
-                PITCH_HEIGHT / 2 - CC_R * 0.65
-              } A ${CC_R} ${CC_R} 0 0 1 ${PA_WIDTH} ${
-                PITCH_HEIGHT / 2 + CC_R * 0.65
+                PITCH_HEIGHT / 2 - PENALTY_ARC_Y_OFFSET
+              } A ${CC_RX} ${CC_RY} 0 0 1 ${PA_WIDTH} ${
+                PITCH_HEIGHT / 2 + PENALTY_ARC_Y_OFFSET
               }`}
             />
             <path
               d={`M ${PITCH_WIDTH - PA_WIDTH} ${
-                PITCH_HEIGHT / 2 - CC_R * 0.65
-              } A ${CC_R} ${CC_R} 0 0 0 ${PITCH_WIDTH - PA_WIDTH} ${
-                PITCH_HEIGHT / 2 + CC_R * 0.65
+                PITCH_HEIGHT / 2 - PENALTY_ARC_Y_OFFSET
+              } A ${CC_RX} ${CC_RY} 0 0 0 ${PITCH_WIDTH - PA_WIDTH} ${
+                PITCH_HEIGHT / 2 + PENALTY_ARC_Y_OFFSET
               }`}
             />
             <path

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeIneffectiveBreakdown } from "./utils";
+import {
+  computeIneffectiveBreakdown,
+  deriveShortName,
+  normalizeTeamFromApi,
+} from "./utils";
 
 describe("computeIneffectiveBreakdown", () => {
   it("keeps neutral referee stoppages in the neutral Other bucket", () => {
@@ -129,5 +133,29 @@ describe("computeIneffectiveBreakdown", () => {
       4.9,
     );
     expect(breakdown.active?.startMs).toBe(expectedMs);
+  });
+});
+
+describe("team short name normalization", () => {
+  it("derives initials from multi-word team names", () => {
+    expect(deriveShortName("Liga Deportiva Alajuelense", "HOME")).toBe("LDA");
+    expect(deriveShortName("Club Sport Herediano", "AWAY")).toBe("CSH");
+  });
+
+  it("uses single-word fallback when initials are too short", () => {
+    expect(deriveShortName("Herediano", "TEAM")).toBe("HER");
+  });
+
+  it("prioritizes configured abbreviation aliases over derived initials", () => {
+    const normalized = normalizeTeamFromApi(
+      {
+        team_id: "H",
+        name: "Liga Deportiva Alajuelense",
+        abbreviation: "LDA",
+      },
+      "HOME",
+    );
+
+    expect(normalized.short_name).toBe("LDA");
   });
 });
