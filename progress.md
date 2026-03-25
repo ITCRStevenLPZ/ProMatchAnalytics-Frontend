@@ -83,6 +83,33 @@ Validated that all soccer field lines are visible and unobstructed in both tacti
 
 ## What Was Completed (Latest Session)
 
+### Cockpit/Analytics Stored Short Name + Ineffective Drag Movement
+
+Completed the user-requested logger fixes so team labels always prefer stored `short_name` in cockpit/analytics and tactical players remain movable during ineffective stoppage windows.
+
+1. **Stored short-name normalization and UI wiring**
+
+   - Expanded short-name alias/nested extraction in [utils.ts](src/pages/logger/utils.ts) and validated with new cases in [utils.test.ts](src/pages/logger/utils.test.ts).
+   - Updated cockpit and analytics team-label rendering to prefer configured short names in [CockpitContext.tsx](src/pages/logger/context/CockpitContext.tsx), [MatchAnalytics.tsx](src/pages/logger/components/molecules/MatchAnalytics.tsx), and [PlayerSelectorPanel.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.tsx).
+
+2. **Ineffective-mode tactical dragging behavior**
+
+   - Ensured drag lock is bypassed while ineffective mode is active via [ActionStage.tsx](src/pages/logger/components/organisms/ActionStage.tsx) and [LoggerView.tsx](src/pages/logger/components/organisms/LoggerView.tsx).
+   - Preserved drag position updates during movement in [TacticalField.tsx](src/pages/logger/components/molecules/TacticalField.tsx).
+   - Added targeted behavior tests in [ActionStage.test.tsx](src/pages/logger/components/organisms/ActionStage.test.tsx) and [PlayerSelectorPanel.test.tsx](src/pages/logger/components/molecules/PlayerSelectorPanel.test.tsx).
+
+3. **E2E acceptance coverage and validation**
+
+   - Added/updated QA acceptance in [qa-fixes-v2.spec.ts](e2e/qa-fixes-v2.spec.ts):
+     - QA-8: stored short names render correctly in cockpit + analytics.
+     - QA-9: ineffective mode exposes draggable player state.
+   - Added ineffective movement flow regression in [logger-field-flow.spec.ts](e2e/logger-field-flow.spec.ts).
+   - Verification evidence:
+     - `npx vitest run src/pages/logger/utils.test.ts src/pages/logger/components/molecules/PlayerSelectorPanel.test.tsx src/pages/logger/components/organisms/ActionStage.test.tsx` -> **17 passed**
+     - `npx tsc --noEmit --pretty false` -> **PASS**
+     - `npx playwright test e2e/qa-fixes-v2.spec.ts e2e/logger-field-flow.spec.ts e2e/logger-analytics-matrix.spec.ts --workers=4 --retries=1` -> **66 passed**
+     - `pre-commit run --all-files` -> **PASS**
+
 ### Team Acronym Normalization in Analytics
 
 Resolved analytics acronym fallback so team initials honor configured abbreviations and no longer default to first-three-letter truncation.

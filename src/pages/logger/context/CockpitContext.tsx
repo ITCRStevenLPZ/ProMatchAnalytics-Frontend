@@ -312,6 +312,12 @@ export function CockpitProvider({ children }: { children: ReactNode }) {
     setMatch,
   });
 
+  useEffect(() => {
+    if (clockMode === "INEFFECTIVE" || hasActiveIneffective) {
+      setDragLocked(false);
+    }
+  }, [clockMode, hasActiveIneffective]);
+
   useCockpitIneffectiveTickEffect({
     match,
     hasActiveIneffective,
@@ -769,8 +775,14 @@ export function CockpitProvider({ children }: { children: ReactNode }) {
   });
 
   // ── Manual labels ─────────────────────────────────────────────────────
-  const manualHomeTeamLabel = match?.home_team.name || t("homeTeam", "Home");
-  const manualAwayTeamLabel = match?.away_team.name || t("awayTeam", "Away");
+  const manualHomeTeamLabel =
+    match?.home_team.short_name ||
+    match?.home_team.name ||
+    t("homeTeam", "Home");
+  const manualAwayTeamLabel =
+    match?.away_team.short_name ||
+    match?.away_team.name ||
+    t("awayTeam", "Away");
 
   // ── Context value ─────────────────────────────────────────────────────
   const value = useMemo(

@@ -1201,6 +1201,9 @@ export function MatchAnalytics({
     doc.save(`analytics-${match.id || "match"}-${timestamp}.pdf`);
   };
 
+  const homeTeamLabel = match.home_team.short_name || match.home_team.name;
+  const awayTeamLabel = match.away_team.short_name || match.away_team.name;
+
   return (
     <div className="space-y-6" data-testid="analytics-panel">
       {/* Header */}
@@ -1252,9 +1255,9 @@ export function MatchAnalytics({
           <div className="flex flex-col gap-2">
             <div
               className="text-lg md:text-xl font-semibold truncate"
-              title={match.home_team.name}
+              title={homeTeamLabel}
             >
-              {match.home_team.name}
+              {homeTeamLabel}
             </div>
             <div
               className="relative h-16 w-16"
@@ -1277,9 +1280,9 @@ export function MatchAnalytics({
           <div className="flex flex-col items-end gap-2">
             <div
               className="text-lg md:text-xl font-semibold truncate"
-              title={match.away_team.name}
+              title={awayTeamLabel}
             >
-              {match.away_team.name}
+              {awayTeamLabel}
             </div>
             <div
               className="relative h-16 w-16"
@@ -1300,7 +1303,7 @@ export function MatchAnalytics({
 
         <div className="grid grid-cols-[minmax(80px,1fr)_minmax(130px,170px)_minmax(80px,1fr)] md:grid-cols-[minmax(80px,1fr)_minmax(150px,190px)_minmax(80px,1fr)] text-sm md:text-base uppercase tracking-wide text-emerald-200 mb-2 gap-2">
           <div className="truncate" data-testid="analytics-shortname-home">
-            {match.home_team.short_name}
+            {homeTeamLabel}
           </div>
           <div className="text-center truncate">
             {t("analytics.metric", "Metric")}
@@ -1309,7 +1312,7 @@ export function MatchAnalytics({
             className="text-right truncate"
             data-testid="analytics-shortname-away"
           >
-            {match.away_team.short_name}
+            {awayTeamLabel}
           </div>
         </div>
 
@@ -1741,13 +1744,13 @@ export function MatchAnalytics({
           <div>
             <div className="text-3xl font-bold">{analytics.homeTotal}</div>
             <div className="text-sm opacity-90">
-              {match.home_team.name} {t("analytics.events", "Events")}
+              {homeTeamLabel} {t("analytics.events", "Events")}
             </div>
           </div>
           <div>
             <div className="text-3xl font-bold">{analytics.awayTotal}</div>
             <div className="text-sm opacity-90">
-              {match.away_team.name} {t("analytics.events", "Events")}
+              {awayTeamLabel} {t("analytics.events", "Events")}
             </div>
           </div>
           <div>

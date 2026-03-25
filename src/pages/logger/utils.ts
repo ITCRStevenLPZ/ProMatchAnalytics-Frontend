@@ -450,10 +450,12 @@ const resolveConfiguredTeamShortName = (team: any): string | null => {
   const directCandidates = [
     team?.short_name,
     team?.shortName,
+    team?.shortname,
     team?.abbreviation,
     team?.abbr,
     team?.acronym,
     team?.initials,
+    team?.sigla,
     team?.siglas,
     team?.team_short_name,
   ];
@@ -464,12 +466,34 @@ const resolveConfiguredTeamShortName = (team: any): string | null => {
   }
 
   const nestedCandidates = [
+    team?.team?.short_name,
+    team?.team?.shortName,
+    team?.team?.shortname,
+    team?.team?.abbreviation,
+    team?.team?.abbr,
+    team?.team?.sigla,
+    team?.team?.siglas,
+    team?.details?.short_name,
+    team?.details?.shortName,
+    team?.details?.shortname,
+    team?.details?.abbreviation,
+    team?.details?.abbr,
+    team?.details?.sigla,
+    team?.details?.siglas,
     team?.metadata?.short_name,
     team?.metadata?.shortName,
+    team?.metadata?.shortname,
     team?.metadata?.abbreviation,
     team?.metadata?.abbr,
+    team?.metadata?.sigla,
+    team?.metadata?.siglas,
     team?.meta?.short_name,
+    team?.meta?.shortName,
+    team?.meta?.shortname,
     team?.meta?.abbreviation,
+    team?.meta?.abbr,
+    team?.meta?.sigla,
+    team?.meta?.siglas,
   ];
 
   for (const candidate of nestedCandidates) {

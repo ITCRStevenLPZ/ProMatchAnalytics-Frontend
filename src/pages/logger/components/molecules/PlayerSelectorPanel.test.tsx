@@ -81,4 +81,9 @@ describe("PlayerSelectorPanel", () => {
     expect(screen.getByText("onPitch")).toBeInTheDocument();
     expect(screen.getByText("substitutes")).toBeInTheDocument();
   });
+
+  it("uses team short_name for team labels when available", () => {
+    render(<PlayerSelectorPanel {...defaultProps} />);
+    expect(screen.getByText("HOM")).toBeInTheDocument();
+  });
 });

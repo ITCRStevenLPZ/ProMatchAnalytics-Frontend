@@ -208,11 +208,13 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
   );
 
   const makePlayerDragMove = useCallback(
-    (playerId: string) => (displayX: number, displayY: number) => {
-      setDragPreview({ id: playerId, x: displayX, y: displayY });
-      onDragStart?.(playerId);
-    },
-    [onDragStart],
+    (playerId: string, playerPosition: string, side: "home" | "away") =>
+      (displayX: number, displayY: number) => {
+        setDragPreview({ id: playerId, x: displayX, y: displayY });
+        onDragStart?.(playerId);
+        onPlayerDragEnd(playerId, displayX, displayY, playerPosition, side);
+      },
+    [onDragStart, onPlayerDragEnd],
   );
 
   const renderPlayerNode = useCallback(
@@ -249,7 +251,7 @@ const TacticalField: React.FC<TacticalFieldProps> = ({
             const location = resolveStatsbombLocation(display.x, display.y);
             onPlayerClick(player, anchor, location, side);
           }}
-          onDragMove={makePlayerDragMove(player.id)}
+          onDragMove={makePlayerDragMove(player.id, player.position, side)}
           onDragEnd={makePlayerDragEnd(player.id, player.position, side)}
         />
       );

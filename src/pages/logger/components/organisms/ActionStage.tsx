@@ -1,4 +1,4 @@
-import { Play, MapPin, Zap } from "../../../../components/icons";
+import { MapPin, Zap } from "../../../../components/icons";
 import { IS_E2E_TEST_MODE } from "../../../../lib/loggerApi";
 import { KEY_ACTION_MAP, QUICK_ACTIONS } from "../../constants";
 import type { PositionMode } from "../../hooks/useActionFlow";
@@ -36,7 +36,6 @@ interface ActionStageProps {
   handleOpenMoreActions: () => void;
   resetFlow: () => void;
   showFieldResume: boolean;
-  handleModeSwitchGuarded: (mode: "EFFECTIVE" | "INEFFECTIVE") => void;
   priorityPlayerId: string | null;
   isGlobalClockRunning: boolean;
   clockMode: "EFFECTIVE" | "INEFFECTIVE";
@@ -72,6 +71,7 @@ interface ActionStageProps {
   awayFormation?: Formation | null;
   applyFormation?: (side: "home" | "away", formation: Formation | null) => void;
   dragLocked?: boolean;
+  hasActiveIneffective?: boolean;
   /** When true (live match), expand drag bounds to full field. */
   isMatchLive?: boolean;
   positionMode: PositionMode;
@@ -100,7 +100,6 @@ export default function ActionStage({
   handleOpenMoreActions,
   resetFlow,
   showFieldResume,
-  handleModeSwitchGuarded,
   priorityPlayerId,
   isGlobalClockRunning,
   clockMode,
@@ -127,11 +126,16 @@ export default function ActionStage({
   awayFormation,
   applyFormation,
   dragLocked = true,
+  hasActiveIneffective = false,
   isMatchLive = false,
   positionMode,
   onPositionModeChange,
   t,
 }: ActionStageProps) {
+  const ineffectiveWindowOpen =
+    hasActiveIneffective || clockMode === "INEFFECTIVE" || showFieldResume;
+  const effectiveDragLocked = dragLocked && !ineffectiveWindowOpen;
+
   return (
     <div className="min-h-[500px] flex-none bg-slate-800/30 rounded-xl p-4 border border-slate-700/50 relative flex flex-col">
       {/* Position-mode toggle — sits above the soccer field */}
@@ -208,19 +212,7 @@ export default function ActionStage({
                   onCancel={resetFlow}
                   t={t}
                 />
-                {showFieldResume && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <button
-                      type="button"
-                      data-testid="btn-resume-effective"
-                      onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
-                      className="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-black text-sm md:text-base uppercase tracking-wider transition-colors shadow-xl shadow-emerald-900/40"
-                    >
-                      <Play size={20} />
-                      {t("resumeEffective", "Resume Effective Time")}
-                    </button>
-                  </div>
-                )}
+                {null}
               </>
             ) : currentStep === "selectDestination" &&
               selectedPlayer &&
@@ -255,18 +247,6 @@ export default function ActionStage({
                   </button>
                 </div>
               </div>
-            ) : showFieldResume ? (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <button
-                  type="button"
-                  data-testid="btn-resume-effective"
-                  onClick={() => handleModeSwitchGuarded("EFFECTIVE")}
-                  className="pointer-events-auto flex items-center gap-3 px-8 py-4 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 rounded-full font-black text-sm md:text-base uppercase tracking-wider transition-colors shadow-xl shadow-emerald-900/40"
-                >
-                  <Play size={20} />
-                  {t("resumeEffective", "Resume Effective Time")}
-                </button>
-              </div>
             ) : null
           }
           forceFieldMode={!getDisplayPosition}
@@ -285,7 +265,7 @@ export default function ActionStage({
             !IS_E2E_TEST_MODE &&
             (!isGlobalClockRunning || clockMode !== "EFFECTIVE" || isVarActive)
           }
-          dragLocked={dragLocked}
+          dragLocked={effectiveDragLocked}
           isMatchLive={isMatchLive}
           visiblePlayerIds={
             currentStep === "selectZone" && selectedPlayer

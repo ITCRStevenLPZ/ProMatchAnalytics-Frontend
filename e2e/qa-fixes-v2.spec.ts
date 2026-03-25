@@ -8,6 +8,7 @@ import {
 import {
   gotoLoggerPage,
   getHarnessMatchContext,
+  ensureClockRunning,
   sendRawEventThroughHarness,
   waitForPendingAckToClear,
   BACKEND_BASE_URL,
@@ -290,5 +291,114 @@ test.describe("QA Fixes v2", () => {
     const awayText = (await effRow.locator("div").nth(2).textContent()) || "";
     expect(homeText.trim()).toMatch(/\d{2}:\d{2}/);
     expect(awayText.trim()).toMatch(/\d{2}:\d{2}/);
+  });
+
+  test("QA-8: cockpit + analytics team labels use stored short_name values", async ({
+    page,
+  }) => {
+    const configuredHomeName = "Metropolitan Athletic Collective United";
+    const configuredAwayName = "River Plate International Academy";
+    const configuredHomeShortName = "ZXQ";
+    const configuredAwayShortName = "N17";
+    const fallbackHomeShortName = configuredHomeName.slice(0, 3).toUpperCase();
+    const fallbackAwayShortName = configuredAwayName.slice(0, 3).toUpperCase();
+
+    await page.route(
+      `**/api/v1/logger/matches/${QA_MATCH_ID}`,
+      async (route) => {
+        const response = await route.fetch();
+        const json = (await response.json()) as Record<string, any>;
+
+        json.home_team = {
+          ...(json.home_team || {}),
+          name: configuredHomeName,
+          short_name: configuredHomeShortName,
+        };
+        json.away_team = {
+          ...(json.away_team || {}),
+          name: configuredAwayName,
+          short_name: configuredAwayShortName,
+        };
+
+        await route.fulfill({ response, json });
+      },
+    );
+
+    await gotoLoggerPage(page, QA_MATCH_ID);
+
+    await sendEvent(page, {
+      match_clock: "00:03.000",
+      team_id: context!.homeTeamId,
+      player_id: "HOME-1",
+      type: "Pass",
+      data: { outcome: "Complete" },
+    });
+
+    const leftFormationSlot = page.getByTestId("formation-slot-left");
+    const rightFormationSlot = page.getByTestId("formation-slot-right");
+    await expect(leftFormationSlot).toContainText(configuredHomeShortName);
+    await expect(rightFormationSlot).toContainText(configuredAwayShortName);
+
+    const cockpitHomeLabel = (
+      (await leftFormationSlot.locator("span").first().textContent()) || ""
+    ).trim();
+    const cockpitAwayLabel = (
+      (await rightFormationSlot.locator("span").first().textContent()) || ""
+    ).trim();
+    expect(cockpitHomeLabel).toBe(configuredHomeShortName);
+    expect(cockpitAwayLabel).toBe(configuredAwayShortName);
+    expect(cockpitHomeLabel).not.toBe(fallbackHomeShortName);
+    expect(cockpitAwayLabel).not.toBe(fallbackAwayShortName);
+
+    await page.getByTestId("toggle-analytics").click();
+    await expect(page.getByTestId("analytics-panel")).toBeVisible({
+      timeout: 15000,
+    });
+
+    await expect(page.getByTestId("analytics-shortname-home")).toHaveText(
+      configuredHomeShortName,
+    );
+    await expect(page.getByTestId("analytics-shortname-away")).toHaveText(
+      configuredAwayShortName,
+    );
+
+    const analyticsHomeLabel = (
+      (await page.getByTestId("analytics-shortname-home").textContent()) || ""
+    ).trim();
+    const analyticsAwayLabel = (
+      (await page.getByTestId("analytics-shortname-away").textContent()) || ""
+    ).trim();
+    expect(analyticsHomeLabel).not.toBe(fallbackHomeShortName);
+    expect(analyticsAwayLabel).not.toBe(fallbackAwayShortName);
+  });
+
+  test("QA-9: ineffective mode exposes draggable player state", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, QA_MATCH_ID);
+    await ensureClockRunning(page);
+
+    await page.getByTestId("btn-ineffective-event").click();
+    await expect(page.getByTestId("ineffective-note-modal")).toBeVisible({
+      timeout: 10000,
+    });
+    await page
+      .getByTestId("ineffective-note-input")
+      .fill("E2E drag under ineffective mode");
+    await page.getByTestId("ineffective-note-save").click();
+    await waitForPendingAckToClear(page);
+
+    await expect(page.getByTestId("ineffective-clock-value")).toContainText(
+      /\d{2}:\d{2}/,
+    );
+
+    const player = page.getByTestId("field-player-HOME-1");
+    await expect(player).toBeVisible({ timeout: 10000 });
+    const playerClass = (await player.getAttribute("class")) || "";
+    expect(playerClass).toContain("cursor-grab");
+    await expect(page.getByTestId("ineffective-clock-value")).toContainText(
+      /\d{2}:\d{2}/,
+    );
   });
 });

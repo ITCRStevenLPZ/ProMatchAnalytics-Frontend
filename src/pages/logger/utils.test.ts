@@ -158,4 +158,54 @@ describe("team short name normalization", () => {
 
     expect(normalized.short_name).toBe("LDA");
   });
+
+  it("accepts additional direct aliases like shortname and sigla", () => {
+    const normalizedFromShortname = normalizeTeamFromApi(
+      {
+        team_id: "H",
+        name: "Liga Deportiva Alajuelense",
+        shortname: "lda",
+      },
+      "HOME",
+    );
+
+    const normalizedFromSigla = normalizeTeamFromApi(
+      {
+        team_id: "A",
+        name: "Club Sport Herediano",
+        sigla: "csh",
+      },
+      "AWAY",
+    );
+
+    expect(normalizedFromShortname.short_name).toBe("LDA");
+    expect(normalizedFromSigla.short_name).toBe("CSH");
+  });
+
+  it("resolves nested team metadata short names before deriving initials", () => {
+    const normalized = normalizeTeamFromApi(
+      {
+        team_id: "H",
+        name: "Liga Deportiva Alajuelense",
+        team: {
+          shortname: "lda",
+        },
+      },
+      "HOME",
+    );
+
+    expect(normalized.short_name).toBe("LDA");
+  });
+
+  it("keeps initials fallback when no configured short name exists", () => {
+    const normalized = normalizeTeamFromApi(
+      {
+        team_id: "A",
+        name: "Deportivo Saprissa",
+      },
+      "AWAY",
+    );
+
+    expect(normalized.short_name).toBe("DS");
+  });
 });

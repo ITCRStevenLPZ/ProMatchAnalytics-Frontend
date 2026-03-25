@@ -318,7 +318,6 @@ export default function LoggerView({
         handleOpenMoreActions={handleOpenMoreActions}
         resetFlow={resetFlow}
         showFieldResume={showFieldResume}
-        handleModeSwitchGuarded={handleModeSwitchGuarded}
         priorityPlayerId={priorityPlayerId}
         isGlobalClockRunning={isGlobalClockRunning}
         clockMode={clockMode}
@@ -345,6 +344,7 @@ export default function LoggerView({
         awayFormation={awayFormation}
         applyFormation={applyFormation}
         dragLocked={dragLocked}
+        hasActiveIneffective={hasActiveIneffective}
         isMatchLive={isMatchLive}
         positionMode={positionMode}
         onPositionModeChange={onPositionModeChange}

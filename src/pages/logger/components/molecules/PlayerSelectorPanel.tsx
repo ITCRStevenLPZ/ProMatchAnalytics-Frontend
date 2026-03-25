@@ -530,8 +530,8 @@ const PlayerSelectorPanel = ({
       onPlayerDragEnd ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
           <TacticalField
-            homeTeamName={match.home_team.name}
-            awayTeamName={match.away_team.name}
+            homeTeamName={match.home_team.short_name || match.home_team.name}
+            awayTeamName={match.away_team.short_name || match.away_team.name}
             homePlayers={match.home_team.players.filter((p) =>
               onFieldIds.home.has(p.id),
             )}
@@ -568,8 +568,8 @@ const PlayerSelectorPanel = ({
       ) : resolvedViewMode === "field" ? (
         <div className={`mb-6 ${selectionLocked ? "opacity-50" : ""}`}>
           <SoccerField
-            homeTeamName={match.home_team.name}
-            awayTeamName={match.away_team.name}
+            homeTeamName={match.home_team.short_name || match.home_team.name}
+            awayTeamName={match.away_team.short_name || match.away_team.name}
             homePlayers={match.home_team.players.filter((p) =>
               onFieldIds.home.has(p.id),
             )}
@@ -615,7 +615,7 @@ const PlayerSelectorPanel = ({
               <div className="space-y-3" key={team.id}>
                 <h3 className="font-medium text-slate-300 flex items-center gap-2 mb-3">
                   <span className={`w-2 h-2 rounded-full ${labelColor}`}></span>
-                  {team.name}
+                  {team.short_name || team.name}
                 </h3>
                 <div className="space-y-2">
                   <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">

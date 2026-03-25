@@ -183,6 +183,54 @@ test.describe("Tactical Field", () => {
     expect(afterCoords.x).toBeGreaterThan(beforeCoords.x);
   });
 
+  test("ineffective mode: players can still be repositioned", async ({
+    page,
+  }) => {
+    test.setTimeout(60000);
+    await gotoLoggerPage(page, FIELD_MATCH_ID);
+    await ensureAdminRole(page);
+    await ensureClockRunning(page);
+
+    await page.getByTestId("btn-ineffective-event").click();
+    await expect(page.getByTestId("ineffective-note-modal")).toBeVisible({
+      timeout: 10000,
+    });
+    await page
+      .getByTestId("ineffective-note-input")
+      .fill("Field reposition during ineffective mode");
+    await page.getByTestId("ineffective-note-save").click();
+    await waitForPendingAckToClear(page);
+    await expect(page.getByTestId("ineffective-clock-value")).toContainText(
+      /\d{2}:\d{2}/,
+    );
+
+    const player = page.getByTestId("field-player-HOME-1");
+    await expect(player).toBeVisible({ timeout: 10000 });
+    const playerClass = (await player.getAttribute("class")) || "";
+    expect(playerClass).toContain("cursor-grab");
+    await player.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
+    const beforeCoords = await getTacticalCoords(page, "HOME-1");
+    const box = await player.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) throw new Error("Player bounding box unavailable");
+
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 60, startY + 30, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    const afterCoords = await getTacticalCoords(page, "HOME-1");
+    const movedX = Math.abs(afterCoords.x - beforeCoords.x);
+    const movedY = Math.abs(afterCoords.y - beforeCoords.y);
+    expect(movedX > 0.5 || movedY > 0.5).toBeTruthy();
+  });
+
   test("click without drag triggers action flow (player selection)", async ({
     page,
   }) => {
