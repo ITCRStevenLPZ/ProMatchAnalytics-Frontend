@@ -225,9 +225,7 @@ export default function LoggerView({
           onTimeoutToggle={handleTimeoutToggle}
           isVarActive={isVarActive}
           isTimeoutActive={isTimeoutActive}
-          hideResumeButton={
-            (showFieldResume && !!pendingCardType) || !!isHalftimePhase
-          }
+          hideResumeButton={showFieldResume || !!isHalftimePhase}
           periodElapsedSeconds={periodElapsedSeconds}
           periodMinimumSeconds={periodMinimumSeconds}
           t={t}
@@ -285,7 +283,7 @@ export default function LoggerView({
         />
       </div>
 
-      {showFieldResume && pendingCardType && (
+      {showFieldResume && (
         <div className="flex-none flex justify-center">
           <button
             type="button"
