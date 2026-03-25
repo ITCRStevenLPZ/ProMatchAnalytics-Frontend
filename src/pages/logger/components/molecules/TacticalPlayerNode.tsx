@@ -205,7 +205,7 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
     >
       {/* Jersey number circle */}
       <div
-        className={`flex items-center justify-center w-14 h-14 rounded-full text-lg font-bold shadow-lg border-2 transition-shadow ${
+        className={`flex items-center justify-center w-10 h-10 md:w-11 md:h-11 lg:w-14 lg:h-14 rounded-full text-sm md:text-base lg:text-lg font-bold shadow-lg border-2 transition-shadow ${
           side === "home"
             ? "bg-red-600 text-white border-red-300/60"
             : "bg-blue-600 text-white border-blue-300/60"
@@ -216,7 +216,7 @@ const TacticalPlayerNode: React.FC<TacticalPlayerNodeProps> = ({
 
       {/* Name label */}
       <span
-        className={`mt-0.5 px-2 py-0.5 rounded text-xs font-semibold leading-tight text-center max-w-[120px] whitespace-nowrap overflow-hidden text-ellipsis ${
+        className={`mt-0.5 px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-semibold leading-tight text-center max-w-[100px] lg:max-w-[120px] whitespace-nowrap overflow-hidden text-ellipsis ${
           side === "home"
             ? "bg-red-900/80 text-white"
             : "bg-blue-900/80 text-white"
