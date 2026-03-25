@@ -31,6 +31,7 @@
 - [x] LoggerCockpit context provider extraction (reduce monolith)
 - [x] Fix tactical drag constraint blocking live "Auto" mode logging
 - [x] Analytics restoration: Live Match Context banner, on-field avg age, global totals
+- [x] Analytics UI: hide chart widgets temporarily and move heat maps above player stats
 - [x] Unrestricted tactical dragging during live matches (bounds overlay hidden)
 - [x] E2E coverage expansion: +31 new tests across 7 spec files (P0–P3 gaps)
 

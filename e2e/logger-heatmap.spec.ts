@@ -144,6 +144,18 @@ test.describe("Heat-map analytics", () => {
     await expect(page.getByTestId("heatmap-home-canvas")).toBeVisible();
     await expect(page.getByTestId("heatmap-away-canvas")).toBeVisible();
     await expect(page.getByTestId("heatmap-match-canvas")).toBeVisible();
+
+    // Chart widgets are hidden from the analytics UI for now.
+    await expect(
+      page.getByTestId("analytics-event-timeline-section"),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("analytics-chart-grid")).toHaveCount(0);
+    await expect(page.getByTestId("analytics-top-players-section")).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByTestId("analytics-activity-comparison-section"),
+    ).toHaveCount(0);
   });
 
   test("events with location populate the correct heat-map zones", async ({
@@ -232,6 +244,22 @@ test.describe("Heat-map analytics", () => {
 
     const matchZone23 = page.getByTestId("heatmap-match-zone-23");
     await expect(matchZone23).toHaveAttribute("data-zone-count", "1");
+
+    // Heat maps now sit between ineffective breakdown and player statistics.
+    const section = page.getByTestId("heatmap-section");
+    const ineffectiveBreakdown = page.getByTestId(
+      "analytics-ineffective-breakdown",
+    );
+    const playerStats = page.getByTestId("player-stats-table");
+    const breakdownBox = await ineffectiveBreakdown.boundingBox();
+    const heatmapBox = await section.boundingBox();
+    const playerStatsBox = await playerStats.boundingBox();
+
+    expect(breakdownBox).not.toBeNull();
+    expect(heatmapBox).not.toBeNull();
+    expect(playerStatsBox).not.toBeNull();
+    expect(heatmapBox!.y).toBeGreaterThan(breakdownBox!.y);
+    expect(playerStatsBox!.y).toBeGreaterThan(heatmapBox!.y);
   });
 
   test("events without location are excluded from heat map", async ({

@@ -1203,6 +1203,7 @@ export function MatchAnalytics({
 
   const homeTeamLabel = match.home_team.short_name || match.home_team.name;
   const awayTeamLabel = match.away_team.short_name || match.away_team.name;
+  const showChartSections = false;
 
   return (
     <div className="space-y-6" data-testid="analytics-panel">
@@ -1493,247 +1494,285 @@ export function MatchAnalytics({
         />
       </div>
 
-      {/* Event Timeline Chart */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Activity className="text-purple-600" />
-          {t("analytics.eventTimeline", "Event Timeline (5-min intervals)")}
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={analytics.timeline}>
-            <defs>
-              <linearGradient id="colorHome" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={COLORS.home} stopOpacity={0.8} />
-                <stop offset="95%" stopColor={COLORS.home} stopOpacity={0.1} />
-              </linearGradient>
-              <linearGradient id="colorAway" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={COLORS.away} stopOpacity={0.8} />
-                <stop offset="95%" stopColor={COLORS.away} stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="minute"
-              label={{
-                value: t("analytics.minutes", "Minutes"),
-                position: "insideBottom",
-                offset: -5,
-              }}
-              stroke="#6b7280"
-            />
-            <YAxis
-              label={{
-                value: t("analytics.events", "Events"),
-                angle: -90,
-                position: "insideLeft",
-              }}
-              stroke="#6b7280"
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-              labelFormatter={(value) => `${value}'`}
-            />
-            <Legend />
-            <Area
-              type="monotone"
-              dataKey="home"
-              name={match.home_team.short_name}
-              stroke={COLORS.home}
-              fillOpacity={1}
-              fill="url(#colorHome)"
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey="away"
-              name={match.away_team.short_name}
-              stroke={COLORS.away}
-              fillOpacity={1}
-              fill="url(#colorAway)"
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        <div
-          className="mt-3 flex flex-wrap gap-4 text-sm text-gray-600"
-          data-testid="analytics-timeline-summary"
-        >
-          <div data-testid="analytics-home-total">
-            {match.home_team.short_name}: {analytics.homeTotal}
-          </div>
-          <div data-testid="analytics-away-total">
-            {match.away_team.short_name}: {analytics.awayTotal}
-          </div>
-          <div data-testid="analytics-most-active-minute">
-            {t("analytics.mostActive", "Peak Minute")}:{" "}
-            {analytics.mostActiveMinute}'
-          </div>
-        </div>
-      </div>
-
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Event Type Distribution */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Target className="text-blue-600" />
-            {t("analytics.eventTypes", "Event Type Distribution")}
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={analytics.eventTypes}
-                dataKey="count"
-                nameKey="type"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={(entry: any) =>
-                  `${entry.type} ${((entry.percent || 0) * 100).toFixed(0)}%`
-                }
-                labelLine={false}
-              >
-                {analytics.eventTypes.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={EVENT_COLORS[index % EVENT_COLORS.length]}
-                  />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <ul
-            className="mt-4 space-y-1 text-sm text-gray-700"
-            data-testid="analytics-event-types"
+      {showChartSections && (
+        <>
+          {/* Event Timeline Chart */}
+          <div
+            className="bg-white rounded-lg shadow-lg p-6"
+            data-testid="analytics-event-timeline-section"
           >
-            {analytics.eventTypes.map((evt) => (
-              <li
-                key={evt.type}
-                data-testid={`analytics-event-type-${slugify(evt.type)}`}
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Activity className="text-purple-600" />
+              {t("analytics.eventTimeline", "Event Timeline (5-min intervals)")}
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={analytics.timeline}>
+                <defs>
+                  <linearGradient id="colorHome" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={COLORS.home}
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS.home}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                  <linearGradient id="colorAway" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={COLORS.away}
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={COLORS.away}
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="minute"
+                  label={{
+                    value: t("analytics.minutes", "Minutes"),
+                    position: "insideBottom",
+                    offset: -5,
+                  }}
+                  stroke="#6b7280"
+                />
+                <YAxis
+                  label={{
+                    value: t("analytics.events", "Events"),
+                    angle: -90,
+                    position: "insideLeft",
+                  }}
+                  stroke="#6b7280"
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                  }}
+                  labelFormatter={(value) => `${value}'`}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="home"
+                  name={match.home_team.short_name}
+                  stroke={COLORS.home}
+                  fillOpacity={1}
+                  fill="url(#colorHome)"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="away"
+                  name={match.away_team.short_name}
+                  stroke={COLORS.away}
+                  fillOpacity={1}
+                  fill="url(#colorAway)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div
+              className="mt-3 flex flex-wrap gap-4 text-sm text-gray-600"
+              data-testid="analytics-timeline-summary"
+            >
+              <div data-testid="analytics-home-total">
+                {match.home_team.short_name}: {analytics.homeTotal}
+              </div>
+              <div data-testid="analytics-away-total">
+                {match.away_team.short_name}: {analytics.awayTotal}
+              </div>
+              <div data-testid="analytics-most-active-minute">
+                {t("analytics.mostActive", "Peak Minute")}:{" "}
+                {analytics.mostActiveMinute}'
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+            data-testid="analytics-chart-grid"
+          >
+            <div
+              className="bg-white rounded-lg shadow-lg p-6"
+              data-testid="analytics-event-types-section"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Target className="text-blue-600" />
+                {t("analytics.eventTypes", "Event Type Distribution")}
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={analytics.eventTypes}
+                    dataKey="count"
+                    nameKey="type"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={(entry: any) =>
+                      `${entry.type} ${((entry.percent || 0) * 100).toFixed(
+                        0,
+                      )}%`
+                    }
+                    labelLine={false}
+                  >
+                    {analytics.eventTypes.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={EVENT_COLORS[index % EVENT_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <ul
+                className="mt-4 space-y-1 text-sm text-gray-700"
+                data-testid="analytics-event-types"
               >
-                {evt.type}: {evt.count}
-              </li>
-            ))}
-          </ul>
-        </div>
+                {analytics.eventTypes.map((evt) => (
+                  <li
+                    key={evt.type}
+                    data-testid={`analytics-event-type-${slugify(evt.type)}`}
+                  >
+                    {evt.type}: {evt.count}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-        {/* Team Comparison Radar */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Shield className="text-green-600" />
-            {t("analytics.teamComparison", "Team Comparison")}
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={analytics.teamComparison}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey="metric" stroke="#6b7280" />
-              <PolarRadiusAxis stroke="#6b7280" />
-              <Radar
-                name={match.home_team.short_name}
-                dataKey="home"
-                stroke={COLORS.home}
-                fill={COLORS.home}
-                fillOpacity={0.6}
-              />
-              <Radar
-                name={match.away_team.short_name}
-                dataKey="away"
-                stroke={COLORS.away}
-                fill={COLORS.away}
-                fillOpacity={0.6}
-              />
-              <Legend />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+            <div
+              className="bg-white rounded-lg shadow-lg p-6"
+              data-testid="analytics-team-comparison-section"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Shield className="text-green-600" />
+                {t("analytics.teamComparison", "Team Comparison")}
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={analytics.teamComparison}>
+                  <PolarGrid stroke="#e5e7eb" />
+                  <PolarAngleAxis dataKey="metric" stroke="#6b7280" />
+                  <PolarRadiusAxis stroke="#6b7280" />
+                  <Radar
+                    name={match.home_team.short_name}
+                    dataKey="home"
+                    stroke={COLORS.home}
+                    fill={COLORS.home}
+                    fillOpacity={0.6}
+                  />
+                  <Radar
+                    name={match.away_team.short_name}
+                    dataKey="away"
+                    stroke={COLORS.away}
+                    fill={COLORS.away}
+                    fillOpacity={0.6}
+                  />
+                  <Legend />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-      {/* Top Players Activity */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Users className="text-amber-600" />
-          {t("analytics.topPlayers", "Most Active Players")}
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={analytics.topPlayers} layout="horizontal">
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis type="number" stroke="#6b7280" />
-            <YAxis
-              dataKey="player_name"
-              type="category"
-              width={100}
-              stroke="#6b7280"
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-            />
-            <Legend />
-            <Bar
-              dataKey="events"
-              name={t("analytics.totalEvents", "Total")}
-              fill={COLORS.primary}
-              radius={[0, 4, 4, 0]}
-            />
-            <Bar
-              dataKey="passes"
-              name={t("analytics.passes", "Passes")}
-              fill={COLORS.secondary}
-              radius={[0, 4, 4, 0]}
-            />
-            <Bar
-              dataKey="shots"
-              name={t("analytics.shots", "Shots")}
-              fill={COLORS.accent}
-              radius={[0, 4, 4, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          <div
+            className="bg-white rounded-lg shadow-lg p-6"
+            data-testid="analytics-top-players-section"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Users className="text-amber-600" />
+              {t("analytics.topPlayers", "Most Active Players")}
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.topPlayers} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" stroke="#6b7280" />
+                <YAxis
+                  dataKey="player_name"
+                  type="category"
+                  width={100}
+                  stroke="#6b7280"
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="events"
+                  name={t("analytics.totalEvents", "Total")}
+                  fill={COLORS.primary}
+                  radius={[0, 4, 4, 0]}
+                />
+                <Bar
+                  dataKey="passes"
+                  name={t("analytics.passes", "Passes")}
+                  fill={COLORS.secondary}
+                  radius={[0, 4, 4, 0]}
+                />
+                <Bar
+                  dataKey="shots"
+                  name={t("analytics.shots", "Shots")}
+                  fill={COLORS.accent}
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-      {/* Team Activity Comparison */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Award className="text-purple-600" />
-          {t("analytics.activityComparison", "Activity Comparison by Metric")}
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={analytics.teamComparison}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="metric" stroke="#6b7280" />
-            <YAxis stroke="#6b7280" />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-            />
-            <Legend />
-            <Bar
-              dataKey="home"
-              name={match.home_team.short_name}
-              fill={COLORS.home}
-              radius={[4, 4, 0, 0]}
-            />
-            <Bar
-              dataKey="away"
-              name={match.away_team.short_name}
-              fill={COLORS.away}
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          <div
+            className="bg-white rounded-lg shadow-lg p-6"
+            data-testid="analytics-activity-comparison-section"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Award className="text-purple-600" />
+              {t(
+                "analytics.activityComparison",
+                "Activity Comparison by Metric",
+              )}
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={analytics.teamComparison}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="metric" stroke="#6b7280" />
+                <YAxis stroke="#6b7280" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="home"
+                  name={match.home_team.short_name}
+                  fill={COLORS.home}
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  dataKey="away"
+                  name={match.away_team.short_name}
+                  fill={COLORS.away}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
 
       {/* Summary Stats */}
       <div className="bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg shadow-lg p-6 text-white">

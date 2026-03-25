@@ -184,9 +184,17 @@ test.describe("Logger analytics integrity", () => {
     await expect(analyticsPanel).toContainText(/Pass(es)?|Pases/i);
     await expect(analyticsPanel).toContainText(/Shot(s)?|Tiros?/i);
     await expect(analyticsPanel).toContainText(/Fouls?|Faltas?/i);
-    await expect(analyticsPanel).toContainText(
-      /Interceptions?|Intercepciones?/i,
+    await expect(analyticsPanel).toContainText(/Possession|Posesi[oó]n/i);
+    await expect(
+      page.getByTestId("analytics-event-timeline-section"),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("analytics-chart-grid")).toHaveCount(0);
+    await expect(page.getByTestId("analytics-top-players-section")).toHaveCount(
+      0,
     );
+    await expect(
+      page.getByTestId("analytics-activity-comparison-section"),
+    ).toHaveCount(0);
 
     // Undo the last event and ensure totals drop
     await triggerUndoThroughHarness(page);
