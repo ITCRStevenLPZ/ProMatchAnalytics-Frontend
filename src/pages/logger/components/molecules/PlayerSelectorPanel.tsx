@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { TFunction } from "i18next";
 import {
   Users,
@@ -185,6 +186,7 @@ interface PlayerSelectorPanelProps {
   visiblePlayerIds?: Set<string>;
   /** When true (live match), expand tactical drag bounds to full field. */
   isMatchLive?: boolean;
+  headerAction?: ReactNode;
   t: TFunction<"logger">;
 }
 
@@ -221,6 +223,7 @@ const PlayerSelectorPanel = ({
   applyFormation: _applyFormation,
   visiblePlayerIds,
   isMatchLive = false,
+  headerAction,
   t,
 }: PlayerSelectorPanelProps) => {
   const [viewMode, setViewMode] = useState<"list" | "field" | "tactical">(
@@ -446,11 +449,14 @@ const PlayerSelectorPanel = ({
           </span>
         </div>
       )}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-          <Users size={20} />
-          {t("selectPlayer", "Select Player")}
-        </h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
+            <Users size={20} />
+            {t("selectPlayer", "Select Player")}
+          </h2>
+          {headerAction}
+        </div>
         {!forceFieldMode && !forceListMode && !forceTacticalMode && (
           <div className="flex bg-slate-900 rounded-lg p-1">
             <button

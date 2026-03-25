@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { MapPin, Zap } from "../../../../components/icons";
 import { IS_E2E_TEST_MODE } from "../../../../lib/loggerApi";
 import { KEY_ACTION_MAP, QUICK_ACTIONS } from "../../constants";
@@ -76,6 +77,7 @@ interface ActionStageProps {
   isMatchLive?: boolean;
   positionMode: PositionMode;
   onPositionModeChange: (mode: PositionMode) => void;
+  headerAction?: ReactNode;
   t: any;
 }
 
@@ -130,6 +132,7 @@ export default function ActionStage({
   isMatchLive = false,
   positionMode,
   onPositionModeChange,
+  headerAction,
   t,
 }: ActionStageProps) {
   const ineffectiveWindowOpen =
@@ -273,6 +276,7 @@ export default function ActionStage({
               : undefined
           }
           t={t}
+          headerAction={headerAction}
         />
       )}
 
